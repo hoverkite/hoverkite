@@ -3,7 +3,6 @@ name = "hoverkite-firmware"
 authors = ["Andrew Walbran <qwandor@gmail.com>"]
 edition = "2018"
 readme = "README.md"
-name = "hoverkite"
 version = "0.1.0"
 
 [dependencies]
@@ -12,6 +11,8 @@ cortex-m-rt = "0.6.10"
 cortex-m-semihosting = "0.3.3"
 embedded-hal = "0.2.4"
 panic-halt = "0.2.0"
+stm32f1 = { version = "0.13.0", features = ["rt", "stm32f103"] }
+stm32f1xx-hal = { version = "0.7.0", features = ["rt", "stm32f103", "medium"] }
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
