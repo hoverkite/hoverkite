@@ -37,7 +37,7 @@
                 "interface/stlink-v2.cfg",
                 "target/stm32f1x.cfg"
             ],
-            "svdFile": "${workspaceRoot}/.vscode/STM32F103.svd",
+            "svdFile": "${workspaceRoot}/svd/GD32F1x0.svd",
             "swoConfig": {
                 "enabled": true,
                 "cpuFrequency": 8000000,
