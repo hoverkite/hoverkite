@@ -78,52 +78,28 @@ impl Hoverboard {
         // NB: Don't try to use pa13, that's SWDIO
 
         cortex_m::interrupt::free(|cs| {
-            // LEDs
-            let side_led = gpioa.pa0.into_push_pull_output(cs);
-            let green_led = gpioa.pa15.into_push_pull_output(cs);
-            let orange_led = gpioa.pa12.into_push_pull_output(cs);
-            let red_led = gpiob.pb3.into_push_pull_output(cs);
-
-            // Buzzer
-            let buzzer = gpiob.pb10.into_push_pull_output(cs);
-
-            // Hall effect sensors
-            let hall_a = gpiob.pb11.into_floating_input(cs);
-            let hall_b = gpiof.pf1.into_floating_input(cs);
-            let hall_c = gpioc.pc14.into_floating_input(cs);
-
-            // Power latch, power button and charge state
-            let power_latch = gpiob.pb2.into_push_pull_output(cs);
-            let power_button = gpioc.pc15.into_floating_input(cs);
-            let charge_state = gpiof.pf0.into_pull_up_input(cs);
-
             // USART
             let tx = gpioa.pa2.into_alternate_af1(cs);
             let rx = gpioa.pa3.into_alternate_af1(cs);
-            let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
-
-            // Battery voltage and current
-            let battery_voltage = gpioa.pa4.into_analog(cs);
-            let current = gpioa.pa6.into_analog(cs);
 
             Hoverboard {
-                serial,
-                buzzer,
-                power_latch,
-                power_button,
-                charge_state,
-                battery_voltage,
-                current,
+                serial: Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc),
+                buzzer: gpiob.pb10.into_push_pull_output(cs),
+                power_latch: gpiob.pb2.into_push_pull_output(cs),
+                power_button: gpioc.pc15.into_floating_input(cs),
+                charge_state: gpiof.pf0.into_pull_up_input(cs),
+                battery_voltage: gpioa.pa4.into_analog(cs),
+                current: gpioa.pa6.into_analog(cs),
                 leds: Leds {
-                    side: side_led,
-                    green: green_led,
-                    orange: orange_led,
-                    red: red_led,
+                    side: gpioa.pa0.into_push_pull_output(cs),
+                    green: gpioa.pa15.into_push_pull_output(cs),
+                    orange: gpioa.pa12.into_push_pull_output(cs),
+                    red: gpiob.pb3.into_push_pull_output(cs),
                 },
                 hall_sensors: HallSensors {
-                    hall_a,
-                    hall_b,
-                    hall_c,
+                    hall_a: gpiob.pb11.into_floating_input(cs),
+                    hall_b: gpiof.pf1.into_floating_input(cs),
+                    hall_c: gpioc.pc14.into_floating_input(cs),
                 },
             }
         })
