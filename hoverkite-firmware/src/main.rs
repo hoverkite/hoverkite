@@ -18,7 +18,10 @@ use stm32f0xx_hal::{
     pac::{self, USART2},
     prelude::*,
     serial::Tx,
+    watchdog::Watchdog,
 };
+
+const WATCHDOG_HZ: u32 = 1;
 
 #[entry]
 fn main() -> ! {
@@ -28,6 +31,9 @@ fn main() -> ! {
     let mut flash = dp.FLASH;
     let mut rcc = dp.RCC.configure().freeze(&mut flash);
 
+    let mut watchdog = Watchdog::new(dp.IWDG);
+    watchdog.start(WATCHDOG_HZ.hz());
+
     let mut hoverboard =
         Hoverboard::new(dp.GPIOA, dp.GPIOB, dp.GPIOC, dp.GPIOF, dp.USART2, &mut rcc);
 
@@ -35,7 +41,9 @@ fn main() -> ! {
     hoverboard.power_latch.set_high().unwrap();
 
     // If power button is pressed, wait until it is released.
-    while hoverboard.power_button.is_high().unwrap() {}
+    while hoverboard.power_button.is_high().unwrap() {
+        watchdog.feed();
+    }
 
     // Split the serial struct into a receiving and a transmitting part
     let (mut tx, mut rx) = hoverboard.serial.split();
@@ -45,6 +53,10 @@ fn main() -> ! {
     let mut command_buffer = [0; 5];
     let mut command_len = 0;
     loop {
+        // The watchdog must be fed every second or so or the microcontroller will reset.
+        watchdog.feed();
+
+        // Read from the USART if data is available.
         match rx.read() {
             Ok(char) => {
                 command_buffer[command_len] = char;
@@ -66,6 +78,7 @@ fn main() -> ! {
             Err(nb::Error::Other(e)) => writeln!(tx, "Read error {:?}", e).unwrap(),
         }
 
+        // Log if the position from the Hall effect sensors has changed.
         let hall_position = hoverboard.hall_sensors.position();
         if hall_position != last_hall_position {
             if let Some(hall_position) = hall_position {
@@ -79,7 +92,9 @@ fn main() -> ! {
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {
             // Wait until it is released.
-            while hoverboard.power_button.is_high().unwrap() {}
+            while hoverboard.power_button.is_high().unwrap() {
+                watchdog.feed();
+            }
             poweroff(&mut tx, &mut hoverboard.power_latch);
         }
     }
