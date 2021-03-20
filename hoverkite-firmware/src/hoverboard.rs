@@ -77,81 +77,55 @@ impl Hoverboard {
 
         // NB: Don't try to use pa13, that's SWDIO
 
-        // LEDs
-        let pa0 = gpioa.pa0;
-        let pa15 = gpioa.pa15;
-        let pa12 = gpioa.pa12;
-        let pb3 = gpiob.pb3;
-        let (side_led, green_led, orange_led, red_led) = cortex_m::interrupt::free(|cs| {
-            (
-                pa0.into_push_pull_output(cs),
-                pa15.into_push_pull_output(cs),
-                pa12.into_push_pull_output(cs),
-                pb3.into_push_pull_output(cs),
-            )
-        });
+        cortex_m::interrupt::free(|cs| {
+            // LEDs
+            let side_led = gpioa.pa0.into_push_pull_output(cs);
+            let green_led = gpioa.pa15.into_push_pull_output(cs);
+            let orange_led = gpioa.pa12.into_push_pull_output(cs);
+            let red_led = gpiob.pb3.into_push_pull_output(cs);
 
-        // Buzzer
-        let pb10 = gpiob.pb10;
-        let buzzer = cortex_m::interrupt::free(|cs| pb10.into_push_pull_output(cs));
+            // Buzzer
+            let buzzer = gpiob.pb10.into_push_pull_output(cs);
 
-        // Hall effect sensors
-        let pb11 = gpiob.pb11;
-        let pf1 = gpiof.pf1;
-        let pc14 = gpioc.pc14;
-        let (hall_a, hall_b, hall_c) = cortex_m::interrupt::free(|cs| {
-            (
-                pb11.into_floating_input(cs),
-                pf1.into_floating_input(cs),
-                pc14.into_floating_input(cs),
-            )
-        });
+            // Hall effect sensors
+            let hall_a = gpiob.pb11.into_floating_input(cs);
+            let hall_b = gpiof.pf1.into_floating_input(cs);
+            let hall_c = gpioc.pc14.into_floating_input(cs);
 
-        // Power latch, power button and charge state
-        let pb2 = gpiob.pb2;
-        let pc15 = gpioc.pc15;
-        let pf0 = gpiof.pf0;
-        let (power_latch, power_button, charge_state) = cortex_m::interrupt::free(|cs| {
-            (
-                pb2.into_push_pull_output(cs),
-                pc15.into_floating_input(cs),
-                pf0.into_pull_up_input(cs),
-            )
-        });
+            // Power latch, power button and charge state
+            let power_latch = gpiob.pb2.into_push_pull_output(cs);
+            let power_button = gpioc.pc15.into_floating_input(cs);
+            let charge_state = gpiof.pf0.into_pull_up_input(cs);
 
-        // USART
-        let pa2 = gpioa.pa2;
-        let pa3 = gpioa.pa3;
-        let (tx, rx) = cortex_m::interrupt::free(move |cs| {
-            (pa2.into_alternate_af1(cs), pa3.into_alternate_af1(cs))
-        });
-        let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
+            // USART
+            let tx = gpioa.pa2.into_alternate_af1(cs);
+            let rx = gpioa.pa3.into_alternate_af1(cs);
+            let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
 
-        // Battery voltage and current
-        let pa4 = gpioa.pa4;
-        let pa6 = gpioa.pa6;
-        let (battery_voltage, current) =
-            cortex_m::interrupt::free(|cs| (pa4.into_analog(cs), pa6.into_analog(cs)));
+            // Battery voltage and current
+            let battery_voltage = gpioa.pa4.into_analog(cs);
+            let current = gpioa.pa6.into_analog(cs);
 
-        Hoverboard {
-            serial,
-            buzzer,
-            power_latch,
-            power_button,
-            charge_state,
-            battery_voltage,
-            current,
-            leds: Leds {
-                side: side_led,
-                green: green_led,
-                orange: orange_led,
-                red: red_led,
-            },
-            hall_sensors: HallSensors {
-                hall_a,
-                hall_b,
-                hall_c,
-            },
-        }
+            Hoverboard {
+                serial,
+                buzzer,
+                power_latch,
+                power_button,
+                charge_state,
+                battery_voltage,
+                current,
+                leds: Leds {
+                    side: side_led,
+                    green: green_led,
+                    orange: orange_led,
+                    red: red_led,
+                },
+                hall_sensors: HallSensors {
+                    hall_a,
+                    hall_b,
+                    hall_c,
+                },
+            }
+        })
     }
 }
