@@ -41,18 +41,22 @@ impl HallSensors {
     }
 }
 
+pub struct Leds {
+    pub side: PA0<Output<PushPull>>,
+    pub green: PA15<Output<PushPull>>,
+    pub orange: PA12<Output<PushPull>>,
+    pub red: PB3<Output<PushPull>>,
+}
+
 pub struct Hoverboard {
     pub serial: Serial<USART2, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
-    pub side_led: PA0<Output<PushPull>>,
-    pub green_led: PA15<Output<PushPull>>,
-    pub orange_led: PA12<Output<PushPull>>,
-    pub red_led: PB3<Output<PushPull>>,
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
     pub charge_state: PF0<Input<PullUp>>,
     pub battery_voltage: PA4<Analog>,
     pub current: PA6<Analog>,
+    pub leds: Leds,
     pub hall_sensors: HallSensors,
 }
 
@@ -130,16 +134,18 @@ impl Hoverboard {
 
         Hoverboard {
             serial,
-            side_led,
-            green_led,
-            orange_led,
-            red_led,
             buzzer,
             power_latch,
             power_button,
             charge_state,
             battery_voltage,
             current,
+            leds: Leds {
+                side: side_led,
+                green: green_led,
+                orange: orange_led,
+                red: red_led,
+            },
             hall_sensors: HallSensors {
                 hall_a,
                 hall_b,
