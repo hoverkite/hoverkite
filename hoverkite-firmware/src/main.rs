@@ -35,6 +35,9 @@ fn main() -> ! {
     // Keep power on.
     hoverboard.power_latch.set_high().unwrap();
 
+    // If power button is pressed, wait until it is released.
+    while hoverboard.power_button.is_high().unwrap() {}
+
     // Split the serial struct into a receiving and a transmitting part
     let (mut tx, mut rx) = hoverboard.serial.split();
 
