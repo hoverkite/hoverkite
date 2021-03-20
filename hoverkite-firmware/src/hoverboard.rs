@@ -10,6 +10,8 @@ use stm32f0xx_hal::{
     serial::Serial,
 };
 
+const USART_BAUD_RATE: u32 = 115200;
+
 pub struct Hoverboard {
     pub serial: Serial<USART2, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
     pub side_led: PA0<Output<PushPull>>,
@@ -49,7 +51,7 @@ impl Hoverboard {
         });
         // Set up the usart device. Takes ownership over the USART register and tx/rx pins. The rest of
         // the registers are used to enable and configure the device.
-        let serial = Serial::usart2(usart2, (tx, rx), 115200.bps(), rcc);
+        let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
 
         Hoverboard {
             serial,
