@@ -38,32 +38,6 @@
             "group": "build"
         },
         {
-            "label": "Cargo Build Examples (debug)",
-            "type": "process",
-            "command": "cargo",
-            "args": ["build","--examples"],
-            "options": {
-                "cwd": "${workspaceRoot}/hoverkite-firmware",
-            },
-            "problemMatcher": [
-                "$rustc"
-            ],
-            "group": "build"
-        },
-        {
-            "label": "Cargo Build Examples (release)",
-            "type": "process",
-            "command": "cargo",
-            "args": ["build","--examples", "--release"],
-            "options": {
-                "cwd": "${workspaceRoot}/hoverkite-firmware",
-            },
-            "problemMatcher": [
-                "$rustc"
-            ],
-            "group": "build"
-        },
-        {
             "label": "Cargo Clean",
             "type": "process",
             "command": "cargo",
