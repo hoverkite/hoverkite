@@ -25,13 +25,28 @@ fn main() -> ! {
     let mut rcc = dp.RCC.configure().freeze(&mut flash);
 
     let gpioa = dp.GPIOA.split(&mut rcc);
+    let gpiob = dp.GPIOB.split(&mut rcc);
+
+    // NB: Don't try to use pa13, that's SWDIO
+    let pa0 = gpioa.pa0;
+    let pa15 = gpioa.pa15;
+    let pa12 = gpioa.pa12;
+    let pb3 = gpiob.pb3;
+    let (mut side_led, mut green_led, mut orange_led, mut red_led) =
+        cortex_m::interrupt::free(|cs| {
+            (
+                pa0.into_push_pull_output(cs),
+                pa15.into_push_pull_output(cs),
+                pa12.into_push_pull_output(cs),
+                pb3.into_push_pull_output(cs),
+            )
+        });
 
     // Prepare the alternate function I/O registers for the USART.
+    let pa2 = gpioa.pa2;
+    let pa3 = gpioa.pa3;
     let (tx, rx) = cortex_m::interrupt::free(move |cs| {
-        (
-            gpioa.pa2.into_alternate_af1(cs),
-            gpioa.pa3.into_alternate_af1(cs),
-        )
+        (pa2.into_alternate_af1(cs), pa3.into_alternate_af1(cs))
     });
     // Set up the usart device. Takes ownership over the USART register and tx/rx pins. The rest of
     // the registers are used to enable and configure the device.
@@ -46,6 +61,53 @@ fn main() -> ! {
         let length = read_line(&mut rx, &mut line);
         let line_str = from_utf8(&line[0..length]).unwrap();
         writeln!(tx, "got '{}'", line_str).unwrap();
+        match line[0] {
+            b'l' => match line[1] {
+                b'0' => {
+                    writeln!(tx, "LED off").unwrap();
+                    side_led.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "LED on").unwrap();
+                    side_led.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
+            },
+            b'o' => match line[1] {
+                b'0' => {
+                    writeln!(tx, "orange off").unwrap();
+                    orange_led.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "orange on").unwrap();
+                    orange_led.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
+            },
+            b'r' => match line[1] {
+                b'0' => {
+                    writeln!(tx, "red off").unwrap();
+                    red_led.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "red on").unwrap();
+                    red_led.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
+            },
+            b'g' => match line[1] {
+                b'0' => {
+                    writeln!(tx, "green off").unwrap();
+                    green_led.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "green on").unwrap();
+                    green_led.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
+            },
+            _ => writeln!(tx, "Unrecognised command").unwrap(),
+        }
     }
 }
 
