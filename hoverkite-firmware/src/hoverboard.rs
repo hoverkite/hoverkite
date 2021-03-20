@@ -1,10 +1,12 @@
 use stm32f0xx_hal::{
     gpio::{
-        gpioa::{PA0, PA12, PA15, PA2, PA3},
-        gpiob::{PB10, PB3},
-        Alternate, Output, PushPull, AF1,
+        gpioa::{PA0, PA12, PA15, PA2, PA3, PA4, PA6},
+        gpiob::{PB10, PB11, PB2, PB3},
+        gpioc::{PC14, PC15},
+        gpiof::{PF0, PF1},
+        Alternate, Analog, Floating, Input, Output, PullUp, PushPull, AF1,
     },
-    pac::{GPIOA, GPIOB, USART2},
+    pac::{GPIOA, GPIOB, GPIOC, GPIOF, USART2},
     prelude::*,
     rcc::Rcc,
     serial::Serial,
@@ -19,12 +21,29 @@ pub struct Hoverboard {
     pub orange_led: PA12<Output<PushPull>>,
     pub red_led: PB3<Output<PushPull>>,
     pub buzzer: PB10<Output<PushPull>>,
+    pub hall_a: PB11<Input<Floating>>,
+    pub hall_b: PF1<Input<Floating>>,
+    pub hall_c: PC14<Input<Floating>>,
+    pub power_latch: PB2<Output<PushPull>>,
+    pub power_button: PC15<Input<Floating>>,
+    pub charge_state: PF0<Input<PullUp>>,
+    pub battery_voltage: PA4<Analog>,
+    pub current: PA6<Analog>,
 }
 
 impl Hoverboard {
-    pub fn new(gpioa: GPIOA, gpiob: GPIOB, usart2: USART2, rcc: &mut Rcc) -> Hoverboard {
+    pub fn new(
+        gpioa: GPIOA,
+        gpiob: GPIOB,
+        gpioc: GPIOC,
+        gpiof: GPIOF,
+        usart2: USART2,
+        rcc: &mut Rcc,
+    ) -> Hoverboard {
         let gpioa = gpioa.split(rcc);
         let gpiob = gpiob.split(rcc);
+        let gpioc = gpioc.split(rcc);
+        let gpiof = gpiof.split(rcc);
 
         // NB: Don't try to use pa13, that's SWDIO
 
@@ -46,6 +65,30 @@ impl Hoverboard {
         let pb10 = gpiob.pb10;
         let buzzer = cortex_m::interrupt::free(|cs| pb10.into_push_pull_output(cs));
 
+        // Hall effect sensors
+        let pb11 = gpiob.pb11;
+        let pf1 = gpiof.pf1;
+        let pc14 = gpioc.pc14;
+        let (hall_a, hall_b, hall_c) = cortex_m::interrupt::free(|cs| {
+            (
+                pb11.into_floating_input(cs),
+                pf1.into_floating_input(cs),
+                pc14.into_floating_input(cs),
+            )
+        });
+
+        // Power latch, power button and charge state
+        let pb2 = gpiob.pb2;
+        let pc15 = gpioc.pc15;
+        let pf0 = gpiof.pf0;
+        let (power_latch, power_button, charge_state) = cortex_m::interrupt::free(|cs| {
+            (
+                pb2.into_push_pull_output(cs),
+                pc15.into_floating_input(cs),
+                pf0.into_pull_up_input(cs),
+            )
+        });
+
         // USART
         let pa2 = gpioa.pa2;
         let pa3 = gpioa.pa3;
@@ -54,6 +97,12 @@ impl Hoverboard {
         });
         let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
 
+        // Battery voltage and current
+        let pa4 = gpioa.pa4;
+        let pa6 = gpioa.pa6;
+        let (battery_voltage, current) =
+            cortex_m::interrupt::free(|cs| (pa4.into_analog(cs), pa6.into_analog(cs)));
+
         Hoverboard {
             serial,
             side_led,
@@ -61,6 +110,14 @@ impl Hoverboard {
             orange_led,
             red_led,
             buzzer,
+            hall_a,
+            hall_b,
+            hall_c,
+            power_latch,
+            power_button,
+            charge_state,
+            battery_voltage,
+            current,
         }
     }
 }

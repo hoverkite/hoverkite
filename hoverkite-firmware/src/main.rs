@@ -25,7 +25,8 @@ fn main() -> ! {
     let mut flash = dp.FLASH;
     let mut rcc = dp.RCC.configure().freeze(&mut flash);
 
-    let mut hoverboard = Hoverboard::new(dp.GPIOA, dp.GPIOB, dp.USART2, &mut rcc);
+    let mut hoverboard =
+        Hoverboard::new(dp.GPIOA, dp.GPIOB, dp.GPIOC, dp.GPIOF, dp.USART2, &mut rcc);
 
     // Split the serial struct into a receiving and a transmitting part
     let (mut tx, mut rx) = hoverboard.serial.split();
