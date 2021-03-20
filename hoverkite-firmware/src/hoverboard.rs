@@ -27,6 +27,8 @@ impl Hoverboard {
         let gpiob = gpiob.split(rcc);
 
         // NB: Don't try to use pa13, that's SWDIO
+
+        // LEDs
         let pa0 = gpioa.pa0;
         let pa15 = gpioa.pa15;
         let pa12 = gpioa.pa12;
@@ -40,17 +42,16 @@ impl Hoverboard {
             )
         });
 
+        // Buzzer
         let pb10 = gpiob.pb10;
         let buzzer = cortex_m::interrupt::free(|cs| pb10.into_push_pull_output(cs));
 
-        // Prepare the alternate function I/O registers for the USART.
+        // USART
         let pa2 = gpioa.pa2;
         let pa3 = gpioa.pa3;
         let (tx, rx) = cortex_m::interrupt::free(move |cs| {
             (pa2.into_alternate_af1(cs), pa3.into_alternate_af1(cs))
         });
-        // Set up the usart device. Takes ownership over the USART register and tx/rx pins. The rest of
-        // the registers are used to enable and configure the device.
         let serial = Serial::usart2(usart2, (tx, rx), USART_BAUD_RATE.bps(), rcc);
 
         Hoverboard {
