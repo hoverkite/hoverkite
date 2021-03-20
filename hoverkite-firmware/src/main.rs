@@ -10,7 +10,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::fmt::Write;
+use core::{convert::Infallible, fmt::Write};
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use nb::block;
@@ -39,7 +39,8 @@ fn main() -> ! {
 
     writeln!(tx, "Ready").unwrap();
     loop {
-        process_command(
+        // If there is no command available to process, continue on.
+        let _ = process_command(
             &mut tx,
             &mut rx,
             &mut hoverboard.leds,
@@ -53,8 +54,8 @@ fn process_command(
     rx: &mut Rx<USART2>,
     leds: &mut Leds,
     hall_sensors: &HallSensors,
-) {
-    let command = block!(rx.read()).unwrap();
+) -> nb::Result<(), Infallible> {
+    let command = nest(rx.read())?.unwrap();
     match command {
         b'l' => match block!(rx.read()).unwrap() {
             b'0' => {
@@ -108,5 +109,14 @@ fn process_command(
             }
         }
         _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
+    }
+    Ok(())
+}
+
+fn nest<T, E>(result: nb::Result<T, E>) -> nb::Result<Result<T, E>, Infallible> {
+    match result {
+        Ok(v) => Ok(Ok(v)),
+        Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
+        Err(nb::Error::Other(e)) => Ok(Err(e)),
     }
 }
