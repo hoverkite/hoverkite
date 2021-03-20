@@ -15,6 +15,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use nb::block;
 use stm32f0xx_hal::{
+    gpio::{gpiob::PB2, Output, PushPull},
     pac::{self, USART2},
     prelude::*,
     serial::{Rx, Tx},
@@ -45,6 +46,7 @@ fn main() -> ! {
             &mut tx,
             &mut rx,
             &mut hoverboard.leds,
+            &mut hoverboard.power_latch,
         );
 
         let hall_position = hoverboard.hall_sensors.position();
@@ -56,6 +58,13 @@ fn main() -> ! {
             }
             last_hall_position = hall_position;
         }
+
+        // If the power button is pressed, turn off.
+        if hoverboard.power_button.is_high().unwrap() {
+            // Wait until it is released.
+            while hoverboard.power_button.is_high().unwrap() {}
+            poweroff(&mut tx, &mut hoverboard.power_latch);
+        }
     }
 }
 
@@ -63,6 +72,7 @@ fn process_command(
     tx: &mut Tx<USART2>,
     rx: &mut Rx<USART2>,
     leds: &mut Leds,
+    power_latch: &mut PB2<Output<PushPull>>,
 ) -> nb::Result<(), Infallible> {
     let command = nest(rx.read())?.unwrap();
     match command {
@@ -110,6 +120,7 @@ fn process_command(
             }
             _ => writeln!(tx, "LED unrecognised").unwrap(),
         },
+        b'p' => poweroff(tx, power_latch),
         _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
     }
     Ok(())
@@ -121,4 +132,9 @@ fn nest<T, E>(result: nb::Result<T, E>) -> nb::Result<Result<T, E>, Infallible> 
         Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
         Err(nb::Error::Other(e)) => Ok(Err(e)),
     }
+}
+
+fn poweroff(tx: &mut Tx<USART2>, power_latch: &mut PB2<Output<PushPull>>) {
+    writeln!(tx, "Power off").unwrap();
+    power_latch.set_low().unwrap()
 }
