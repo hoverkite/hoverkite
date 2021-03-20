@@ -78,6 +78,13 @@ fn main() -> ! {
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             },
+            b'h' => {
+                if let Some(hall_position) = hoverboard.hall_sensors.position() {
+                    writeln!(tx, "Position {}", hall_position).unwrap();
+                } else {
+                    writeln!(tx, "Invalid position").unwrap();
+                }
+            }
             _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
         }
     }

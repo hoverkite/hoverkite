@@ -14,6 +14,33 @@ use stm32f0xx_hal::{
 
 const USART_BAUD_RATE: u32 = 115200;
 
+pub struct HallSensors {
+    hall_a: PB11<Input<Floating>>,
+    hall_b: PF1<Input<Floating>>,
+    hall_c: PC14<Input<Floating>>,
+}
+
+impl HallSensors {
+    /// Get the current position of the motor from the hall effoct sensors, or `None` if they are in
+    /// an invalid configuration.
+    ///
+    /// The position will be in the range 0-5, inclusive.
+    pub fn position(&self) -> Option<u8> {
+        let hall_a = self.hall_a.is_high().unwrap();
+        let hall_b = self.hall_b.is_high().unwrap();
+        let hall_c = self.hall_c.is_high().unwrap();
+        match (hall_a, hall_b, hall_c) {
+            (false, false, true) => Some(0),
+            (true, false, true) => Some(1),
+            (true, false, false) => Some(2),
+            (true, true, false) => Some(3),
+            (false, true, false) => Some(4),
+            (false, true, true) => Some(5),
+            _ => None,
+        }
+    }
+}
+
 pub struct Hoverboard {
     pub serial: Serial<USART2, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
     pub side_led: PA0<Output<PushPull>>,
@@ -21,14 +48,12 @@ pub struct Hoverboard {
     pub orange_led: PA12<Output<PushPull>>,
     pub red_led: PB3<Output<PushPull>>,
     pub buzzer: PB10<Output<PushPull>>,
-    pub hall_a: PB11<Input<Floating>>,
-    pub hall_b: PF1<Input<Floating>>,
-    pub hall_c: PC14<Input<Floating>>,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
     pub charge_state: PF0<Input<PullUp>>,
     pub battery_voltage: PA4<Analog>,
     pub current: PA6<Analog>,
+    pub hall_sensors: HallSensors,
 }
 
 impl Hoverboard {
@@ -110,14 +135,16 @@ impl Hoverboard {
             orange_led,
             red_led,
             buzzer,
-            hall_a,
-            hall_b,
-            hall_c,
             power_latch,
             power_button,
             charge_state,
             battery_voltage,
             current,
+            hall_sensors: HallSensors {
+                hall_a,
+                hall_b,
+                hall_c,
+            },
         }
     }
 }
