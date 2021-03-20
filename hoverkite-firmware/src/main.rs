@@ -27,6 +27,9 @@ fn main() -> ! {
     let mut hoverboard =
         Hoverboard::new(dp.GPIOA, dp.GPIOB, dp.GPIOC, dp.GPIOF, dp.USART2, &mut rcc);
 
+    // Keep power on.
+    hoverboard.power_latch.set_high().unwrap();
+
     // Split the serial struct into a receiving and a transmitting part
     let (mut tx, mut rx) = hoverboard.serial.split();
 
