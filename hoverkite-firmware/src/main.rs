@@ -10,8 +10,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::fmt::{Debug, Write};
-use core::str::from_utf8;
+use core::fmt::Write;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use nb::block;
@@ -31,14 +30,11 @@ fn main() -> ! {
     // Split the serial struct into a receiving and a transmitting part
     let (mut tx, mut rx) = hoverboard.serial.split();
 
-    let mut line = [0; 20];
     writeln!(tx, "Ready").unwrap();
     loop {
-        let length = read_line(&mut rx, &mut line);
-        let line_str = from_utf8(&line[0..length]).unwrap();
-        writeln!(tx, "got '{}'", line_str).unwrap();
-        match line[0] {
-            b'l' => match line[1] {
+        let command = block!(rx.read()).unwrap();
+        match command {
+            b'l' => match block!(rx.read()).unwrap() {
                 b'0' => {
                     writeln!(tx, "LED off").unwrap();
                     hoverboard.side_led.set_low().unwrap()
@@ -49,7 +45,7 @@ fn main() -> ! {
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             },
-            b'o' => match line[1] {
+            b'o' => match block!(rx.read()).unwrap() {
                 b'0' => {
                     writeln!(tx, "orange off").unwrap();
                     hoverboard.orange_led.set_low().unwrap()
@@ -60,7 +56,7 @@ fn main() -> ! {
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             },
-            b'r' => match line[1] {
+            b'r' => match block!(rx.read()).unwrap() {
                 b'0' => {
                     writeln!(tx, "red off").unwrap();
                     hoverboard.red_led.set_low().unwrap()
@@ -71,7 +67,7 @@ fn main() -> ! {
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             },
-            b'g' => match line[1] {
+            b'g' => match block!(rx.read()).unwrap() {
                 b'0' => {
                     writeln!(tx, "green off").unwrap();
                     hoverboard.green_led.set_low().unwrap()
@@ -82,21 +78,7 @@ fn main() -> ! {
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             },
-            _ => writeln!(tx, "Unrecognised command").unwrap(),
+            _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
         }
     }
-}
-
-fn read_line<R>(rx: &mut R, buf: &mut [u8]) -> usize
-where
-    R: Read<u8>,
-    R::Error: Debug,
-{
-    for i in 0..buf.len() {
-        buf[i] = block!(rx.read()).unwrap();
-        if buf[i] == b'\n' || buf[i] == b'\r' {
-            return i;
-        }
-    }
-    buf.len()
 }
