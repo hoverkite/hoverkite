@@ -1,10 +1,11 @@
 use gd32f1x0_hal::{
     gpio::{
-        gpioa::{PA0, PA12, PA15, PA2, PA3, PA4, PA6},
-        gpiob::{PB10, PB11, PB2, PB3},
+        gpioa::{PA0, PA10, PA12, PA15, PA2, PA3, PA4, PA6, PA8, PA9},
+        gpiob::{PB10, PB11, PB12, PB13, PB14, PB15, PB2, PB3},
         gpioc::{PC14, PC15},
         gpiof::{PF0, PF1},
         Alternate, Analog, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
+        AF2,
     },
     pac::{GPIOA, GPIOB, GPIOC, GPIOF, USART1},
     prelude::*,
@@ -48,6 +49,16 @@ pub struct Leds {
     pub red: PB3<Output<PushPull>>,
 }
 
+pub struct Motor {
+    pub green_high: PA10<Alternate<AF2>>,
+    pub blue_high: PA9<Alternate<AF2>>,
+    pub yellow_high: PA8<Alternate<AF2>>,
+    pub green_low: PB15<Alternate<AF2>>,
+    pub blue_low: PB14<Alternate<AF2>>,
+    pub yellow_low: PB13<Alternate<AF2>>,
+    pub emergency_off: PB12<Alternate<AF2>>,
+}
+
 pub struct Hoverboard {
     pub serial: Serial<USART1, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
     pub buzzer: PB10<Output<PushPull>>,
@@ -59,6 +70,7 @@ pub struct Hoverboard {
     pub current: PA6<Analog>,
     pub leds: Leds,
     pub hall_sensors: HallSensors,
+    pub motor: Motor,
 }
 
 impl Hoverboard {
@@ -116,6 +128,44 @@ impl Hoverboard {
                 hall_a: gpiob.pb11.into_floating_input(&mut gpiob.config),
                 hall_b: gpiof.pf1.into_floating_input(&mut gpiof.config),
                 hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
+            },
+            motor: Motor {
+                // Output speed defaults to 2MHz
+                green_high: gpioa.pa10.into_alternate(
+                    &mut gpioa.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                blue_high: gpioa.pa9.into_alternate(
+                    &mut gpioa.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                yellow_high: gpioa.pa8.into_alternate(
+                    &mut gpioa.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                green_low: gpiob.pb15.into_alternate(
+                    &mut gpiob.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                blue_low: gpiob.pb14.into_alternate(
+                    &mut gpiob.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                yellow_low: gpiob.pb13.into_alternate(
+                    &mut gpiob.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
+                emergency_off: gpiob.pb12.into_alternate(
+                    &mut gpiob.config,
+                    PullMode::Floating,
+                    OutputMode::PushPull,
+                ),
             },
         }
     }
