@@ -53,6 +53,7 @@ pub struct Hoverboard {
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
+    /// This will be low when the charger is connected.
     pub charge_state: PF0<Input<PullUp>>,
     pub battery_voltage: PA4<Analog>,
     pub current: PA6<Analog>,

@@ -15,7 +15,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use nb::block;
 use stm32f0xx_hal::{
-    gpio::{gpiob::PB2, Output, PushPull},
+    gpio::{gpiob::PB2, gpiof::PF0, Input, Output, PullUp, PushPull},
     pac::{self, USART2},
     prelude::*,
     serial::{Rx, Tx},
@@ -50,6 +50,7 @@ fn main() -> ! {
             &mut rx,
             &mut hoverboard.leds,
             &mut hoverboard.power_latch,
+            &mut hoverboard.charge_state,
         );
 
         let hall_position = hoverboard.hall_sensors.position();
@@ -76,6 +77,7 @@ fn process_command(
     rx: &mut Rx<USART2>,
     leds: &mut Leds,
     power_latch: &mut PB2<Output<PushPull>>,
+    charge_state: &mut PF0<Input<PullUp>>,
 ) -> nb::Result<(), Infallible> {
     let command = match nest(rx.read())? {
         Ok(v) => v,
@@ -129,6 +131,13 @@ fn process_command(
             }
             _ => writeln!(tx, "LED unrecognised").unwrap(),
         },
+        b'c' => {
+            if charge_state.is_low().unwrap() {
+                writeln!(tx, "Charger connected").unwrap();
+            } else {
+                writeln!(tx, "Charger not connected").unwrap();
+            }
+        }
         b'p' => poweroff(tx, power_latch),
         _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
     }
