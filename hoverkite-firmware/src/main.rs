@@ -3,7 +3,7 @@
 
 mod hoverboard;
 
-use hoverboard::{HallSensors, Hoverboard, Leds};
+use hoverboard::{Hoverboard, Leds};
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -38,14 +38,24 @@ fn main() -> ! {
     let (mut tx, mut rx) = hoverboard.serial.split();
 
     writeln!(tx, "Ready").unwrap();
+    let mut last_hall_position = None;
     loop {
         // If there is no command available to process, continue on.
         let _ = process_command(
             &mut tx,
             &mut rx,
             &mut hoverboard.leds,
-            &mut hoverboard.hall_sensors,
         );
+
+        let hall_position = hoverboard.hall_sensors.position();
+        if hall_position != last_hall_position {
+            if let Some(hall_position) = hall_position {
+                writeln!(tx, "Position {}", hall_position).unwrap();
+            } else {
+                writeln!(tx, "Invalid position").unwrap();
+            }
+            last_hall_position = hall_position;
+        }
     }
 }
 
@@ -53,7 +63,6 @@ fn process_command(
     tx: &mut Tx<USART2>,
     rx: &mut Rx<USART2>,
     leds: &mut Leds,
-    hall_sensors: &HallSensors,
 ) -> nb::Result<(), Infallible> {
     let command = nest(rx.read())?.unwrap();
     match command {
@@ -101,13 +110,6 @@ fn process_command(
             }
             _ => writeln!(tx, "LED unrecognised").unwrap(),
         },
-        b'h' => {
-            if let Some(hall_position) = hall_sensors.position() {
-                writeln!(tx, "Position {}", hall_position).unwrap();
-            } else {
-                writeln!(tx, "Invalid position").unwrap();
-            }
-        }
         _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
     }
     Ok(())
