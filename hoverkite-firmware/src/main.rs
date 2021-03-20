@@ -74,7 +74,13 @@ fn process_command(
     leds: &mut Leds,
     power_latch: &mut PB2<Output<PushPull>>,
 ) -> nb::Result<(), Infallible> {
-    let command = nest(rx.read())?.unwrap();
+    let command = match nest(rx.read())? {
+        Ok(v) => v,
+        Err(e) => {
+            writeln!(tx, "Read error {:?}", e).unwrap();
+            return Ok(());
+        }
+    };
     match command {
         b'l' => match block!(rx.read()).unwrap() {
             b'0' => {
