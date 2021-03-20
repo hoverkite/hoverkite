@@ -10,15 +10,14 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::{convert::Infallible, fmt::Write};
+use core::fmt::Write;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
-use nb::block;
 use stm32f0xx_hal::{
     gpio::{gpiob::PB2, gpiof::PF0, Input, Output, PullUp, PushPull},
     pac::{self, USART2},
     prelude::*,
-    serial::{Rx, Tx},
+    serial::Tx,
 };
 
 #[entry]
@@ -43,15 +42,29 @@ fn main() -> ! {
 
     writeln!(tx, "Ready").unwrap();
     let mut last_hall_position = None;
+    let mut command_buffer = [0; 5];
+    let mut command_len = 0;
     loop {
-        // If there is no command available to process, continue on.
-        let _ = process_command(
-            &mut tx,
-            &mut rx,
-            &mut hoverboard.leds,
-            &mut hoverboard.power_latch,
-            &mut hoverboard.charge_state,
-        );
+        match rx.read() {
+            Ok(char) => {
+                command_buffer[command_len] = char;
+                command_len += 1;
+                if process_command(
+                    &command_buffer[0..command_len],
+                    &mut tx,
+                    &mut hoverboard.leds,
+                    &mut hoverboard.power_latch,
+                    &mut hoverboard.charge_state,
+                ) {
+                    command_len = 0;
+                } else if command_len > command_buffer.len() {
+                    writeln!(tx, "Command too long").unwrap();
+                    command_len = 0;
+                }
+            }
+            Err(nb::Error::WouldBlock) => {}
+            Err(nb::Error::Other(e)) => writeln!(tx, "Read error {:?}", e).unwrap(),
+        }
 
         let hall_position = hoverboard.hall_sensors.position();
         if hall_position != last_hall_position {
@@ -72,65 +85,84 @@ fn main() -> ! {
     }
 }
 
+/// Process the given command, returning true if a command was successfully parsed or false if not
+/// enough was read yet.
 fn process_command(
+    command: &[u8],
     tx: &mut Tx<USART2>,
-    rx: &mut Rx<USART2>,
     leds: &mut Leds,
     power_latch: &mut PB2<Output<PushPull>>,
     charge_state: &mut PF0<Input<PullUp>>,
-) -> nb::Result<(), Infallible> {
-    let command = match nest(rx.read())? {
-        Ok(v) => v,
-        Err(e) => {
-            writeln!(tx, "Read error {:?}", e).unwrap();
-            return Ok(());
+) -> bool {
+    if command.len() < 1 {
+        return false;
+    }
+
+    match command[0] {
+        b'l' => {
+            if command.len() < 2 {
+                return false;
+            }
+            match command[1] {
+                b'0' => {
+                    writeln!(tx, "LED off").unwrap();
+                    leds.side.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "LED on").unwrap();
+                    leds.side.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
+            }
         }
-    };
-    match command {
-        b'l' => match block!(rx.read()).unwrap() {
-            b'0' => {
-                writeln!(tx, "LED off").unwrap();
-                leds.side.set_low().unwrap()
+        b'o' => {
+            if command.len() < 2 {
+                return false;
             }
-            b'1' => {
-                writeln!(tx, "LED on").unwrap();
-                leds.side.set_high().unwrap()
+            match command[1] {
+                b'0' => {
+                    writeln!(tx, "orange off").unwrap();
+                    leds.orange.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "orange on").unwrap();
+                    leds.orange.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
             }
-            _ => writeln!(tx, "LED unrecognised").unwrap(),
-        },
-        b'o' => match block!(rx.read()).unwrap() {
-            b'0' => {
-                writeln!(tx, "orange off").unwrap();
-                leds.orange.set_low().unwrap()
+        }
+        b'r' => {
+            if command.len() < 2 {
+                return false;
             }
-            b'1' => {
-                writeln!(tx, "orange on").unwrap();
-                leds.orange.set_high().unwrap()
+            match command[1] {
+                b'0' => {
+                    writeln!(tx, "red off").unwrap();
+                    leds.red.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "red on").unwrap();
+                    leds.red.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
             }
-            _ => writeln!(tx, "LED unrecognised").unwrap(),
-        },
-        b'r' => match block!(rx.read()).unwrap() {
-            b'0' => {
-                writeln!(tx, "red off").unwrap();
-                leds.red.set_low().unwrap()
+        }
+        b'g' => {
+            if command.len() < 2 {
+                return false;
             }
-            b'1' => {
-                writeln!(tx, "red on").unwrap();
-                leds.red.set_high().unwrap()
+            match command[1] {
+                b'0' => {
+                    writeln!(tx, "green off").unwrap();
+                    leds.green.set_low().unwrap()
+                }
+                b'1' => {
+                    writeln!(tx, "green on").unwrap();
+                    leds.green.set_high().unwrap()
+                }
+                _ => writeln!(tx, "LED unrecognised").unwrap(),
             }
-            _ => writeln!(tx, "LED unrecognised").unwrap(),
-        },
-        b'g' => match block!(rx.read()).unwrap() {
-            b'0' => {
-                writeln!(tx, "green off").unwrap();
-                leds.green.set_low().unwrap()
-            }
-            b'1' => {
-                writeln!(tx, "green on").unwrap();
-                leds.green.set_high().unwrap()
-            }
-            _ => writeln!(tx, "LED unrecognised").unwrap(),
-        },
+        }
         b'c' => {
             if charge_state.is_low().unwrap() {
                 writeln!(tx, "Charger connected").unwrap();
@@ -139,17 +171,9 @@ fn process_command(
             }
         }
         b'p' => poweroff(tx, power_latch),
-        _ => writeln!(tx, "Unrecognised command {}", command).unwrap(),
+        _ => writeln!(tx, "Unrecognised command {}", command[0]).unwrap(),
     }
-    Ok(())
-}
-
-fn nest<T, E>(result: nb::Result<T, E>) -> nb::Result<Result<T, E>, Infallible> {
-    match result {
-        Ok(v) => Ok(Ok(v)),
-        Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
-        Err(nb::Error::Other(e)) => Ok(Err(e)),
-    }
+    true
 }
 
 fn poweroff(tx: &mut Tx<USART2>, power_latch: &mut PB2<Output<PushPull>>) {
