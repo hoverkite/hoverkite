@@ -185,7 +185,7 @@ dependencies = [
 [[package]]
 name = "gd32f1"
 version = "0.13.0"
-source = "git+https://github.com/qwandor/stm32-rs#439c1fde6f41b7ad9b7502f3e0165b582efdcfd6"
+source = "git+https://github.com/qwandor/stm32-rs#d674c47ab8bb780169ba7f0e6958a59acde28d3f"
 dependencies = [
  "bare-metal",
  "cortex-m 0.7.2",
@@ -196,7 +196,7 @@ dependencies = [
 [[package]]
 name = "gd32f1x0-hal"
 version = "0.1.0"
-source = "git+ssh://git@github.com/qwandor/gd32f1x0-hal.git?branch=main#427c97fb71b1d8084f84f4bb4adc93b836e2962e"
+source = "git+ssh://git@github.com/qwandor/gd32f1x0-hal.git?branch=main#a56790e530c5425ae98efa5feae1fb18d08db3fa"
 dependencies = [
  "bxcan",
  "cast",

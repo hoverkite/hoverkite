@@ -7,13 +7,16 @@ use gd32f1x0_hal::{
         Alternate, Analog, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
         AF2,
     },
-    pac::{GPIOA, GPIOB, GPIOC, GPIOF, USART1},
+    pac::{GPIOA, GPIOB, GPIOC, GPIOF, RCU, TIMER0, USART1},
     prelude::*,
-    rcu::{Clocks, AHB, APB1},
+    pwm::Channel,
+    rcu::{Clocks, Enable, Reset, AHB, APB1, APB2},
     serial::{Config, Serial},
+    time::Hertz,
 };
 
 const USART_BAUD_RATE: u32 = 115200;
+const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
 
 pub struct HallSensors {
     hall_a: PB11<Input<Floating>>,
@@ -57,6 +60,64 @@ pub struct Motor {
     pub blue_low: PB14<Alternate<AF2>>,
     pub yellow_low: PB13<Alternate<AF2>>,
     pub emergency_off: PB12<Alternate<AF2>>,
+    pub pwm: Pwm,
+}
+
+pub struct Pwm {
+    timer: TIMER0,
+    clocks: Clocks,
+}
+
+impl Pwm {
+    pub fn new(timer: TIMER0, frequency: Hertz, clocks: Clocks, apb: &mut APB2) -> Self {
+        // TODO: Get via `rcu`
+        let rcu_regs = unsafe { &(*RCU::ptr()) };
+
+        // Enable clock
+        TIMER0::enable(apb);
+
+        // Reset timer via RCU
+        TIMER0::reset(apb);
+
+        // Configure direction, aligned mode and clock division.
+        timer.ctl0.modify(|_, w| {
+            w.dir()
+                .up()
+                .cam()
+                .center_aligned_counting_up()
+                .ckdiv()
+                .div1()
+        });
+
+        // Configure prescaler and auto-reload value to give desired period.
+        // If pclk is prescaled from hclk, the frequency fed into the timers is doubled
+        let tclk = clocks.pclk2_tim().0;
+        let period = tclk / frequency.0;
+        // TODO: Can this just be a bit shift? Why the '- 1'?
+        let prescaler = ((period - 1) / (1 << 16)) as u16;
+        let auto_reload_value = (period / (prescaler + 1) as u32) as u16;
+        timer.psc.write(|w| w.psc().bits(prescaler));
+        timer.car.write(|w| w.car().bits(auto_reload_value));
+
+        // Configure repetition counter.
+        timer.crep.write(|w| unsafe { w.crep().bits(0) });
+
+        let channels = [Channel::C0, Channel::C1, Channel::C2];
+        for channel in &channels {
+            // TODO: Deactivate fastmode and shadow function for channel, and set PWM type to PWM1.
+            // Set duty cycle to 0.
+            match channel {
+                Channel::C0 => timer.ch0cv.write(|w| w.ch0val().bits(0)),
+                Channel::C1 => timer.ch1cv.write(|w| w.ch1val().bits(0)),
+                Channel::C2 => timer.ch2cv.write(|w| w.ch2val().bits(0)),
+                Channel::C3 => timer.ch3cv.write(|w| w.ch3val().bits(0)),
+            }
+        }
+
+        // TODO: Configure output channels
+
+        Pwm { timer, clocks }
+    }
 }
 
 pub struct Hoverboard {
@@ -80,16 +141,16 @@ impl Hoverboard {
         gpioc: GPIOC,
         gpiof: GPIOF,
         usart1: USART1,
+        timer0: TIMER0,
         ahb: &mut AHB,
         apb1: &mut APB1,
+        apb2: &mut APB2,
         clocks: Clocks,
     ) -> Hoverboard {
         let mut gpioa = gpioa.split(ahb);
         let mut gpiob = gpiob.split(ahb);
         let mut gpioc = gpioc.split(ahb);
         let mut gpiof = gpiof.split(ahb);
-
-        // NB: Don't try to use pa13, that's SWDIO
 
         // USART
         let tx =
@@ -100,6 +161,8 @@ impl Hoverboard {
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+
+        let pwm = Pwm::new(timer0, MOTOR_PWM_FREQ_HERTZ.hz(), clocks, apb2);
 
         Hoverboard {
             serial: Serial::usart(
@@ -166,6 +229,7 @@ impl Hoverboard {
                     PullMode::Floating,
                     OutputMode::PushPull,
                 ),
+                pwm,
             },
         }
     }

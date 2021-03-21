@@ -40,8 +40,10 @@ fn main() -> ! {
         dp.GPIOC,
         dp.GPIOF,
         dp.USART1,
+        dp.TIMER0,
         &mut rcu.ahb,
         &mut rcu.apb1,
+        &mut rcu.apb2,
         clocks,
     );
 
