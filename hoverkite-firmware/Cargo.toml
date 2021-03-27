@@ -12,7 +12,7 @@ cortex-m-semihosting = "0.3.3"
 embedded-hal = "0.2.4"
 nb = "1.0.0"
 panic-halt = "0.2.0"
-stm32f0xx-hal = { version = "0.17.1", features = ["rt", "stm32f030x8"] }
+gd32f1x0-hal = { version = "0.1.0", features = ["rt", "gd32f130x8"], git = "ssh://git@github.com/qwandor/gd32f1x0-hal.git", branch = "main" }
 
 # this lets you use `cargo fix`!
 [[bin]]

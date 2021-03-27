@@ -13,29 +13,37 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
 use core::fmt::Write;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
-use stm32f0xx_hal::{
+use gd32f1x0_hal::{
     gpio::{gpiob::PB2, gpiof::PF0, Input, Output, PullUp, PushPull},
-    pac::{self, USART2},
+    pac::{self, USART1},
     prelude::*,
     serial::Tx,
-    watchdog::Watchdog,
+    watchdog::FreeWatchdog,
 };
 
-const WATCHDOG_HZ: u32 = 1;
+const WATCHDOG_MILLIS: u32 = 1000;
 
 #[entry]
 fn main() -> ! {
     // Get access to the device specific peripherals from the peripheral access crate
     let dp = pac::Peripherals::take().unwrap();
 
-    let mut flash = dp.FLASH;
-    let mut rcc = dp.RCC.configure().freeze(&mut flash);
+    let mut rcu = dp.RCU.constrain();
+    let clocks = rcu.cfgr.freeze(&dp.FMC.ws);
 
-    let mut watchdog = Watchdog::new(dp.IWDG);
-    watchdog.start(WATCHDOG_HZ.hz());
+    let mut watchdog = FreeWatchdog::new(dp.FWDGT);
+    watchdog.start(WATCHDOG_MILLIS.ms());
 
-    let mut hoverboard =
-        Hoverboard::new(dp.GPIOA, dp.GPIOB, dp.GPIOC, dp.GPIOF, dp.USART2, &mut rcc);
+    let mut hoverboard = Hoverboard::new(
+        dp.GPIOA,
+        dp.GPIOB,
+        dp.GPIOC,
+        dp.GPIOF,
+        dp.USART1,
+        &mut rcu.ahb,
+        &mut rcu.apb1,
+        clocks,
+    );
 
     // Keep power on.
     hoverboard.power_latch.set_high().unwrap();
@@ -104,7 +112,7 @@ fn main() -> ! {
 /// enough was read yet.
 fn process_command(
     command: &[u8],
-    tx: &mut Tx<USART2>,
+    tx: &mut Tx<USART1>,
     leds: &mut Leds,
     power_latch: &mut PB2<Output<PushPull>>,
     charge_state: &mut PF0<Input<PullUp>>,
@@ -191,7 +199,7 @@ fn process_command(
     true
 }
 
-fn poweroff(tx: &mut Tx<USART2>, power_latch: &mut PB2<Output<PushPull>>) {
+fn poweroff(tx: &mut Tx<USART1>, power_latch: &mut PB2<Output<PushPull>>) {
     writeln!(tx, "Power off").unwrap();
     power_latch.set_low().unwrap()
 }
