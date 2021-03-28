@@ -7,7 +7,7 @@ use gd32f1x0_hal::{
         Alternate, Analog, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
         AF2,
     },
-    pac::{GPIOA, GPIOB, GPIOC, GPIOF, RCU, TIMER0, USART1},
+    pac::{interrupt, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, USART1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, Enable, Reset, AHB, APB1, APB2},
@@ -63,23 +63,54 @@ pub struct Motor {
     pub pwm: Pwm,
 }
 
+impl Motor {
+    pub fn set_position_power(&mut self, power: i16, position: u8) {
+        let power = clamp(power, -1000, 1000);
+        // TODO: Low-pass filter power
+        let (y, b, g) = match position {
+            0 => (0, power, -power),
+            1 => (-power, power, 0),
+            2 => (-power, 0, power),
+            3 => (0, -power, power),
+            4 => (power, -power, 0),
+            5 => (power, 0, -power),
+            _ => (0, 0, 0),
+        };
+        let duty_max = self.pwm.duty_max();
+        let y = clamp((y + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+        let b = clamp((b + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+        let g = clamp((g + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+        self.pwm.set_duty_cycles(y, b, g);
+    }
+}
+
 pub struct Pwm {
     timer: TIMER0,
     clocks: Clocks,
+    auto_reload_value: u16,
+}
+
+#[interrupt]
+fn TIMER0_BRK_UP_TRG_COM() {
+    // TODO: Start ADC for current reading and limiting
+    // TODO: Read hall sensors
+    // TODO: set_position based on desired speed and hall sensor reading
+
+    // Clear timer update interrupt flag
+    unsafe { &*TIMER0::ptr() }
+        .intf
+        .modify(|_, w| w.upif().clear());
 }
 
 impl Pwm {
     pub fn new(timer: TIMER0, frequency: Hertz, clocks: Clocks, apb: &mut APB2) -> Self {
-        // TODO: Get via `rcu`
-        let rcu_regs = unsafe { &(*RCU::ptr()) };
-
         // Enable clock
         TIMER0::enable(apb);
 
         // Reset timer via RCU
         TIMER0::reset(apb);
 
-        // Configure direction, aligned mode and clock division.
+        // Configure direction, aligned mode and clock division. Disable auto-reload shadow.
         timer.ctl0.modify(|_, w| {
             w.dir()
                 .up()
@@ -87,6 +118,8 @@ impl Pwm {
                 .center_aligned_counting_up()
                 .ckdiv()
                 .div1()
+                .arse()
+                .disabled()
         });
 
         // Configure prescaler and auto-reload value to give desired period.
@@ -104,7 +137,6 @@ impl Pwm {
 
         let channels = [Channel::C0, Channel::C1, Channel::C2];
         for channel in &channels {
-            // TODO: Deactivate fastmode and shadow function for channel, and set PWM type to PWM1.
             // Set duty cycle to 0.
             match channel {
                 Channel::C0 => timer.ch0cv.write(|w| w.ch0val().bits(0)),
@@ -113,10 +145,131 @@ impl Pwm {
                 Channel::C3 => timer.ch3cv.write(|w| w.ch3val().bits(0)),
             }
         }
+        // Deactivate fastmode for all channels.
+        timer
+            .chctl0_output()
+            .modify(|_, w| w.ch0comfen().slow().ch1comfen().slow());
+        timer.chctl1_output().modify(|_, w| w.ch2comfen().slow());
+        // Deactivate output shadow function for all channels.
+        timer
+            .chctl0_output()
+            .modify(|_, w| w.ch0comsen().disabled().ch1comsen().disabled());
+        timer
+            .chctl1_output()
+            .modify(|_, w| w.ch2comsen().disabled());
+        // Set all output channel PWM types to PWM1
+        timer
+            .chctl0_output()
+            .modify(|_, w| w.ch0comctl().pwm_mode2().ch1comctl().pwm_mode2());
+        timer
+            .chctl1_output()
+            .modify(|_, w| w.ch2comctl().pwm_mode2());
 
-        // TODO: Configure output channels
+        // Configure output channels
+        timer.chctl2.modify(|_, w| {
+            w.ch0p()
+                .not_inverted()
+                .ch0np()
+                .inverted()
+                .ch1p()
+                .not_inverted()
+                .ch1np()
+                .inverted()
+                .ch2p()
+                .not_inverted()
+                .ch2np()
+                .inverted()
+        });
+        timer.ctl1.modify(|_, w| {
+            w.iso0()
+                .low()
+                .iso0n()
+                .high()
+                .iso1()
+                .low()
+                .iso1n()
+                .high()
+                .iso2()
+                .low()
+                .iso2n()
+                .high()
+        });
 
-        Pwm { timer, clocks }
+        // Configure break parameters
+        timer.cchp.write(|w| {
+            w.ros()
+                .enabled()
+                .ios()
+                .disabled()
+                .prot()
+                .disabled()
+                .dtcfg()
+                .bits(60)
+                .brken()
+                .enabled()
+                .oaen()
+                .automatic()
+        });
+
+        // Disable timer
+        timer.ctl0.modify(|_, w| w.cen().disabled());
+
+        // Enable PWM output on all channels and complementary channels.
+        timer.chctl2.modify(|_, w| {
+            w.ch0en()
+                .enabled()
+                .ch1en()
+                .enabled()
+                .ch2en()
+                .enabled()
+                .ch0nen()
+                .enabled()
+                .ch1nen()
+                .enabled()
+                .ch2nen()
+                .enabled()
+        });
+
+        // Enable timer interrupt
+        // TODO: Set priority?
+        timer.dmainten.modify(|_, w| w.upie().enabled());
+
+        // Enable timer
+        timer.ctl0.modify(|_, w| w.cen().enabled());
+
+        Pwm {
+            timer,
+            clocks,
+            auto_reload_value,
+        }
+    }
+
+    pub fn automatic_output_disable(&mut self) {
+        self.timer.cchp.modify(|_, w| w.oaen().manual());
+    }
+
+    pub fn automatic_output_enable(&mut self) {
+        self.timer.cchp.modify(|_, w| w.oaen().automatic());
+    }
+
+    pub fn set_duty_cycles(&mut self, y: u16, b: u16, g: u16) {
+        self.timer.ch0cv.write(|w| w.ch0val().bits(y));
+        self.timer.ch1cv.write(|w| w.ch1val().bits(b));
+        self.timer.ch2cv.write(|w| w.ch2val().bits(g));
+    }
+
+    pub fn duty_max(&self) -> u16 {
+        self.auto_reload_value
+    }
+}
+
+fn clamp<T: PartialOrd>(x: T, low: T, high: T) -> T {
+    if x > high {
+        high
+    } else if x < low {
+        low
+    } else {
+        x
     }
 }
 
