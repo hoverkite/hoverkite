@@ -1,4 +1,5 @@
 use gd32f1x0_hal::{
+    adc::Adc,
     gpio::{
         gpioa::{PA0, PA10, PA12, PA15, PA2, PA3, PA4, PA6, PA8, PA9},
         gpiob::{PB10, PB11, PB12, PB13, PB14, PB15, PB2, PB3},
@@ -7,7 +8,7 @@ use gd32f1x0_hal::{
         Alternate, Analog, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
         AF2,
     },
-    pac::{interrupt, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, USART1},
+    pac::{interrupt, ADC, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, USART1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, Enable, Reset, AHB, APB1, APB2},
@@ -284,6 +285,7 @@ pub struct Hoverboard {
     pub current: PA6<Analog>,
     pub leds: Leds,
     pub hall_sensors: HallSensors,
+    pub adc: Adc,
     pub motor: Motor,
 }
 
@@ -295,6 +297,7 @@ impl Hoverboard {
         gpiof: GPIOF,
         usart1: USART1,
         timer0: TIMER0,
+        adc: ADC,
         ahb: &mut AHB,
         apb1: &mut APB1,
         apb2: &mut APB2,
@@ -314,6 +317,8 @@ impl Hoverboard {
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+
+        let adc = Adc::new(adc, apb2, clocks);
 
         let pwm = Pwm::new(timer0, MOTOR_PWM_FREQ_HERTZ.hz(), clocks, apb2);
 
@@ -345,6 +350,7 @@ impl Hoverboard {
                 hall_b: gpiof.pf1.into_floating_input(&mut gpiof.config),
                 hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
             },
+            adc,
             motor: Motor {
                 // Output speed defaults to 2MHz
                 green_high: gpioa.pa10.into_alternate(

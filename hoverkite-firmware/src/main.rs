@@ -14,6 +14,7 @@ use core::fmt::Write;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{
+    adc::Adc,
     gpio::{gpiob::PB2, gpiof::PF0, Input, Output, PullUp, PushPull},
     pac::{self, USART1},
     prelude::*,
@@ -29,7 +30,7 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     let mut rcu = dp.RCU.constrain();
-    let clocks = rcu.cfgr.freeze(&dp.FMC.ws);
+    let clocks = rcu.cfgr.adcclk(12.mhz()).freeze(&dp.FMC.ws);
 
     let mut watchdog = FreeWatchdog::new(dp.FWDGT);
     watchdog.start(WATCHDOG_MILLIS.ms());
@@ -41,6 +42,7 @@ fn main() -> ! {
         dp.GPIOF,
         dp.USART1,
         dp.TIMER0,
+        dp.ADC,
         &mut rcu.ahb,
         &mut rcu.apb1,
         &mut rcu.apb2,
@@ -77,6 +79,7 @@ fn main() -> ! {
                     &mut hoverboard.leds,
                     &mut hoverboard.power_latch,
                     &mut hoverboard.charge_state,
+                    &mut hoverboard.adc,
                 ) {
                     command_len = 0;
                 } else if command_len > command_buffer.len() {
@@ -118,6 +121,7 @@ fn process_command(
     leds: &mut Leds,
     power_latch: &mut PB2<Output<PushPull>>,
     charge_state: &mut PF0<Input<PullUp>>,
+    adc: &mut Adc,
 ) -> bool {
     if command.len() < 1 {
         return false;
@@ -187,6 +191,14 @@ fn process_command(
                 }
                 _ => writeln!(tx, "LED unrecognised").unwrap(),
             }
+        }
+        b'b' => {
+            let battery_voltage = adc.read_vbat();
+            writeln!(tx, "Backup battery voltage: {} mV", battery_voltage).unwrap();
+        }
+        b't' => {
+            let temperature = adc.read_temperature();
+            writeln!(tx, "Temperature: {}°C", temperature).unwrap();
         }
         b'c' => {
             if charge_state.is_low().unwrap() {

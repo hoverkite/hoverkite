@@ -185,7 +185,7 @@ dependencies = [
 [[package]]
 name = "gd32f1"
 version = "0.13.0"
-source = "git+https://github.com/qwandor/stm32-rs#d674c47ab8bb780169ba7f0e6958a59acde28d3f"
+source = "git+https://github.com/qwandor/stm32-rs#eace8f0d98bdd1a23dfd39f079cdc1361f369dbb"
 dependencies = [
  "bare-metal",
  "cortex-m 0.7.2",
@@ -196,7 +196,7 @@ dependencies = [
 [[package]]
 name = "gd32f1x0-hal"
 version = "0.1.0"
-source = "git+ssh://git@github.com/qwandor/gd32f1x0-hal.git?branch=main#a56790e530c5425ae98efa5feae1fb18d08db3fa"
+source = "git+ssh://git@github.com/qwandor/gd32f1x0-hal.git?branch=main#19c2ab3534da3c0ef1ad1a1bb5b48b80a2236d9c"
 dependencies = [
  "bxcan",
  "cast",
@@ -303,9 +303,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+checksum = "a152013215dca273577e18d2bf00fa862b89b24169fb78c4c95aeb07992c9cec"
 dependencies = [
  "unicode-xid",
 ]
@@ -375,9 +375,9 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "syn"
-version = "1.0.65"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3a1d708c221c5a612956ef9f75b37e454e88d1f7b899fbd3a18d4252012d663"
+checksum = "3ce15dd3ed8aa2f8eeac4716d6ef5ab58b6b9256db41d7e1a0224c2788e8fd87"
 dependencies = [
  "proc-macro2",
  "quote",
