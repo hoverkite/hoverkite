@@ -55,6 +55,7 @@ fn main() -> ! {
     let mut last_hall_position = None;
     let mut command_buffer = [0; 5];
     let mut command_len = 0;
+    let mut speed = 0;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -64,7 +65,7 @@ fn main() -> ! {
             Ok(char) => {
                 command_buffer[command_len] = char;
                 command_len += 1;
-                if process_command(&command_buffer[0..command_len], &mut hoverboard) {
+                if process_command(&command_buffer[0..command_len], &mut hoverboard, &mut speed) {
                     command_len = 0;
                 } else if command_len > command_buffer.len() {
                     writeln!(hoverboard.serial, "Command too long").unwrap();
@@ -85,6 +86,9 @@ fn main() -> ! {
             }
             last_hall_position = hall_position;
         }
+        if let Some(hall_position) = hall_position {
+            hoverboard.motor.set_position_power(speed, hall_position);
+        }
 
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {
@@ -99,7 +103,7 @@ fn main() -> ! {
 
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
-fn process_command(command: &[u8], hoverboard: &mut Hoverboard) -> bool {
+fn process_command(command: &[u8], hoverboard: &mut Hoverboard, speed: &mut i16) -> bool {
     if command.len() < 1 {
         return false;
     }
@@ -210,6 +214,28 @@ fn process_command(command: &[u8], hoverboard: &mut Hoverboard) -> bool {
             )
             .unwrap();
             hoverboard.motor.set_position_power(power, position);
+        }
+        b's' | b'v' => {
+            if command.len() < 2 {
+                return false;
+            }
+            let mut power = match command[1] {
+                b'1' => 10,
+                b'2' => 20,
+                b'3' => 30,
+                b'4' => 40,
+                b'5' => 50,
+                b'6' => 60,
+                b'7' => 70,
+                b'8' => 80,
+                b'9' => 90,
+                _ => 0,
+            };
+            if command[0] == b'v' {
+                power = -power;
+            }
+            writeln!(hoverboard.serial, "motor speed {}", power).unwrap();
+            *speed = power;
         }
         b'p' => poweroff(hoverboard),
         _ => writeln!(hoverboard.serial, "Unrecognised command {}", command[0]).unwrap(),
