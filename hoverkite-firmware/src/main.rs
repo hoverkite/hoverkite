@@ -35,6 +35,7 @@ fn main() -> ! {
         dp.GPIOF,
         dp.USART1,
         dp.TIMER0,
+        dp.DMA,
         dp.ADC,
         &mut rcu.ahb,
         &mut rcu.apb1,
@@ -169,17 +170,13 @@ fn process_command(command: &[u8], hoverboard: &mut Hoverboard) -> bool {
             }
         }
         b'b' => {
-            let battery_voltage = hoverboard.adc.read_vbat();
+            let readings = hoverboard.adc_readings();
             writeln!(
                 hoverboard.serial,
-                "Backup battery voltage: {} mV",
-                battery_voltage
+                "Battery voltage: {} mV, backup: {} mV, current {} mV",
+                readings.battery_voltage, readings.backup_battery_voltage, readings.motor_current
             )
             .unwrap();
-        }
-        b't' => {
-            let temperature = hoverboard.adc.read_temperature();
-            writeln!(hoverboard.serial, "Temperature: {}°C", temperature).unwrap();
         }
         b'c' => {
             if hoverboard.charge_state.is_low().unwrap() {

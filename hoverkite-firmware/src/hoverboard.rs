@@ -1,14 +1,23 @@
+use core::{cell::RefCell, mem};
+use cortex_m::{
+    interrupt::{free, Mutex},
+    peripheral::NVIC,
+    singleton,
+};
 use gd32f1x0_hal::{
-    adc::Adc,
+    adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
+    dma::{Event, Transfer, W},
     gpio::{
-        gpioa::{PA0, PA10, PA12, PA15, PA2, PA3, PA4, PA6, PA8, PA9},
+        gpioa::{PA0, PA10, PA12, PA15, PA2, PA3, PA8, PA9},
         gpiob::{PB10, PB11, PB12, PB13, PB14, PB15, PB2, PB3},
         gpioc::{PC14, PC15},
         gpiof::{PF0, PF1},
-        Alternate, Analog, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
-        AF2,
+        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1, AF2,
     },
-    pac::{interrupt, ADC, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, USART1},
+    pac::{
+        adc::ctl1::CTN_A, interrupt, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0,
+        USART1,
+    },
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, Enable, Reset, AHB, APB1, APB2},
@@ -17,7 +26,46 @@ use gd32f1x0_hal::{
 };
 
 const USART_BAUD_RATE: u32 = 115200;
-const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
+const MOTOR_PWM_FREQ_HERTZ: u32 = 8000;
+const CURRENT_OFFSET_DC: u16 = 1073;
+
+struct Shared {
+    pwm: Pwm,
+    adc_dma: AdcDmaState,
+    last_adc_readings: AdcReadings,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AdcReadings {
+    pub battery_voltage: u16,
+    pub motor_current: u16,
+    pub backup_battery_voltage: u16,
+}
+
+impl AdcReadings {
+    fn update_from_buffer(&mut self, buffer: &[u16; 3], adc: &Adc) {
+        // TODO: Or is it better to just hardcode the ADC scaling factor?
+        self.battery_voltage = adc.calculate_voltage(buffer[0]) * 30;
+        self.motor_current = adc.calculate_voltage(buffer[1]);
+        self.backup_battery_voltage = adc.calculate_voltage(buffer[2]) * 2;
+    }
+}
+
+enum AdcDmaState {
+    NotStarted(AdcDma<Sequence, Scan>, &'static mut [u16; 3]),
+    Started(Transfer<W, &'static mut [u16; 3], AdcDma<Sequence, Scan>>),
+    None,
+}
+
+impl AdcDmaState {
+    fn with(&mut self, f: impl FnOnce(Self) -> Self) {
+        let adc_dma = mem::replace(self, AdcDmaState::None);
+        let adc_dma = f(adc_dma);
+        let _ = mem::replace(self, adc_dma);
+    }
+}
+
+static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
 
 pub struct HallSensors {
     hall_a: PB11<Input<Floating>>,
@@ -54,14 +102,14 @@ pub struct Leds {
 }
 
 pub struct Motor {
-    pub green_high: PA10<Alternate<AF2>>,
-    pub blue_high: PA9<Alternate<AF2>>,
-    pub yellow_high: PA8<Alternate<AF2>>,
-    pub green_low: PB15<Alternate<AF2>>,
-    pub blue_low: PB14<Alternate<AF2>>,
-    pub yellow_low: PB13<Alternate<AF2>>,
-    pub emergency_off: PB12<Alternate<AF2>>,
-    pub pwm: Pwm,
+    green_high: PA10<Alternate<AF2>>,
+    blue_high: PA9<Alternate<AF2>>,
+    yellow_high: PA8<Alternate<AF2>>,
+    green_low: PB15<Alternate<AF2>>,
+    blue_low: PB14<Alternate<AF2>>,
+    yellow_low: PB13<Alternate<AF2>>,
+    emergency_off: PB12<Alternate<AF2>>,
+    //pub pwm: Pwm,
 }
 
 impl Motor {
@@ -77,11 +125,15 @@ impl Motor {
             5 => (power, 0, -power),
             _ => (0, 0, 0),
         };
-        let duty_max = self.pwm.duty_max();
-        let y = clamp((y + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
-        let b = clamp((b + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
-        let g = clamp((g + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
-        self.pwm.set_duty_cycles(y, b, g);
+        free(|cs| {
+            if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
+                let duty_max = shared.pwm.duty_max();
+                let y = clamp((y + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+                let b = clamp((b + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+                let g = clamp((g + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+                shared.pwm.set_duty_cycles(y, b, g);
+            }
+        });
     }
 }
 
@@ -93,14 +145,45 @@ pub struct Pwm {
 
 #[interrupt]
 fn TIMER0_BRK_UP_TRG_COM() {
-    // TODO: Start ADC for current reading and limiting
-    // TODO: Read hall sensors
-    // TODO: set_position based on desired speed and hall sensor reading
+    free(|cs| {
+        if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
+            let intf = &shared.pwm.timer.intf;
+            if intf.read().upif().is_update_pending() {
+                shared.adc_dma.with(move |adc_dma| {
+                    if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
+                        // Enable interrupts
+                        adc_dma.channel.listen(Event::TransferComplete);
+                        // Trigger ADC
+                        AdcDmaState::Started(adc_dma.read(buffer))
+                    } else {
+                        adc_dma
+                    }
+                });
+                // Clear timer update interrupt flag
+                intf.modify(|_, w| w.upif().clear());
+            }
+        }
+    });
+}
 
-    // Clear timer update interrupt flag
-    unsafe { &*TIMER0::ptr() }
-        .intf
-        .modify(|_, w| w.upif().clear());
+#[interrupt]
+fn DMA_CHANNEL0() {
+    free(|cs| {
+        if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
+            let last_adc_readings = &mut shared.last_adc_readings;
+            shared.adc_dma.with(move |adc_dma| {
+                if let AdcDmaState::Started(transfer) = adc_dma {
+                    let (buffer, adc_dma) = transfer.wait();
+                    last_adc_readings.update_from_buffer(buffer, adc_dma.as_ref());
+                    AdcDmaState::NotStarted(adc_dma, buffer)
+                } else {
+                    adc_dma
+                }
+            });
+            // TODO: Read hall sensors
+            // TODO: set_position based on desired speed and hall sensor reading
+        }
+    });
 }
 
 impl Pwm {
@@ -208,6 +291,8 @@ impl Pwm {
                 .bits(60)
                 .brken()
                 .enabled()
+                .brkp()
+                .inverted()
                 .oaen()
                 .automatic()
         });
@@ -281,11 +366,8 @@ pub struct Hoverboard {
     pub power_button: PC15<Input<Floating>>,
     /// This will be low when the charger is connected.
     pub charge_state: PF0<Input<PullUp>>,
-    pub battery_voltage: PA4<Analog>,
-    pub current: PA6<Analog>,
     pub leds: Leds,
     pub hall_sensors: HallSensors,
-    pub adc: Adc,
     pub motor: Motor,
 }
 
@@ -297,6 +379,7 @@ impl Hoverboard {
         gpiof: GPIOF,
         usart1: USART1,
         timer0: TIMER0,
+        dma: DMA,
         adc: ADC,
         ahb: &mut AHB,
         apb1: &mut APB1,
@@ -318,9 +401,39 @@ impl Hoverboard {
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
 
-        let adc = Adc::new(adc, apb2, clocks);
+        // DMA controller
+        let dma = dma.split(ahb);
+
+        // ADC
+        let mut adc = Adc::new(adc, apb2, clocks);
+        let battery_voltage = gpioa.pa4.into_analog(&mut gpioa.config);
+        let motor_current = gpioa.pa6.into_analog(&mut gpioa.config);
+        adc.set_sample_time(&battery_voltage, SampleTime::Cycles13_5);
+        adc.set_sample_time(&motor_current, SampleTime::Cycles13_5);
+        adc.set_sample_time(&VBat, SampleTime::Cycles13_5);
+        adc.enable_vbat(true);
+        let mut sequence = Sequence::default();
+        sequence.add_pin(battery_voltage).ok().unwrap();
+        sequence.add_pin(motor_current).ok().unwrap();
+        sequence.add_pin(VBat).ok().unwrap();
+        let adc = adc.with_regular_sequence(sequence);
+        let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
+        let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
 
         let pwm = Pwm::new(timer0, MOTOR_PWM_FREQ_HERTZ.hz(), clocks, apb2);
+
+        free(move |cs| {
+            SHARED.borrow(cs).replace(Some(Shared {
+                pwm,
+                adc_dma: AdcDmaState::NotStarted(adc_dma, adc_dma_buffer),
+                last_adc_readings: AdcReadings::default(),
+            }))
+        });
+
+        unsafe {
+            NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
+            NVIC::unmask(Interrupt::DMA_CHANNEL0);
+        }
 
         Hoverboard {
             serial: Serial::usart(
@@ -337,8 +450,6 @@ impl Hoverboard {
             power_latch: gpiob.pb2.into_push_pull_output(&mut gpiob.config),
             power_button: gpioc.pc15.into_floating_input(&mut gpioc.config),
             charge_state: gpiof.pf0.into_pull_up_input(&mut gpiof.config),
-            battery_voltage: gpioa.pa4.into_analog(&mut gpioa.config),
-            current: gpioa.pa6.into_analog(&mut gpioa.config),
             leds: Leds {
                 side: gpioa.pa0.into_push_pull_output(&mut gpioa.config),
                 green: gpioa.pa15.into_push_pull_output(&mut gpioa.config),
@@ -350,7 +461,6 @@ impl Hoverboard {
                 hall_b: gpiof.pf1.into_floating_input(&mut gpiof.config),
                 hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
             },
-            adc,
             motor: Motor {
                 // Output speed defaults to 2MHz
                 green_high: gpioa.pa10.into_alternate(
@@ -388,8 +498,17 @@ impl Hoverboard {
                     PullMode::Floating,
                     OutputMode::PushPull,
                 ),
-                pwm,
             },
         }
+    }
+
+    pub fn adc_readings(&self) -> AdcReadings {
+        free(|cs| {
+            if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
+                shared.last_adc_readings.clone()
+            } else {
+                AdcReadings::default()
+            }
+        })
     }
 }
