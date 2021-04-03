@@ -185,6 +185,32 @@ fn process_command(command: &[u8], hoverboard: &mut Hoverboard) -> bool {
                 writeln!(hoverboard.serial, "Charger not connected").unwrap();
             }
         }
+        b'm' => {
+            if command.len() < 3 {
+                return false;
+            }
+            let position = match command[1] {
+                b'0' => 0,
+                b'1' => 1,
+                b'2' => 2,
+                b'3' => 3,
+                b'4' => 4,
+                b'5' => 5,
+                _ => 6,
+            };
+            let power = match command[2] {
+                b'1' => 10,
+                b'9' => 90,
+                _ => 0,
+            };
+            writeln!(
+                hoverboard.serial,
+                "motor position {} power {}",
+                position, power
+            )
+            .unwrap();
+            hoverboard.motor.set_position_power(power, position);
+        }
         b'p' => poweroff(hoverboard),
         _ => writeln!(hoverboard.serial, "Unrecognised command {}", command[0]).unwrap(),
     }
