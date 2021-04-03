@@ -25,9 +25,9 @@
             "name": "Debug (OpenOCD)",
             "servertype": "openocd",
             "cwd": "${workspaceRoot}",
-            "preLaunchTask": "Cargo Build (debug)",
+            "preLaunchTask": "Cargo Build (release)",
             "runToMain": true,
-            "executable": "./target/thumbv7m-none-eabi/debug/hoverkite-firmware",
+            "executable": "./target/thumbv7m-none-eabi/release/hoverkite-firmware",
             "device": "STM32F303VCT6",
             "configFiles": [
                 "interface/stlink-v2.cfg",
