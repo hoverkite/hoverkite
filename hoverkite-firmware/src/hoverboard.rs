@@ -125,6 +125,35 @@ pub struct Motor {
 }
 
 impl Motor {
+    pub fn new(
+        green_high: PA10<Alternate<AF2>>,
+        blue_high: PA9<Alternate<AF2>>,
+        yellow_high: PA8<Alternate<AF2>>,
+        green_low: PB15<Alternate<AF2>>,
+        blue_low: PB14<Alternate<AF2>>,
+        yellow_low: PB13<Alternate<AF2>>,
+        emergency_off: PB12<Alternate<AF2>>,
+        pwm: Pwm,
+        hall_sensors: HallSensors,
+    ) -> Self {
+        Self {
+            green_high,
+            blue_high,
+            yellow_high,
+            green_low,
+            blue_low,
+            yellow_low,
+            emergency_off,
+            pwm,
+            hall_sensors,
+            position: 0,
+            last_hall_position: None,
+            power: 0,
+            target_power: 0,
+            smoothing_cycles: 0,
+        }
+    }
+
     fn set_position_power(&mut self, power: i16, position: u8) {
         let power = clamp(power, -1000, 1000);
         // TODO: Low-pass filter power
@@ -477,51 +506,32 @@ impl Hoverboard {
             hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
         };
 
-        let motor = Motor {
+        let motor = Motor::new(
             // Output speed defaults to 2MHz
-            green_high: gpioa.pa10.into_alternate(
-                &mut gpioa.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            blue_high: gpioa.pa9.into_alternate(
-                &mut gpioa.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            yellow_high: gpioa.pa8.into_alternate(
-                &mut gpioa.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            green_low: gpiob.pb15.into_alternate(
-                &mut gpiob.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            blue_low: gpiob.pb14.into_alternate(
-                &mut gpiob.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            yellow_low: gpiob.pb13.into_alternate(
-                &mut gpiob.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
-            emergency_off: gpiob.pb12.into_alternate(
-                &mut gpiob.config,
-                PullMode::Floating,
-                OutputMode::PushPull,
-            ),
+            gpioa
+                .pa10
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
+            gpioa
+                .pa9
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
+            gpioa
+                .pa8
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
+            gpiob
+                .pb15
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
+            gpiob
+                .pb14
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
+            gpiob
+                .pb13
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
+            gpiob
+                .pb12
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
             pwm,
             hall_sensors,
-            position: 0,
-            last_hall_position: None,
-            power: 0,
-            target_power: 0,
-            smoothing_cycles: 0,
-        };
+        );
 
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {
