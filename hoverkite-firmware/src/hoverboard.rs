@@ -28,6 +28,7 @@ use gd32f1x0_hal::{
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
 const CURRENT_OFFSET_DC: u16 = 1073;
+const MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP: u32 = 10;
 
 struct Shared {
     motor: Motor,
@@ -39,7 +40,11 @@ struct Shared {
     /// The last valid reading from the Hall sensors.
     last_hall_position: Option<u8>,
     /// The desired motor power.
+    target_motor_power: i16,
+    /// The last set motor power.
     motor_power: i16,
+    /// The number of timer cycles since the motor power was last changed.
+    smoothing_cycles: u32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -207,6 +212,18 @@ fn DMA_CHANNEL0() {
                 }
 
                 shared.last_hall_position = Some(hall_position);
+
+                // Smoothing for motor power: don't change more than one unit every
+                // MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP interrupts.
+                if shared.smoothing_cycles < MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP {
+                    shared.smoothing_cycles += 1;
+                } else if shared.target_motor_power > shared.motor_power {
+                    shared.motor_power += 1;
+                    shared.smoothing_cycles = 0;
+                } else if shared.target_motor_power < shared.motor_power {
+                    shared.motor_power -= 1;
+                    shared.smoothing_cycles = 0;
+                }
 
                 // Set motor position based on desired power and Hall sensor reading.
                 shared
@@ -506,6 +523,8 @@ impl Hoverboard {
                 position: 0,
                 last_hall_position: None,
                 motor_power: 0,
+                target_motor_power: 0,
+                smoothing_cycles: 0,
             }))
         });
 
@@ -564,7 +583,7 @@ impl Hoverboard {
             let shared = &mut *SHARED.borrow(cs).borrow_mut();
             let shared = shared.as_mut().unwrap();
 
-            shared.motor_power = power;
+            shared.target_motor_power = power;
         })
     }
 }
