@@ -23,7 +23,11 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     let mut rcu = dp.RCU.constrain();
-    let clocks = rcu.cfgr.adcclk(12.mhz()).freeze(&dp.FMC.ws);
+    let clocks = rcu
+        .cfgr
+        .sysclk(72.mhz())
+        .adcclk(12.mhz())
+        .freeze(&dp.FMC.ws);
 
     let mut watchdog = FreeWatchdog::new(dp.FWDGT);
     watchdog.start(WATCHDOG_MILLIS.ms());
@@ -46,12 +50,16 @@ fn main() -> ! {
     // Keep power on.
     hoverboard.power_latch.set_high().unwrap();
 
+    writeln!(hoverboard.serial, "System clock {} Hz", clocks.sysclk().0).unwrap();
+    writeln!(hoverboard.serial, "ADC clock {} Hz", clocks.adcclk().0).unwrap();
+
     // If power button is pressed, wait until it is released.
     while hoverboard.power_button.is_high().unwrap() {
         watchdog.feed();
     }
 
     writeln!(hoverboard.serial, "Ready").unwrap();
+
     let mut last_hall_position = None;
     let mut command_buffer = [0; 5];
     let mut command_len = 0;
