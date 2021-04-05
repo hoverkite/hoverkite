@@ -10,7 +10,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::{cmp::min, fmt::Write};
+use core::{cmp::min, convert::TryInto, fmt::Write};
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
@@ -62,7 +62,7 @@ fn main() -> ! {
     writeln!(hoverboard.serial, "Ready").unwrap();
 
     let mut last_position = 0;
-    let mut command_buffer = [0; 5];
+    let mut command_buffer = [0; 10];
     let mut command_len = 0;
     let mut speed = 0;
     let mut target_position: Option<i64> = None;
@@ -230,6 +230,14 @@ fn process_command(
             writeln!(hoverboard.serial, "max speed {}", power).unwrap();
             *max_speed = power;
         }
+        b'S' => {
+            if command.len() < 3 {
+                return false;
+            }
+            let power = i16::from_le_bytes(command[1..3].try_into().unwrap());
+            writeln!(hoverboard.serial, "max speed {}", power).unwrap();
+            *max_speed = power;
+        }
         b'k' => {
             if command.len() < 2 {
                 return false;
@@ -238,11 +246,27 @@ fn process_command(
             writeln!(hoverboard.serial, "Spring constant {}", spring).unwrap();
             *spring_constant = spring;
         }
+        b'K' => {
+            if command.len() < 3 {
+                return false;
+            }
+            let spring = u16::from_le_bytes(command[1..3].try_into().unwrap()).into();
+            writeln!(hoverboard.serial, "Spring constant {}", spring).unwrap();
+            *spring_constant = spring;
+        }
         b't' => {
             if command.len() < 2 {
                 return false;
             }
             let target = char_to_digit::<i64>(command[1]) * 100;
+            writeln!(hoverboard.serial, "Target position {}", target).unwrap();
+            *target_position = Some(target);
+        }
+        b'T' => {
+            if command.len() < 9 {
+                return false;
+            }
+            let target = i64::from_le_bytes(command[1..9].try_into().unwrap());
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();
             *target_position = Some(target);
         }
