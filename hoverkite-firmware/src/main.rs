@@ -3,17 +3,17 @@
 
 mod hoverboard;
 
-use hoverboard::Hoverboard;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::fmt::Write;
+use core::{cmp::min, fmt::Write};
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
+use hoverboard::Hoverboard;
 
 const WATCHDOG_MILLIS: u32 = 1000;
 
@@ -66,7 +66,7 @@ fn main() -> ! {
     let mut speed = 0;
     let mut position: i64 = 0;
     let mut target_position: Option<i64> = None;
-    let target_speed = 60;
+    let mut max_speed = 200;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -79,7 +79,7 @@ fn main() -> ! {
                 if process_command(
                     &command_buffer[0..command_len],
                     &mut hoverboard,
-                    &mut speed,
+                    &mut max_speed,
                     &mut target_position,
                 ) {
                     command_len = 0;
@@ -124,10 +124,12 @@ fn main() -> ! {
 
         // Try to move towards the target position.
         if let Some(target_position) = target_position {
+            let abs_difference = (target_position - position).abs();
+            let adjusted_speed = min(max_speed.into(), abs_difference * 10) as i16;
             speed = if target_position < position {
-                -target_speed
+                -adjusted_speed
             } else if target_position > position {
-                target_speed
+                adjusted_speed
             } else {
                 0
             };
@@ -154,7 +156,7 @@ fn main() -> ! {
 fn process_command(
     command: &[u8],
     hoverboard: &mut Hoverboard,
-    speed: &mut i16,
+    max_speed: &mut i16,
     target_position: &mut Option<i64>,
 ) -> bool {
     if command.len() < 1 {
@@ -268,7 +270,7 @@ fn process_command(
             .unwrap();
             hoverboard.motor.set_position_power(power, position);
         }
-        b's' | b'v' => {
+        b's' => {
             if command.len() < 2 {
                 return false;
             }
@@ -284,12 +286,8 @@ fn process_command(
                 b'9' => 90,
                 _ => 0,
             };
-            if command[0] == b'v' {
-                power = -power;
-            }
-            writeln!(hoverboard.serial, "motor speed {}", power).unwrap();
-            *speed = power;
-            *target_position = None;
+            writeln!(hoverboard.serial, "max speed {}", power).unwrap();
+            *max_speed = power;
         }
         b't' => {
             if command.len() < 2 {
