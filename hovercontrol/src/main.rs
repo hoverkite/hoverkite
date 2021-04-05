@@ -134,6 +134,11 @@ impl Controller {
                 self.send_command(Side::Left, &[b'b'])?;
                 self.send_command(Side::Right, &[b'b'])?;
             }
+            EventType::ButtonPressed(Button::Mode, _code) => {
+                // Power off
+                self.send_command(Side::Left, &[b'p'])?;
+                self.send_command(Side::Right, &[b'p'])?;
+            }
             EventType::ButtonPressed(button, code) => {
                 println!("Button {:?} pressed: {:?}", button, code);
             }
