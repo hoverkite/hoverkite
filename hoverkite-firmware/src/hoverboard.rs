@@ -128,9 +128,13 @@ impl Motor {
         free(|cs| {
             if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
                 let duty_max = shared.pwm.duty_max();
-                let y = clamp((y + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
-                let b = clamp((b + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
-                let g = clamp((g + (duty_max / 2) as i16) as u16, 10, duty_max - 10);
+                let power_max = (duty_max / 2) as i32;
+                let y = y as i32 * power_max / 1000;
+                let b = b as i32 * power_max / 1000;
+                let g = g as i32 * power_max / 1000;
+                let y = clamp((y + power_max) as u16, 10, duty_max - 10);
+                let b = clamp((b + power_max) as u16, 10, duty_max - 10);
+                let g = clamp((g + power_max) as u16, 10, duty_max - 10);
                 shared.pwm.set_duty_cycles(y, b, g);
             }
         });
