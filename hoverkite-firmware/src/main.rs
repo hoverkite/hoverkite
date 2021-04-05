@@ -2,6 +2,7 @@
 #![no_main]
 
 mod hoverboard;
+mod motor;
 
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
