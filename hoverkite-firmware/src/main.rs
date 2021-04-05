@@ -258,6 +258,16 @@ fn process_command(
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();
             *target_position = Some(target);
         }
+        b'+' => {
+            let target = target_position.unwrap_or(0) + 10;
+            writeln!(hoverboard.serial, "Target position {}", target).unwrap();
+            *target_position = Some(target);
+        }
+        b'-' => {
+            let target = target_position.unwrap_or(0) - 10;
+            writeln!(hoverboard.serial, "Target position {}", target).unwrap();
+            *target_position = Some(target);
+        }
         b'p' => poweroff(hoverboard),
         _ => writeln!(hoverboard.serial, "Unrecognised command {}", command[0]).unwrap(),
     }
