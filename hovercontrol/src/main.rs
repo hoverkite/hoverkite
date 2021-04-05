@@ -44,6 +44,8 @@ impl Controller {
     }
 
     pub fn run(&mut self) -> Result<(), Report> {
+        let mut left_buffer = [0; 100];
+        let mut left_length = 0;
         loop {
             while let Some(Event {
                 id: _,
@@ -52,6 +54,23 @@ impl Controller {
             }) = self.gilrs.next_event()
             {
                 self.handle_event(event)?;
+            }
+            if self.left_port.bytes_to_read()? > 0 {
+                left_length += self.left_port.read(&mut left_buffer[left_length..])?;
+                if let Some(end_of_line) =
+                    left_buffer[0..left_length].iter().position(|&c| c == b'\n')
+                {
+                    let string = String::from_utf8_lossy(&left_buffer[0..end_of_line]);
+                    println!("Left: '{}'", string);
+                    let remaining_length = left_length - end_of_line - 1;
+                    let remaining_bytes = left_buffer[end_of_line + 1..left_length].to_owned();
+                    left_buffer[0..remaining_length].clone_from_slice(&remaining_bytes);
+                    left_length = remaining_length;
+                } else if left_length == left_buffer.len() {
+                    let string = String::from_utf8_lossy(&left_buffer[0..left_length]);
+                    println!("Left: '{}'", string);
+                    left_length = 0;
+                }
             }
         }
     }
