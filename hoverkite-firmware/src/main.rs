@@ -91,7 +91,15 @@ fn main() -> ! {
                 }
             }
             Err(nb::Error::WouldBlock) => {}
-            Err(nb::Error::Other(e)) => writeln!(hoverboard.serial, "Read error {:?}", e).unwrap(),
+            Err(nb::Error::Other(e)) => {
+                writeln!(
+                    hoverboard.serial,
+                    "Read error {:?}, dropping {} bytes",
+                    e, command_len
+                )
+                .unwrap();
+                command_len = 0;
+            }
         }
 
         // Log if the position has changed.
