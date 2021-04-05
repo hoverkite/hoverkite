@@ -224,17 +224,17 @@ fn process_command(
                 return false;
             }
             let mut power = match command[1] {
-                b'1' => 10,
-                b'2' => 20,
-                b'3' => 30,
-                b'4' => 40,
-                b'5' => 50,
-                b'6' => 60,
-                b'7' => 70,
-                b'8' => 80,
-                b'9' => 90,
+                b'1' => 1,
+                b'2' => 2,
+                b'3' => 3,
+                b'4' => 4,
+                b'5' => 5,
+                b'6' => 6,
+                b'7' => 7,
+                b'8' => 8,
+                b'9' => 9,
                 _ => 0,
-            };
+            } * 30;
             writeln!(hoverboard.serial, "max speed {}", power).unwrap();
             *max_speed = power;
         }
@@ -244,17 +244,17 @@ fn process_command(
             }
             let target = match command[1] {
                 b'0' => 0,
-                b'1' => 10,
-                b'2' => 20,
-                b'3' => 30,
-                b'4' => 40,
-                b'5' => 50,
-                b'6' => 60,
-                b'7' => 70,
-                b'8' => 80,
-                b'9' => 90,
+                b'1' => 1,
+                b'2' => 2,
+                b'3' => 3,
+                b'4' => 4,
+                b'5' => 5,
+                b'6' => 6,
+                b'7' => 7,
+                b'8' => 8,
+                b'9' => 9,
                 _ => 0,
-            };
+            } * 100;
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();
             *target_position = Some(target);
         }
