@@ -28,6 +28,7 @@ struct Controller {
     centre_left: i64,
     centre_right: i64,
     scale: f32,
+    max_speed: i16,
 }
 
 impl Controller {
@@ -40,10 +41,13 @@ impl Controller {
             centre_left: 0,
             centre_right: 0,
             scale: 10.0,
+            max_speed: 200,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Report> {
+        self.set_max_speed()?;
+
         let mut left_buffer = [0; 100];
         let mut left_length = 0;
         loop {
@@ -98,6 +102,18 @@ impl Controller {
                 }
                 println!("Scale {}", self.scale);
             }
+            EventType::ButtonPressed(Button::DPadUp, _code) => {
+                if self.max_speed < 300 {
+                    self.max_speed += 10;
+                    self.set_max_speed()?;
+                }
+            }
+            EventType::ButtonPressed(Button::DPadDown, _code) => {
+                if self.max_speed > 10 {
+                    self.max_speed -= 10;
+                    self.set_max_speed()?;
+                }
+            }
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
                 self.centre_left += centre_step;
                 self.set_target(Side::Left, self.centre_left + self.offset_left)?;
@@ -123,6 +139,15 @@ impl Controller {
             }
             _ => {}
         }
+        Ok(())
+    }
+
+    fn set_max_speed(&mut self) -> Result<(), Report> {
+        println!("Max speed: {}", self.max_speed);
+        let mut command = vec![b'S'];
+        command.extend_from_slice(&self.max_speed.to_le_bytes());
+        self.send_command(Side::Left, &command)?;
+        self.send_command(Side::Right, &command)?;
         Ok(())
     }
 
