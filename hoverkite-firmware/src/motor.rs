@@ -170,7 +170,6 @@ impl Motor {
 
 pub struct Pwm {
     pub timer: TIMER0,
-    clocks: Clocks,
     auto_reload_value: u16,
 }
 
@@ -313,7 +312,6 @@ impl Pwm {
 
         Pwm {
             timer,
-            clocks,
             auto_reload_value,
         }
     }
