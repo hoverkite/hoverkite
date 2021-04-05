@@ -114,6 +114,10 @@ impl Controller {
                 self.centre_right -= centre_step;
                 self.set_target(Side::Right, self.centre_right + self.offset_right)?;
             }
+            EventType::ButtonPressed(Button::South, _code) => {
+                self.send_command(Side::Left, &[b'b'])?;
+                self.send_command(Side::Right, &[b'b'])?;
+            }
             EventType::ButtonPressed(button, code) => {
                 println!("Button {:?} pressed: {:?}", button, code);
             }
