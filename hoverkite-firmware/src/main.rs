@@ -65,6 +65,8 @@ fn main() -> ! {
     let mut command_len = 0;
     let mut speed = 0;
     let mut position: i64 = 0;
+    let mut target_position: Option<i64> = None;
+    let target_speed = 60;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -74,7 +76,12 @@ fn main() -> ! {
             Ok(char) => {
                 command_buffer[command_len] = char;
                 command_len += 1;
-                if process_command(&command_buffer[0..command_len], &mut hoverboard, &mut speed) {
+                if process_command(
+                    &command_buffer[0..command_len],
+                    &mut hoverboard,
+                    &mut speed,
+                    &mut target_position,
+                ) {
                     command_len = 0;
                 } else if command_len > command_buffer.len() {
                     writeln!(hoverboard.serial, "Command too long").unwrap();
@@ -114,6 +121,19 @@ fn main() -> ! {
                 writeln!(hoverboard.serial, "Invalid position").unwrap();
             }
         }
+
+        // Try to move towards the target position.
+        if let Some(target_position) = target_position {
+            speed = if target_position < position {
+                -target_speed
+            } else if target_position > position {
+                target_speed
+            } else {
+                0
+            };
+        }
+
+        // Drive the motor.
         if let Some(hall_position) = hall_position {
             hoverboard.motor.set_position_power(speed, hall_position);
         }
@@ -131,7 +151,12 @@ fn main() -> ! {
 
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
-fn process_command(command: &[u8], hoverboard: &mut Hoverboard, speed: &mut i16) -> bool {
+fn process_command(
+    command: &[u8],
+    hoverboard: &mut Hoverboard,
+    speed: &mut i16,
+    target_position: &mut Option<i64>,
+) -> bool {
     if command.len() < 1 {
         return false;
     }
@@ -264,6 +289,27 @@ fn process_command(command: &[u8], hoverboard: &mut Hoverboard, speed: &mut i16)
             }
             writeln!(hoverboard.serial, "motor speed {}", power).unwrap();
             *speed = power;
+            *target_position = None;
+        }
+        b't' => {
+            if command.len() < 2 {
+                return false;
+            }
+            let target = match command[1] {
+                b'0' => 0,
+                b'1' => 10,
+                b'2' => 20,
+                b'3' => 30,
+                b'4' => 40,
+                b'5' => 50,
+                b'6' => 60,
+                b'7' => 70,
+                b'8' => 80,
+                b'9' => 90,
+                _ => 0,
+            };
+            writeln!(hoverboard.serial, "Target position {}", target).unwrap();
+            *target_position = Some(target);
         }
         b'p' => poweroff(hoverboard),
         _ => writeln!(hoverboard.serial, "Unrecognised command {}", command[0]).unwrap(),
