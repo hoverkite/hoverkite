@@ -64,6 +64,7 @@ fn main() -> ! {
     let mut command_buffer = [0; 5];
     let mut command_len = 0;
     let mut speed = 0;
+    let mut position: i64 = 0;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -88,11 +89,30 @@ fn main() -> ! {
         let hall_position = hoverboard.hall_sensors.position();
         if hall_position != last_hall_position {
             if let Some(hall_position) = hall_position {
-                writeln!(hoverboard.serial, "Position {}", hall_position).unwrap();
+                if let Some(last_hall_position) = last_hall_position {
+                    // Update absolute position
+                    let difference = (6 + hall_position - last_hall_position) % 6;
+                    match difference {
+                        0 => {}
+                        1 => position += 1,
+                        2 => position += 2,
+                        4 => position -= 2,
+                        5 => position -= 1,
+                        _ => {
+                            writeln!(hoverboard.serial, "Wheel moved too much");
+                        }
+                    }
+                }
+                writeln!(
+                    hoverboard.serial,
+                    "Position {} ({})",
+                    hall_position, position
+                )
+                .unwrap();
+                last_hall_position = Some(hall_position);
             } else {
                 writeln!(hoverboard.serial, "Invalid position").unwrap();
             }
-            last_hall_position = hall_position;
         }
         if let Some(hall_position) = hall_position {
             hoverboard.motor.set_position_power(speed, hall_position);
