@@ -60,11 +60,10 @@ fn main() -> ! {
 
     writeln!(hoverboard.serial, "Ready").unwrap();
 
-    let mut last_hall_position = None;
+    let mut last_position = 0;
     let mut command_buffer = [0; 5];
     let mut command_len = 0;
     let mut speed = 0;
-    let mut position: i64 = 0;
     let mut target_position: Option<i64> = None;
     let mut max_speed = 200;
     loop {
@@ -92,34 +91,11 @@ fn main() -> ! {
             Err(nb::Error::Other(e)) => writeln!(hoverboard.serial, "Read error {:?}", e).unwrap(),
         }
 
-        // Log if the position from the Hall effect sensors has changed.
-        let hall_position = hoverboard.hall_sensors.position();
-        if hall_position != last_hall_position {
-            if let Some(hall_position) = hall_position {
-                if let Some(last_hall_position) = last_hall_position {
-                    // Update absolute position
-                    let difference = (6 + hall_position - last_hall_position) % 6;
-                    match difference {
-                        0 => {}
-                        1 => position += 1,
-                        2 => position += 2,
-                        4 => position -= 2,
-                        5 => position -= 1,
-                        _ => {
-                            writeln!(hoverboard.serial, "Wheel moved too much");
-                        }
-                    }
-                }
-                writeln!(
-                    hoverboard.serial,
-                    "Position {} ({})",
-                    hall_position, position
-                )
-                .unwrap();
-                last_hall_position = Some(hall_position);
-            } else {
-                writeln!(hoverboard.serial, "Invalid position").unwrap();
-            }
+        // Log if the position has changed.
+        let position = hoverboard.motor_position();
+        if position != last_position {
+            writeln!(hoverboard.serial, "Position {}", position).unwrap();
+            last_position = position;
         }
 
         // Try to move towards the target position.
@@ -136,9 +112,7 @@ fn main() -> ! {
         }
 
         // Drive the motor.
-        if let Some(hall_position) = hall_position {
-            hoverboard.motor.set_position_power(speed, hall_position);
-        }
+        hoverboard.set_motor_power(speed);
 
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {

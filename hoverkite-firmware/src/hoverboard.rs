@@ -1,4 +1,4 @@
-use core::{cell::RefCell, mem};
+use core::{cell::RefCell, mem, ops::DerefMut};
 use cortex_m::{
     interrupt::{free, Mutex},
     peripheral::NVIC,
@@ -30,9 +30,16 @@ const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
 const CURRENT_OFFSET_DC: u16 = 1073;
 
 struct Shared {
-    pwm: Pwm,
+    motor: Motor,
+    hall_sensors: HallSensors,
     adc_dma: AdcDmaState,
     last_adc_readings: AdcReadings,
+    /// The absolute position of the motor.
+    position: i64,
+    /// The last valid reading from the Hall sensors.
+    last_hall_position: Option<u8>,
+    /// The desired motor power.
+    motor_power: i16,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -109,7 +116,7 @@ pub struct Motor {
     blue_low: PB14<Alternate<AF2>>,
     yellow_low: PB13<Alternate<AF2>>,
     emergency_off: PB12<Alternate<AF2>>,
-    //pub pwm: Pwm,
+    pwm: Pwm,
 }
 
 impl Motor {
@@ -125,19 +132,15 @@ impl Motor {
             5 => (-power, 0, power),
             _ => (0, 0, 0),
         };
-        free(|cs| {
-            if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-                let duty_max = shared.pwm.duty_max();
-                let power_max = (duty_max / 2) as i32;
-                let y = y as i32 * power_max / 1000;
-                let b = b as i32 * power_max / 1000;
-                let g = g as i32 * power_max / 1000;
-                let y = clamp((y + power_max) as u16, 10, duty_max - 10);
-                let b = clamp((b + power_max) as u16, 10, duty_max - 10);
-                let g = clamp((g + power_max) as u16, 10, duty_max - 10);
-                shared.pwm.set_duty_cycles(y, b, g);
-            }
-        });
+        let duty_max = self.pwm.duty_max();
+        let power_max = (duty_max / 2) as i32;
+        let y = y as i32 * power_max / 1000;
+        let b = b as i32 * power_max / 1000;
+        let g = g as i32 * power_max / 1000;
+        let y = clamp((y + power_max) as u16, 10, duty_max - 10);
+        let b = clamp((b + power_max) as u16, 10, duty_max - 10);
+        let g = clamp((g + power_max) as u16, 10, duty_max - 10);
+        self.pwm.set_duty_cycles(y, b, g);
     }
 }
 
@@ -151,7 +154,7 @@ pub struct Pwm {
 fn TIMER0_BRK_UP_TRG_COM() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-            let intf = &shared.pwm.timer.intf;
+            let intf = &shared.motor.pwm.timer.intf;
             if intf.read().upif().is_update_pending() {
                 shared.adc_dma.with(move |adc_dma| {
                     if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
@@ -174,6 +177,7 @@ fn TIMER0_BRK_UP_TRG_COM() {
 fn DMA_CHANNEL0() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
+            // Fetch ADC readings from the DMA buffer.
             let last_adc_readings = &mut shared.last_adc_readings;
             shared.adc_dma.with(move |adc_dma| {
                 if let AdcDmaState::Started(transfer) = adc_dma {
@@ -184,8 +188,31 @@ fn DMA_CHANNEL0() {
                     adc_dma
                 }
             });
-            // TODO: Read hall sensors
-            // TODO: set_position based on desired speed and hall sensor reading
+
+            // Read the Hall effect sensors on the motor.
+            if let Some(hall_position) = shared.hall_sensors.position() {
+                if let Some(last_hall_position) = shared.last_hall_position {
+                    // Update absolute position.
+                    let difference = (6 + hall_position - last_hall_position) % 6;
+                    match difference {
+                        0 => {}
+                        1 => shared.position += 1,
+                        2 => shared.position += 2,
+                        4 => shared.position -= 2,
+                        5 => shared.position -= 1,
+                        _ => {
+                            // TODO: Log error
+                        }
+                    }
+                }
+
+                shared.last_hall_position = Some(hall_position);
+
+                // Set motor position based on desired power and Hall sensor reading.
+                shared
+                    .motor
+                    .set_position_power(shared.motor_power, hall_position);
+            }
         }
     });
 }
@@ -371,8 +398,6 @@ pub struct Hoverboard {
     /// This will be low when the charger is connected.
     pub charge_state: PF0<Input<PullUp>>,
     pub leds: Leds,
-    pub hall_sensors: HallSensors,
-    pub motor: Motor,
 }
 
 impl Hoverboard {
@@ -426,11 +451,61 @@ impl Hoverboard {
 
         let pwm = Pwm::new(timer0, MOTOR_PWM_FREQ_HERTZ.hz(), clocks, apb2);
 
+        let hall_sensors = HallSensors {
+            hall_a: gpiob.pb11.into_floating_input(&mut gpiob.config),
+            hall_b: gpiof.pf1.into_floating_input(&mut gpiof.config),
+            hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
+        };
+
+        let motor = Motor {
+            // Output speed defaults to 2MHz
+            green_high: gpioa.pa10.into_alternate(
+                &mut gpioa.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            blue_high: gpioa.pa9.into_alternate(
+                &mut gpioa.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            yellow_high: gpioa.pa8.into_alternate(
+                &mut gpioa.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            green_low: gpiob.pb15.into_alternate(
+                &mut gpiob.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            blue_low: gpiob.pb14.into_alternate(
+                &mut gpiob.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            yellow_low: gpiob.pb13.into_alternate(
+                &mut gpiob.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            emergency_off: gpiob.pb12.into_alternate(
+                &mut gpiob.config,
+                PullMode::Floating,
+                OutputMode::PushPull,
+            ),
+            pwm,
+        };
+
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {
-                pwm,
+                motor,
+                hall_sensors,
                 adc_dma: AdcDmaState::NotStarted(adc_dma, adc_dma_buffer),
                 last_adc_readings: AdcReadings::default(),
+                position: 0,
+                last_hall_position: None,
+                motor_power: 0,
             }))
         });
 
@@ -460,49 +535,6 @@ impl Hoverboard {
                 orange: gpioa.pa12.into_push_pull_output(&mut gpioa.config),
                 red: gpiob.pb3.into_push_pull_output(&mut gpiob.config),
             },
-            hall_sensors: HallSensors {
-                hall_a: gpiob.pb11.into_floating_input(&mut gpiob.config),
-                hall_b: gpiof.pf1.into_floating_input(&mut gpiof.config),
-                hall_c: gpioc.pc14.into_floating_input(&mut gpioc.config),
-            },
-            motor: Motor {
-                // Output speed defaults to 2MHz
-                green_high: gpioa.pa10.into_alternate(
-                    &mut gpioa.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                blue_high: gpioa.pa9.into_alternate(
-                    &mut gpioa.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                yellow_high: gpioa.pa8.into_alternate(
-                    &mut gpioa.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                green_low: gpiob.pb15.into_alternate(
-                    &mut gpiob.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                blue_low: gpiob.pb14.into_alternate(
-                    &mut gpiob.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                yellow_low: gpiob.pb13.into_alternate(
-                    &mut gpiob.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-                emergency_off: gpiob.pb12.into_alternate(
-                    &mut gpiob.config,
-                    PullMode::Floating,
-                    OutputMode::PushPull,
-                ),
-            },
         }
     }
 
@@ -513,6 +545,26 @@ impl Hoverboard {
             } else {
                 AdcReadings::default()
             }
+        })
+    }
+
+    pub fn motor_position(&self) -> i64 {
+        free(|cs| {
+            // SHARED must have been initialised by the time this is called.
+            let shared = &mut *SHARED.borrow(cs).borrow_mut();
+            let shared = shared.as_mut().unwrap();
+
+            shared.position
+        })
+    }
+
+    pub fn set_motor_power(&mut self, power: i16) {
+        free(|cs| {
+            // SHARED must have been initialised by the time this is called.
+            let shared = &mut *SHARED.borrow(cs).borrow_mut();
+            let shared = shared.as_mut().unwrap();
+
+            shared.motor_power = power;
         })
     }
 }
