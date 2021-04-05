@@ -32,19 +32,8 @@ const MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP: u32 = 10;
 
 struct Shared {
     motor: Motor,
-    hall_sensors: HallSensors,
     adc_dma: AdcDmaState,
     last_adc_readings: AdcReadings,
-    /// The absolute position of the motor.
-    position: i64,
-    /// The last valid reading from the Hall sensors.
-    last_hall_position: Option<u8>,
-    /// The desired motor power.
-    target_motor_power: i16,
-    /// The last set motor power.
-    motor_power: i16,
-    /// The number of timer cycles since the motor power was last changed.
-    smoothing_cycles: u32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -122,10 +111,21 @@ pub struct Motor {
     yellow_low: PB13<Alternate<AF2>>,
     emergency_off: PB12<Alternate<AF2>>,
     pwm: Pwm,
+    hall_sensors: HallSensors,
+    /// The absolute position of the motor.
+    position: i64,
+    /// The last valid reading from the Hall sensors.
+    last_hall_position: Option<u8>,
+    /// The desired motor power.
+    target_power: i16,
+    /// The last set motor power.
+    power: i16,
+    /// The number of timer cycles since the motor power was last changed.
+    smoothing_cycles: u32,
 }
 
 impl Motor {
-    pub fn set_position_power(&mut self, power: i16, position: u8) {
+    fn set_position_power(&mut self, power: i16, position: u8) {
         let power = clamp(power, -1000, 1000);
         // TODO: Low-pass filter power
         let (y, b, g) = match position {
@@ -146,6 +146,44 @@ impl Motor {
         let b = clamp((b + power_max) as u16, 10, duty_max - 10);
         let g = clamp((g + power_max) as u16, 10, duty_max - 10);
         self.pwm.set_duty_cycles(y, b, g);
+    }
+
+    /// This should be called at regular intervals from the timer interrupt.
+    pub fn update(&mut self) {
+        // Read the Hall effect sensors on the motor.
+        if let Some(hall_position) = self.hall_sensors.position() {
+            if let Some(last_hall_position) = self.last_hall_position {
+                // Update absolute position.
+                let difference = (6 + hall_position - last_hall_position) % 6;
+                match difference {
+                    0 => {}
+                    1 => self.position += 1,
+                    2 => self.position += 2,
+                    4 => self.position -= 2,
+                    5 => self.position -= 1,
+                    _ => {
+                        // TODO: Log error
+                    }
+                }
+            }
+
+            self.last_hall_position = Some(hall_position);
+
+            // Smoothing for motor power: don't change more than one unit every
+            // MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP interrupts.
+            if self.smoothing_cycles < MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP {
+                self.smoothing_cycles += 1;
+            } else if self.target_power > self.power {
+                self.power += 1;
+                self.smoothing_cycles = 0;
+            } else if self.target_power < self.power {
+                self.power -= 1;
+                self.smoothing_cycles = 0;
+            }
+
+            // Set motor position based on desired power and Hall sensor reading.
+            self.set_position_power(self.power, hall_position);
+        }
     }
 }
 
@@ -194,42 +232,7 @@ fn DMA_CHANNEL0() {
                 }
             });
 
-            // Read the Hall effect sensors on the motor.
-            if let Some(hall_position) = shared.hall_sensors.position() {
-                if let Some(last_hall_position) = shared.last_hall_position {
-                    // Update absolute position.
-                    let difference = (6 + hall_position - last_hall_position) % 6;
-                    match difference {
-                        0 => {}
-                        1 => shared.position += 1,
-                        2 => shared.position += 2,
-                        4 => shared.position -= 2,
-                        5 => shared.position -= 1,
-                        _ => {
-                            // TODO: Log error
-                        }
-                    }
-                }
-
-                shared.last_hall_position = Some(hall_position);
-
-                // Smoothing for motor power: don't change more than one unit every
-                // MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP interrupts.
-                if shared.smoothing_cycles < MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP {
-                    shared.smoothing_cycles += 1;
-                } else if shared.target_motor_power > shared.motor_power {
-                    shared.motor_power += 1;
-                    shared.smoothing_cycles = 0;
-                } else if shared.target_motor_power < shared.motor_power {
-                    shared.motor_power -= 1;
-                    shared.smoothing_cycles = 0;
-                }
-
-                // Set motor position based on desired power and Hall sensor reading.
-                shared
-                    .motor
-                    .set_position_power(shared.motor_power, hall_position);
-            }
+            shared.motor.update();
         }
     });
 }
@@ -512,19 +515,19 @@ impl Hoverboard {
                 OutputMode::PushPull,
             ),
             pwm,
+            hall_sensors,
+            position: 0,
+            last_hall_position: None,
+            power: 0,
+            target_power: 0,
+            smoothing_cycles: 0,
         };
 
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {
                 motor,
-                hall_sensors,
                 adc_dma: AdcDmaState::NotStarted(adc_dma, adc_dma_buffer),
                 last_adc_readings: AdcReadings::default(),
-                position: 0,
-                last_hall_position: None,
-                motor_power: 0,
-                target_motor_power: 0,
-                smoothing_cycles: 0,
             }))
         });
 
@@ -573,7 +576,7 @@ impl Hoverboard {
             let shared = &mut *SHARED.borrow(cs).borrow_mut();
             let shared = shared.as_mut().unwrap();
 
-            shared.position
+            shared.motor.position
         })
     }
 
@@ -583,7 +586,7 @@ impl Hoverboard {
             let shared = &mut *SHARED.borrow(cs).borrow_mut();
             let shared = shared.as_mut().unwrap();
 
-            shared.target_motor_power = power;
+            shared.motor.target_power = power;
         })
     }
 }
