@@ -223,18 +223,7 @@ fn process_command(
             if command.len() < 2 {
                 return false;
             }
-            let mut power = match command[1] {
-                b'1' => 1,
-                b'2' => 2,
-                b'3' => 3,
-                b'4' => 4,
-                b'5' => 5,
-                b'6' => 6,
-                b'7' => 7,
-                b'8' => 8,
-                b'9' => 9,
-                _ => 0,
-            } * 30;
+            let mut power = char_to_digit::<i16>(command[1]) * 30;
             writeln!(hoverboard.serial, "max speed {}", power).unwrap();
             *max_speed = power;
         }
@@ -242,19 +231,7 @@ fn process_command(
             if command.len() < 2 {
                 return false;
             }
-            let target = match command[1] {
-                b'0' => 0,
-                b'1' => 1,
-                b'2' => 2,
-                b'3' => 3,
-                b'4' => 4,
-                b'5' => 5,
-                b'6' => 6,
-                b'7' => 7,
-                b'8' => 8,
-                b'9' => 9,
-                _ => 0,
-            } * 100;
+            let target = char_to_digit::<i64>(command[1]) * 100;
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();
             *target_position = Some(target);
         }
@@ -272,6 +249,23 @@ fn process_command(
         _ => writeln!(hoverboard.serial, "Unrecognised command {}", command[0]).unwrap(),
     }
     true
+}
+
+fn char_to_digit<T: From<u8>>(char: u8) -> T {
+    match char {
+        b'0' => 0,
+        b'1' => 1,
+        b'2' => 2,
+        b'3' => 3,
+        b'4' => 4,
+        b'5' => 5,
+        b'6' => 6,
+        b'7' => 7,
+        b'8' => 8,
+        b'9' => 9,
+        _ => 0,
+    }
+    .into()
 }
 
 fn poweroff(hoverboard: &mut Hoverboard) {
