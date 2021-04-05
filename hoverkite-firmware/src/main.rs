@@ -67,6 +67,7 @@ fn main() -> ! {
     let mut speed = 0;
     let mut target_position: Option<i64> = None;
     let mut max_speed = 200;
+    let mut spring_constant = 10;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -81,6 +82,7 @@ fn main() -> ! {
                     &mut hoverboard,
                     &mut max_speed,
                     &mut target_position,
+                    &mut spring_constant,
                 ) {
                     command_len = 0;
                 } else if command_len > command_buffer.len() {
@@ -102,7 +104,7 @@ fn main() -> ! {
         // Try to move towards the target position.
         if let Some(target_position) = target_position {
             let abs_difference = (target_position - position).abs();
-            let adjusted_speed = min(max_speed.into(), abs_difference * 10) as i16;
+            let adjusted_speed = min(max_speed.into(), abs_difference * spring_constant) as i16;
             speed = if target_position < position {
                 -adjusted_speed
             } else if target_position > position {
@@ -133,6 +135,7 @@ fn process_command(
     hoverboard: &mut Hoverboard,
     max_speed: &mut i16,
     target_position: &mut Option<i64>,
+    spring_constant: &mut i64,
 ) -> bool {
     if command.len() < 1 {
         return false;
@@ -223,9 +226,17 @@ fn process_command(
             if command.len() < 2 {
                 return false;
             }
-            let mut power = char_to_digit::<i16>(command[1]) * 30;
+            let power = char_to_digit::<i16>(command[1]) * 30;
             writeln!(hoverboard.serial, "max speed {}", power).unwrap();
             *max_speed = power;
+        }
+        b'k' => {
+            if command.len() < 2 {
+                return false;
+            }
+            let spring = char_to_digit::<i64>(command[1]) * 2;
+            writeln!(hoverboard.serial, "Spring constant {}", spring).unwrap();
+            *spring_constant = spring;
         }
         b't' => {
             if command.len() < 2 {
