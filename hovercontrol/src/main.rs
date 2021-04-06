@@ -1,9 +1,11 @@
 use eyre::{Context, Report};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use serialport::SerialPort;
+use std::time::{Duration, Instant};
 
 const LEFT_PORT: &str = "/dev/ttyUSB0";
 const BAUD_RATE: u32 = 115_200;
+const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
@@ -29,6 +31,13 @@ struct Controller {
     centre_right: i64,
     scale: f32,
     max_speed: i16,
+    /// The time that the last command was sent to the left port.
+    left_last_command_time: Instant,
+    right_last_command_time: Instant,
+    /// Whether a target command still needs to be sent but wasn't because of the minimum time
+    /// between updates.
+    left_target_pending: bool,
+    right_target_pending: bool,
 }
 
 impl Controller {
@@ -42,6 +51,10 @@ impl Controller {
             centre_right: 0,
             scale: 10.0,
             max_speed: 200,
+            left_last_command_time: Instant::now(),
+            right_last_command_time: Instant::now(),
+            left_target_pending: false,
+            right_target_pending: false,
         }
     }
 
@@ -51,7 +64,9 @@ impl Controller {
         let mut left_buffer = [0; 100];
         let mut left_length = 0;
         loop {
-            while let Some(Event {
+            self.send_pending_targets()?;
+
+            if let Some(Event {
                 id: _,
                 event,
                 time: _,
@@ -59,6 +74,7 @@ impl Controller {
             {
                 self.handle_event(event)?;
             }
+
             if self.left_port.bytes_to_read()? > 0 {
                 left_length += self.left_port.read(&mut left_buffer[left_length..])?;
                 if let Some(end_of_line) =
@@ -84,11 +100,11 @@ impl Controller {
         match event {
             EventType::AxisChanged(Axis::LeftStickY, value, _code) => {
                 self.offset_left = (self.scale * value) as i64;
-                self.set_target(Side::Left, self.centre_left + self.offset_left)?;
+                self.set_target(Side::Left)?;
             }
             EventType::AxisChanged(Axis::RightStickY, value, _code) => {
                 self.offset_right = (self.scale * value) as i64;
-                self.set_target(Side::Right, self.centre_right + self.offset_right)?;
+                self.set_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::DPadLeft, _code) => {
                 if self.scale > 1.0 {
@@ -116,19 +132,19 @@ impl Controller {
             }
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
                 self.centre_left += centre_step;
-                self.set_target(Side::Left, self.centre_left + self.offset_left)?;
+                self.set_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::LeftTrigger2, _code) => {
                 self.centre_left -= centre_step;
-                self.set_target(Side::Left, self.centre_left + self.offset_left)?;
+                self.set_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::RightTrigger, _code) => {
                 self.centre_right += centre_step;
-                self.set_target(Side::Right, self.centre_right + self.offset_right)?;
+                self.set_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::RightTrigger2, _code) => {
                 self.centre_right -= centre_step;
-                self.set_target(Side::Right, self.centre_right + self.offset_right)?;
+                self.set_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::South, _code) => {
                 self.send_command(Side::Left, &[b'b'])?;
@@ -156,7 +172,35 @@ impl Controller {
         Ok(())
     }
 
-    fn set_target(&mut self, side: Side, target: i64) -> Result<(), Report> {
+    fn send_pending_targets(&mut self) -> Result<(), Report> {
+        let now = Instant::now();
+        if self.left_target_pending
+            && now > self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES
+        {
+            self.left_target_pending = false;
+            self.set_target(Side::Left)?;
+        }
+        Ok(())
+    }
+
+    fn set_target(&mut self, side: Side) -> Result<(), Report> {
+        let now = Instant::now();
+        let target = match side {
+            Side::Left => {
+                if now < self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
+                    self.left_target_pending = true;
+                    return Ok(());
+                }
+                self.centre_left + self.offset_left
+            }
+            Side::Right => {
+                if now < self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
+                    self.right_target_pending = true;
+                    return Ok(());
+                }
+                self.centre_right + self.offset_right
+            }
+        };
         println!("Target {:?} {}", side, target);
         let mut command = vec![b'T'];
         command.extend_from_slice(&target.to_le_bytes());
@@ -165,7 +209,10 @@ impl Controller {
 
     fn send_command(&mut self, side: Side, command: &[u8]) -> Result<(), Report> {
         let port = match side {
-            Side::Left => &mut self.left_port,
+            Side::Left => {
+                self.left_last_command_time = Instant::now();
+                &mut self.left_port
+            }
             Side::Right => return Ok(()),
         };
         port.write_all(command)?;
