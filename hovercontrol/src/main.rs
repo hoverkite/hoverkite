@@ -5,6 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const LEFT_PORT: &str = "/dev/ttyUSB0";
+const RIGHT_PORT: &str = "/dev/ttyUSB1";
 const BAUD_RATE: u32 = 115_200;
 const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
@@ -30,15 +31,19 @@ fn main() -> Result<(), Report> {
     let left_port = serialport::new(LEFT_PORT, BAUD_RATE)
         .open()
         .wrap_err_with(|| format!("Failed to open left serial port {}", LEFT_PORT))?;
+    let right_port = serialport::new(RIGHT_PORT, BAUD_RATE)
+        .open()
+        .wrap_err_with(|| format!("Failed to open right serial port {}", RIGHT_PORT))?;
 
     let gilrs = Gilrs::new().unwrap();
 
-    let mut controller = Controller::new(left_port, gilrs);
+    let mut controller = Controller::new(left_port, right_port, gilrs);
     controller.run()
 }
 
 struct Controller {
     left_port: Box<dyn SerialPort>,
+    right_port: Box<dyn SerialPort>,
     gilrs: Gilrs,
     offset_left: i64,
     offset_right: i64,
@@ -49,6 +54,7 @@ struct Controller {
     spring_constant: u16,
     /// The time that the last command was sent to the left port.
     left_last_command_time: Instant,
+    /// The time that the last command was sent to the right port.
     right_last_command_time: Instant,
     /// Whether a target command still needs to be sent but wasn't because of the minimum time
     /// between updates.
@@ -57,9 +63,14 @@ struct Controller {
 }
 
 impl Controller {
-    pub fn new(left_port: Box<dyn SerialPort>, gilrs: Gilrs) -> Self {
+    pub fn new(
+        left_port: Box<dyn SerialPort>,
+        right_port: Box<dyn SerialPort>,
+        gilrs: Gilrs,
+    ) -> Self {
         Self {
             left_port,
+            right_port,
             gilrs,
             offset_left: 0,
             offset_right: 0,
@@ -81,6 +92,8 @@ impl Controller {
 
         let mut left_buffer = [0; 100];
         let mut left_length = 0;
+        let mut right_buffer = [0; 100];
+        let mut right_length = 0;
         loop {
             self.send_pending_targets()?;
 
@@ -95,24 +108,43 @@ impl Controller {
                 thread::sleep(SLEEP_DURATION);
             }
 
-            if self.left_port.bytes_to_read()? > 0 {
-                left_length += self.left_port.read(&mut left_buffer[left_length..])?;
-                if let Some(end_of_line) =
-                    left_buffer[0..left_length].iter().position(|&c| c == b'\n')
-                {
-                    let string = String::from_utf8_lossy(&left_buffer[0..end_of_line]);
-                    println!("Left: '{}'", string);
-                    let remaining_length = left_length - end_of_line - 1;
-                    let remaining_bytes = left_buffer[end_of_line + 1..left_length].to_owned();
-                    left_buffer[0..remaining_length].clone_from_slice(&remaining_bytes);
-                    left_length = remaining_length;
-                } else if left_length == left_buffer.len() {
-                    let string = String::from_utf8_lossy(&left_buffer[0..left_length]);
-                    println!("Left: '{}'", string);
-                    left_length = 0;
-                }
+            Self::read_port(
+                &mut self.left_port,
+                &mut left_buffer,
+                &mut left_length,
+                "Left",
+            )?;
+            Self::read_port(
+                &mut self.right_port,
+                &mut right_buffer,
+                &mut right_length,
+                "Right",
+            )?;
+        }
+    }
+
+    fn read_port(
+        port: &mut Box<dyn SerialPort>,
+        buffer: &mut [u8],
+        length: &mut usize,
+        name: &str,
+    ) -> Result<(), Report> {
+        if port.bytes_to_read()? > 0 {
+            *length += port.read(&mut buffer[*length..])?;
+            if let Some(end_of_line) = buffer[0..*length].iter().position(|&c| c == b'\n') {
+                let string = String::from_utf8_lossy(&buffer[0..end_of_line]);
+                println!("{}: '{}'", name, string);
+                let remaining_length = *length - end_of_line - 1;
+                let remaining_bytes = buffer[end_of_line + 1..*length].to_owned();
+                buffer[0..remaining_length].clone_from_slice(&remaining_bytes);
+                *length = remaining_length;
+            } else if *length == buffer.len() {
+                let string = String::from_utf8_lossy(&buffer[0..*length]);
+                println!("{}: '{}'", name, string);
+                *length = 0;
             }
         }
+        Ok(())
     }
 
     fn handle_event(&mut self, event: EventType) -> Result<(), Report> {
@@ -220,6 +252,12 @@ impl Controller {
             self.left_target_pending = false;
             self.set_target(Side::Left)?;
         }
+        if self.right_target_pending
+            && now > self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES
+        {
+            self.right_target_pending = false;
+            self.set_target(Side::Right)?;
+        }
         Ok(())
     }
 
@@ -253,7 +291,10 @@ impl Controller {
                 self.left_last_command_time = Instant::now();
                 &mut self.left_port
             }
-            Side::Right => return Ok(()),
+            Side::Right => {
+                self.right_last_command_time = Instant::now();
+                &mut self.right_port
+            }
         };
         log::trace!("Sending command: {:?}", command);
         port.write_all(command)?;
