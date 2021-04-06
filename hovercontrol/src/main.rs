@@ -1,11 +1,13 @@
 use eyre::{Context, Report};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use serialport::SerialPort;
+use std::thread;
 use std::time::{Duration, Instant};
 
 const LEFT_PORT: &str = "/dev/ttyUSB0";
 const BAUD_RATE: u32 = 115_200;
 const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
+const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
@@ -73,6 +75,8 @@ impl Controller {
             }) = self.gilrs.next_event()
             {
                 self.handle_event(event)?;
+            } else {
+                thread::sleep(SLEEP_DURATION);
             }
 
             if self.left_port.bytes_to_read()? > 0 {
