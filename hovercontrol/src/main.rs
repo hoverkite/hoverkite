@@ -91,6 +91,7 @@ impl Controller {
 
     pub fn run(&mut self) -> Result<(), Report> {
         self.set_max_speed()?;
+        thread::sleep(MIN_TIME_BETWEEN_TARGET_UPDATES);
         self.set_spring_constant()?;
 
         let mut left_buffer = [0; 100];
