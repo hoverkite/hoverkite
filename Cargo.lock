@@ -480,6 +480,7 @@ dependencies = [
  "color-backtrace",
  "eyre",
  "gilrs",
+ "log",
  "pretty_env_logger",
  "serialport",
  "stable-eyre",

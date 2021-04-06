@@ -244,6 +244,7 @@ impl Controller {
             }
             Side::Right => return Ok(()),
         };
+        log::trace!("Sending command: {:?}", command);
         port.write_all(command)?;
         Ok(())
     }
