@@ -13,7 +13,9 @@ use gd32f1x0_hal::{
     time::Hertz,
 };
 
-const MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP: u32 = 10;
+/// The minimum number of timer interrupt cycles to wait between increasing the motor power by one
+/// step.
+const MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP: u32 = 5;
 
 pub struct HallSensors {
     hall_a: PB11<Input<Floating>>,
@@ -151,8 +153,11 @@ impl Motor {
             self.last_hall_position = Some(hall_position);
 
             // Smoothing for motor power: don't change more than one unit every
-            // MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP interrupts.
-            if self.smoothing_cycles < MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP {
+            // MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP interrupts. This is only applied when
+            // increasing the power, not decreasing, to avoid overshooting.
+            if self.smoothing_cycles < MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP
+                && self.target_power.abs() > self.power.abs()
+            {
                 self.smoothing_cycles += 1;
             } else if self.target_power > self.power {
                 self.power += 1;
