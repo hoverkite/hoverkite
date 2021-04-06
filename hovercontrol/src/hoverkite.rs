@@ -66,18 +66,12 @@ impl Hoverkite {
     }
 
     fn send_pending_targets(&mut self) -> Result<(), Report> {
-        let now = Instant::now();
         if let Some(target_pending) = self.left_target_pending {
-            if now > self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
-                self.left_target_pending = None;
-                self.set_target(Side::Left, target_pending)?;
-            }
+            // Just retry. If the rate limit is still in effect then this will be a no-op.
+            self.set_target(Side::Left, target_pending)?;
         }
         if let Some(target_pending) = self.right_target_pending {
-            if now > self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
-                self.right_target_pending = None;
-                self.set_target(Side::Right, target_pending)?;
-            }
+            self.set_target(Side::Right, target_pending)?;
         }
         Ok(())
     }
@@ -111,12 +105,16 @@ impl Hoverkite {
                 if now < self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
                     self.left_target_pending = Some(target);
                     return Ok(());
+                } else {
+                    self.left_target_pending = None;
                 }
             }
             Side::Right => {
                 if now < self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
                     self.right_target_pending = Some(target);
                     return Ok(());
+                } else {
+                    self.right_target_pending = None;
                 }
             }
         };
