@@ -198,6 +198,10 @@ impl Controller {
                 self.send_command(Side::Left, &[b'b'])?;
                 self.send_command(Side::Right, &[b'b'])?;
             }
+            EventType::ButtonPressed(Button::East, _code) => {
+                self.send_command(Side::Left, &[b'n'])?;
+                self.send_command(Side::Right, &[b'n'])?;
+            }
             EventType::ButtonPressed(Button::West, _code) => {
                 if self.spring_constant > SPRING_CONSTANT_STEP {
                     self.spring_constant -= SPRING_CONSTANT_STEP;

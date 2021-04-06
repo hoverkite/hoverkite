@@ -120,6 +120,8 @@ fn main() -> ! {
             } else {
                 0
             };
+        } else {
+            speed = 0;
         }
 
         // Drive the motor.
@@ -261,6 +263,10 @@ fn process_command(
             let spring = u16::from_le_bytes(command[1..3].try_into().unwrap()).into();
             writeln!(hoverboard.serial, "Spring constant {}", spring).unwrap();
             *spring_constant = spring;
+        }
+        b'n' => {
+            writeln!(hoverboard.serial, "No target position").unwrap();
+            *target_position = None;
         }
         b't' => {
             if command.len() < 2 {
