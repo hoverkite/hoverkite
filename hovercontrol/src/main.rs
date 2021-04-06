@@ -8,7 +8,19 @@ const LEFT_PORT: &str = "/dev/ttyUSB0";
 const BAUD_RATE: u32 = 115_200;
 const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
+
+const DEFAULT_SCALE: f32 = 30.0;
+const MAX_SCALE: f32 = 100.0;
+
+const DEFAULT_MAX_SPEED: i16 = 200;
+const MAX_MAX_SPEED: i16 = 300;
+const MAX_SPEED_STEP: i16 = 10;
+
+const DEFAULT_SPRING_CONSTANT: u16 = 10;
 const MAX_SPRING_CONSTANT: u16 = 50;
+const SPRING_CONSTANT_STEP: u16 = 2;
+
+const CENTRE_STEP: i64 = 10;
 
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
@@ -53,9 +65,9 @@ impl Controller {
             offset_right: 0,
             centre_left: 0,
             centre_right: 0,
-            scale: 10.0,
-            max_speed: 200,
-            spring_constant: 10,
+            scale: DEFAULT_SCALE,
+            max_speed: DEFAULT_MAX_SPEED,
+            spring_constant: DEFAULT_SPRING_CONSTANT,
             left_last_command_time: Instant::now(),
             right_last_command_time: Instant::now(),
             left_target_pending: false,
@@ -104,7 +116,6 @@ impl Controller {
     }
 
     fn handle_event(&mut self, event: EventType) -> Result<(), Report> {
-        let centre_step = 10;
         match event {
             EventType::AxisChanged(Axis::LeftStickY, value, _code) => {
                 self.offset_left = (self.scale * value) as i64;
@@ -121,37 +132,37 @@ impl Controller {
                 println!("Scale {}", self.scale);
             }
             EventType::ButtonPressed(Button::DPadRight, _code) => {
-                if self.scale < 100.0 {
+                if self.scale < MAX_SCALE {
                     self.scale += 1.0;
                 }
                 println!("Scale {}", self.scale);
             }
             EventType::ButtonPressed(Button::DPadUp, _code) => {
-                if self.max_speed < 300 {
-                    self.max_speed += 10;
+                if self.max_speed < MAX_MAX_SPEED {
+                    self.max_speed += MAX_SPEED_STEP;
                     self.set_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::DPadDown, _code) => {
-                if self.max_speed > 10 {
-                    self.max_speed -= 10;
+                if self.max_speed > MAX_SPEED_STEP {
+                    self.max_speed -= MAX_SPEED_STEP;
                     self.set_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
-                self.centre_left += centre_step;
+                self.centre_left += CENTRE_STEP;
                 self.set_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::LeftTrigger2, _code) => {
-                self.centre_left -= centre_step;
+                self.centre_left -= CENTRE_STEP;
                 self.set_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::RightTrigger, _code) => {
-                self.centre_right += centre_step;
+                self.centre_right += CENTRE_STEP;
                 self.set_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::RightTrigger2, _code) => {
-                self.centre_right -= centre_step;
+                self.centre_right -= CENTRE_STEP;
                 self.set_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::South, _code) => {
@@ -159,14 +170,14 @@ impl Controller {
                 self.send_command(Side::Right, &[b'b'])?;
             }
             EventType::ButtonPressed(Button::West, _code) => {
-                if self.spring_constant > 2 {
-                    self.spring_constant -= 2;
+                if self.spring_constant > SPRING_CONSTANT_STEP {
+                    self.spring_constant -= SPRING_CONSTANT_STEP;
                     self.set_spring_constant()?;
                 }
             }
             EventType::ButtonPressed(Button::North, _code) => {
                 if self.spring_constant < MAX_SPRING_CONSTANT {
-                    self.spring_constant += 2;
+                    self.spring_constant += SPRING_CONSTANT_STEP;
                     self.set_spring_constant()?;
                 }
             }
