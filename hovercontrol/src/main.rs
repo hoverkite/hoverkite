@@ -1,14 +1,15 @@
+mod hoverkite;
+
 use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use log::{error, trace};
-use serialport::SerialPort;
+use hoverkite::{Hoverkite, Side, MIN_TIME_BETWEEN_TARGET_UPDATES};
+use log::error;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const LEFT_PORT: &str = "/dev/ttyUSB0";
 const RIGHT_PORT: &str = "/dev/ttyUSB1";
 const BAUD_RATE: u32 = 115_200;
-const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
 const DEFAULT_SCALE: f32 = 30.0;
@@ -40,13 +41,13 @@ fn main() -> Result<(), Report> {
 
     let gilrs = Gilrs::new().unwrap();
 
-    let mut controller = Controller::new(left_port, right_port, gilrs);
+    let hoverkite = Hoverkite::new(left_port, right_port);
+    let mut controller = Controller::new(hoverkite, gilrs);
     controller.run()
 }
 
 struct Controller {
-    left_port: Option<Box<dyn SerialPort>>,
-    right_port: Option<Box<dyn SerialPort>>,
+    hoverkite: Hoverkite,
     gilrs: Gilrs,
     offset_left: i64,
     offset_right: i64,
@@ -55,25 +56,12 @@ struct Controller {
     scale: f32,
     max_speed: i16,
     spring_constant: u16,
-    /// The time that the last command was sent to the left port.
-    left_last_command_time: Instant,
-    /// The time that the last command was sent to the right port.
-    right_last_command_time: Instant,
-    /// Whether a target command still needs to be sent but wasn't because of the minimum time
-    /// between updates.
-    left_target_pending: bool,
-    right_target_pending: bool,
 }
 
 impl Controller {
-    pub fn new(
-        left_port: Option<Box<dyn SerialPort>>,
-        right_port: Option<Box<dyn SerialPort>>,
-        gilrs: Gilrs,
-    ) -> Self {
+    pub fn new(hoverkite: Hoverkite, gilrs: Gilrs) -> Self {
         Self {
-            left_port,
-            right_port,
+            hoverkite,
             gilrs,
             offset_left: 0,
             offset_right: 0,
@@ -82,24 +70,16 @@ impl Controller {
             scale: DEFAULT_SCALE,
             max_speed: DEFAULT_MAX_SPEED,
             spring_constant: DEFAULT_SPRING_CONSTANT,
-            left_last_command_time: Instant::now(),
-            right_last_command_time: Instant::now(),
-            left_target_pending: false,
-            right_target_pending: false,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Report> {
-        self.set_max_speed()?;
+        self.send_max_speed()?;
         thread::sleep(MIN_TIME_BETWEEN_TARGET_UPDATES);
-        self.set_spring_constant()?;
+        self.send_spring_constant()?;
 
-        let mut left_buffer = [0; 100];
-        let mut left_length = 0;
-        let mut right_buffer = [0; 100];
-        let mut right_length = 0;
         loop {
-            self.send_pending_targets()?;
+            self.hoverkite.process()?;
 
             if let Some(Event {
                 id: _,
@@ -111,49 +91,18 @@ impl Controller {
             } else {
                 thread::sleep(SLEEP_DURATION);
             }
-
-            if let Some(port) = &mut self.left_port {
-                Self::read_port(port, &mut left_buffer, &mut left_length, "Left")?;
-            }
-            if let Some(port) = &mut self.right_port {
-                Self::read_port(port, &mut right_buffer, &mut right_length, "Right")?;
-            }
         }
-    }
-
-    fn read_port(
-        port: &mut Box<dyn SerialPort>,
-        buffer: &mut [u8],
-        length: &mut usize,
-        name: &str,
-    ) -> Result<(), Report> {
-        if port.bytes_to_read()? > 0 {
-            *length += port.read(&mut buffer[*length..])?;
-            if let Some(end_of_line) = buffer[0..*length].iter().position(|&c| c == b'\n') {
-                let string = String::from_utf8_lossy(&buffer[0..end_of_line]);
-                println!("{}: '{}'", name, string);
-                let remaining_length = *length - end_of_line - 1;
-                let remaining_bytes = buffer[end_of_line + 1..*length].to_owned();
-                buffer[0..remaining_length].clone_from_slice(&remaining_bytes);
-                *length = remaining_length;
-            } else if *length == buffer.len() {
-                let string = String::from_utf8_lossy(&buffer[0..*length]);
-                println!("{}: '{}'", name, string);
-                *length = 0;
-            }
-        }
-        Ok(())
     }
 
     fn handle_event(&mut self, event: EventType) -> Result<(), Report> {
         match event {
             EventType::AxisChanged(Axis::LeftStickY, value, _code) => {
                 self.offset_left = (self.scale * value) as i64;
-                self.set_target(Side::Left)?;
+                self.send_target(Side::Left)?;
             }
             EventType::AxisChanged(Axis::RightStickY, value, _code) => {
                 self.offset_right = (self.scale * value) as i64;
-                self.set_target(Side::Right)?;
+                self.send_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::DPadLeft, _code) => {
                 if self.scale > 1.0 {
@@ -170,55 +119,55 @@ impl Controller {
             EventType::ButtonPressed(Button::DPadUp, _code) => {
                 if self.max_speed < MAX_MAX_SPEED {
                     self.max_speed += MAX_SPEED_STEP;
-                    self.set_max_speed()?;
+                    self.send_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::DPadDown, _code) => {
                 if self.max_speed > MAX_SPEED_STEP {
                     self.max_speed -= MAX_SPEED_STEP;
-                    self.set_max_speed()?;
+                    self.send_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
                 self.centre_left += CENTRE_STEP;
-                self.set_target(Side::Left)?;
+                self.send_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::LeftTrigger2, _code) => {
                 self.centre_left -= CENTRE_STEP;
-                self.set_target(Side::Left)?;
+                self.send_target(Side::Left)?;
             }
             EventType::ButtonPressed(Button::RightTrigger, _code) => {
                 self.centre_right += CENTRE_STEP;
-                self.set_target(Side::Right)?;
+                self.send_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::RightTrigger2, _code) => {
                 self.centre_right -= CENTRE_STEP;
-                self.set_target(Side::Right)?;
+                self.send_target(Side::Right)?;
             }
             EventType::ButtonPressed(Button::South, _code) => {
-                self.send_command(Side::Left, &[b'b'])?;
-                self.send_command(Side::Right, &[b'b'])?;
+                self.hoverkite.send_command(Side::Left, &[b'b'])?;
+                self.hoverkite.send_command(Side::Right, &[b'b'])?;
             }
             EventType::ButtonPressed(Button::East, _code) => {
-                self.send_command(Side::Left, &[b'n'])?;
-                self.send_command(Side::Right, &[b'n'])?;
+                self.hoverkite.send_command(Side::Left, &[b'n'])?;
+                self.hoverkite.send_command(Side::Right, &[b'n'])?;
             }
             EventType::ButtonPressed(Button::West, _code) => {
                 if self.spring_constant > SPRING_CONSTANT_STEP {
                     self.spring_constant -= SPRING_CONSTANT_STEP;
-                    self.set_spring_constant()?;
+                    self.send_spring_constant()?;
                 }
             }
             EventType::ButtonPressed(Button::North, _code) => {
                 if self.spring_constant < MAX_SPRING_CONSTANT {
                     self.spring_constant += SPRING_CONSTANT_STEP;
-                    self.set_spring_constant()?;
+                    self.send_spring_constant()?;
                 }
             }
             EventType::ButtonPressed(Button::Mode, _code) => {
                 // Power off
-                self.send_command(Side::Left, &[b'p'])?;
-                self.send_command(Side::Right, &[b'p'])?;
+                self.hoverkite.send_command(Side::Left, &[b'p'])?;
+                self.hoverkite.send_command(Side::Right, &[b'p'])?;
             }
             EventType::ButtonPressed(button, code) => {
                 println!("Button {:?} pressed: {:?}", button, code);
@@ -228,86 +177,19 @@ impl Controller {
         Ok(())
     }
 
-    fn set_max_speed(&mut self) -> Result<(), Report> {
-        println!("Max speed: {}", self.max_speed);
-        let mut command = vec![b'S'];
-        command.extend_from_slice(&self.max_speed.to_le_bytes());
-        self.send_command(Side::Left, &command)?;
-        self.send_command(Side::Right, &command)?;
-        Ok(())
+    pub fn send_max_speed(&mut self) -> Result<(), Report> {
+        self.hoverkite.set_max_speed(self.max_speed)
     }
 
-    fn set_spring_constant(&mut self) -> Result<(), Report> {
-        println!("Spring constant: {}", self.spring_constant);
-        let mut command = vec![b'K'];
-        command.extend_from_slice(&self.spring_constant.to_le_bytes());
-        self.send_command(Side::Left, &command)?;
-        self.send_command(Side::Right, &command)?;
-        Ok(())
+    fn send_spring_constant(&mut self) -> Result<(), Report> {
+        self.hoverkite.set_spring_constant(self.spring_constant)
     }
 
-    fn send_pending_targets(&mut self) -> Result<(), Report> {
-        let now = Instant::now();
-        if self.left_target_pending
-            && now > self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES
-        {
-            self.left_target_pending = false;
-            self.set_target(Side::Left)?;
-        }
-        if self.right_target_pending
-            && now > self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES
-        {
-            self.right_target_pending = false;
-            self.set_target(Side::Right)?;
-        }
-        Ok(())
-    }
-
-    fn set_target(&mut self, side: Side) -> Result<(), Report> {
-        let now = Instant::now();
+    fn send_target(&mut self, side: Side) -> Result<(), Report> {
         let target = match side {
-            Side::Left => {
-                if now < self.left_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
-                    self.left_target_pending = true;
-                    return Ok(());
-                }
-                self.centre_left + self.offset_left
-            }
-            Side::Right => {
-                if now < self.right_last_command_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
-                    self.right_target_pending = true;
-                    return Ok(());
-                }
-                self.centre_right + self.offset_right
-            }
+            Side::Left => self.centre_left + self.offset_left,
+            Side::Right => self.centre_right + self.offset_right,
         };
-        println!("Target {:?} {}", side, target);
-        let mut command = vec![b'T'];
-        command.extend_from_slice(&target.to_le_bytes());
-        self.send_command(side, &command)
+        self.hoverkite.set_target(side, target)
     }
-
-    fn send_command(&mut self, side: Side, command: &[u8]) -> Result<(), Report> {
-        let port = match side {
-            Side::Left => {
-                self.left_last_command_time = Instant::now();
-                &mut self.left_port
-            }
-            Side::Right => {
-                self.right_last_command_time = Instant::now();
-                &mut self.right_port
-            }
-        };
-        trace!("Sending command: {:?}", command);
-        if let Some(port) = port {
-            port.write_all(command)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum Side {
-    Left,
-    Right,
 }
