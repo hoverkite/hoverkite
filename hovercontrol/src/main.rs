@@ -8,6 +8,7 @@ const LEFT_PORT: &str = "/dev/ttyUSB0";
 const BAUD_RATE: u32 = 115_200;
 const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
+const MAX_SPRING_CONSTANT: u16 = 50;
 
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
@@ -33,6 +34,7 @@ struct Controller {
     centre_right: i64,
     scale: f32,
     max_speed: i16,
+    spring_constant: u16,
     /// The time that the last command was sent to the left port.
     left_last_command_time: Instant,
     right_last_command_time: Instant,
@@ -53,6 +55,7 @@ impl Controller {
             centre_right: 0,
             scale: 10.0,
             max_speed: 200,
+            spring_constant: 10,
             left_last_command_time: Instant::now(),
             right_last_command_time: Instant::now(),
             left_target_pending: false,
@@ -62,6 +65,7 @@ impl Controller {
 
     pub fn run(&mut self) -> Result<(), Report> {
         self.set_max_speed()?;
+        self.set_spring_constant()?;
 
         let mut left_buffer = [0; 100];
         let mut left_length = 0;
@@ -154,6 +158,18 @@ impl Controller {
                 self.send_command(Side::Left, &[b'b'])?;
                 self.send_command(Side::Right, &[b'b'])?;
             }
+            EventType::ButtonPressed(Button::West, _code) => {
+                if self.spring_constant > 2 {
+                    self.spring_constant -= 2;
+                    self.set_spring_constant()?;
+                }
+            }
+            EventType::ButtonPressed(Button::North, _code) => {
+                if self.spring_constant < MAX_SPRING_CONSTANT {
+                    self.spring_constant += 2;
+                    self.set_spring_constant()?;
+                }
+            }
             EventType::ButtonPressed(Button::Mode, _code) => {
                 // Power off
                 self.send_command(Side::Left, &[b'p'])?;
@@ -171,6 +187,15 @@ impl Controller {
         println!("Max speed: {}", self.max_speed);
         let mut command = vec![b'S'];
         command.extend_from_slice(&self.max_speed.to_le_bytes());
+        self.send_command(Side::Left, &command)?;
+        self.send_command(Side::Right, &command)?;
+        Ok(())
+    }
+
+    fn set_spring_constant(&mut self) -> Result<(), Report> {
+        println!("Spring constant: {}", self.spring_constant);
+        let mut command = vec![b'K'];
+        command.extend_from_slice(&self.spring_constant.to_le_bytes());
         self.send_command(Side::Left, &command)?;
         self.send_command(Side::Right, &command)?;
         Ok(())
