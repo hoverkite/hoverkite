@@ -116,7 +116,6 @@ impl Motor {
         }
 
         let power = clamp(power, -1000, 1000);
-        // TODO: Low-pass filter power
         let (y, b, g) = match position {
             0 => (0, -power, power),
             1 => (power, -power, 0),
