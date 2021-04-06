@@ -1,5 +1,6 @@
-use eyre::{Context, Report};
+use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
+use log::{error, trace};
 use serialport::SerialPort;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -30,10 +31,12 @@ fn main() -> Result<(), Report> {
 
     let left_port = serialport::new(LEFT_PORT, BAUD_RATE)
         .open()
-        .wrap_err_with(|| format!("Failed to open left serial port {}", LEFT_PORT))?;
+        .map_err(|e| error!("Failed to open left serial port {}: {}", LEFT_PORT, e))
+        .ok();
     let right_port = serialport::new(RIGHT_PORT, BAUD_RATE)
         .open()
-        .wrap_err_with(|| format!("Failed to open right serial port {}", RIGHT_PORT))?;
+        .map_err(|e| error!("Failed to open right serial port {}: {}", RIGHT_PORT, e))
+        .ok();
 
     let gilrs = Gilrs::new().unwrap();
 
@@ -42,8 +45,8 @@ fn main() -> Result<(), Report> {
 }
 
 struct Controller {
-    left_port: Box<dyn SerialPort>,
-    right_port: Box<dyn SerialPort>,
+    left_port: Option<Box<dyn SerialPort>>,
+    right_port: Option<Box<dyn SerialPort>>,
     gilrs: Gilrs,
     offset_left: i64,
     offset_right: i64,
@@ -64,8 +67,8 @@ struct Controller {
 
 impl Controller {
     pub fn new(
-        left_port: Box<dyn SerialPort>,
-        right_port: Box<dyn SerialPort>,
+        left_port: Option<Box<dyn SerialPort>>,
+        right_port: Option<Box<dyn SerialPort>>,
         gilrs: Gilrs,
     ) -> Self {
         Self {
@@ -108,18 +111,12 @@ impl Controller {
                 thread::sleep(SLEEP_DURATION);
             }
 
-            Self::read_port(
-                &mut self.left_port,
-                &mut left_buffer,
-                &mut left_length,
-                "Left",
-            )?;
-            Self::read_port(
-                &mut self.right_port,
-                &mut right_buffer,
-                &mut right_length,
-                "Right",
-            )?;
+            if let Some(port) = &mut self.left_port {
+                Self::read_port(port, &mut left_buffer, &mut left_length, "Left")?;
+            }
+            if let Some(port) = &mut self.right_port {
+                Self::read_port(port, &mut right_buffer, &mut right_length, "Right")?;
+            }
         }
     }
 
@@ -296,8 +293,10 @@ impl Controller {
                 &mut self.right_port
             }
         };
-        log::trace!("Sending command: {:?}", command);
-        port.write_all(command)?;
+        trace!("Sending command: {:?}", command);
+        if let Some(port) = port {
+            port.write_all(command)?;
+        }
         Ok(())
     }
 }
