@@ -109,6 +109,12 @@ impl Motor {
     }
 
     fn set_position_power(&mut self, power: i16, position: u8) {
+        // If power is 0, turn off entirely.
+        if power == 0 {
+            self.pwm.set_duty_cycles(0, 0, 0);
+            return;
+        }
+
         let power = clamp(power, -1000, 1000);
         // TODO: Low-pass filter power
         let (y, b, g) = match position {
