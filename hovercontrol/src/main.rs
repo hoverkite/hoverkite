@@ -16,7 +16,7 @@ const SLEEP_DURATION: Duration = Duration::from_millis(2);
 const DEFAULT_SCALE: f32 = 30.0;
 const MAX_SCALE: f32 = 100.0;
 
-const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -100..=200;
+const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=100;
 const MAX_MAX_SPEED: i16 = 300;
 const MAX_SPEED_STEP: i16 = 10;
 
@@ -118,16 +118,16 @@ impl Controller {
                 println!("Scale {}", self.scale);
             }
             EventType::ButtonPressed(Button::DPadUp, _code) => {
-                if *self.max_speed.end() < MAX_MAX_SPEED {
+                if -self.max_speed.start() < MAX_MAX_SPEED {
                     self.max_speed =
-                        *self.max_speed.start()..=self.max_speed.end() + MAX_SPEED_STEP;
+                        self.max_speed.start() - MAX_SPEED_STEP..=*self.max_speed.end();
                     self.send_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::DPadDown, _code) => {
-                if *self.max_speed.end() > MAX_SPEED_STEP {
+                if -self.max_speed.start() > MAX_SPEED_STEP {
                     self.max_speed =
-                        *self.max_speed.start()..=self.max_speed.end() - MAX_SPEED_STEP;
+                        self.max_speed.start() + MAX_SPEED_STEP..=*self.max_speed.end();
                     self.send_max_speed()?;
                 }
             }
