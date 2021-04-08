@@ -284,6 +284,11 @@ fn process_command(
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();
             *target_position = Some(target);
         }
+        b'e' => {
+            writeln!(hoverboard.serial, "Recentre").unwrap();
+            hoverboard.recentre_motor();
+            *target_position = Some(0);
+        }
         b'+' => {
             let target = target_position.unwrap_or(0) + 10;
             writeln!(hoverboard.serial, "Target position {}", target).unwrap();

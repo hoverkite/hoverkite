@@ -277,4 +277,14 @@ impl Hoverboard {
             shared.motor.target_power = power;
         })
     }
+
+    pub fn recentre_motor(&mut self) {
+        free(|cs| {
+            // SHARED must have been initialised by the time this is called.
+            let shared = &mut *SHARED.borrow(cs).borrow_mut();
+            let shared = shared.as_mut().unwrap();
+
+            shared.motor.position = 0;
+        })
+    }
 }

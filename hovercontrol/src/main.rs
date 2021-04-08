@@ -144,6 +144,14 @@ impl Controller {
                 self.centre_right -= CENTRE_STEP;
                 self.send_target(Side::Right)?;
             }
+            EventType::ButtonPressed(Button::LeftThumb, _code) => {
+                self.centre_left = 0;
+                self.hoverkite.send_command(Side::Left, &[b'e'])?;
+            }
+            EventType::ButtonPressed(Button::RightThumb, _code) => {
+                self.centre_right = 0;
+                self.hoverkite.send_command(Side::Right, &[b'e'])?;
+            }
             EventType::ButtonPressed(Button::South, _code) => {
                 self.hoverkite.send_command(Side::Left, &[b'b'])?;
                 self.hoverkite.send_command(Side::Right, &[b'b'])?;
