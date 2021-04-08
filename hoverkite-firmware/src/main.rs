@@ -113,15 +113,8 @@ fn main() -> ! {
 
         // Try to move towards the target position.
         if let Some(target_position) = target_position {
-            let abs_difference = (target_position - position).abs();
-            let adjusted_speed = clamp(abs_difference * spring_constant, &speed_limits);
-            speed = if target_position < position {
-                -adjusted_speed
-            } else if target_position > position {
-                adjusted_speed
-            } else {
-                0
-            };
+            let difference = target_position - position;
+            speed = clamp(difference * spring_constant, &speed_limits);
         } else {
             speed = 0;
         }
