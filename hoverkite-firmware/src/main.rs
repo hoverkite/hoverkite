@@ -115,8 +115,27 @@ fn main() -> ! {
         if let Some(target_position) = target_position {
             let difference = target_position - position;
             speed = clamp(difference * spring_constant, &speed_limits);
+
+            // Set LEDs based on position difference
+            if difference.abs() < 3 {
+                hoverboard.leds.green.set_high().unwrap();
+                hoverboard.leds.orange.set_low().unwrap();
+                hoverboard.leds.red.set_low().unwrap();
+            } else if difference > 0 {
+                hoverboard.leds.green.set_low().unwrap();
+                hoverboard.leds.orange.set_high().unwrap();
+                hoverboard.leds.red.set_low().unwrap();
+            } else {
+                hoverboard.leds.green.set_low().unwrap();
+                hoverboard.leds.orange.set_low().unwrap();
+                hoverboard.leds.red.set_high().unwrap();
+            }
         } else {
             speed = 0;
+
+            hoverboard.leds.green.set_low().unwrap();
+            hoverboard.leds.orange.set_low().unwrap();
+            hoverboard.leds.red.set_low().unwrap();
         }
 
         // Drive the motor.
