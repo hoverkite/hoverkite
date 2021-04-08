@@ -187,7 +187,7 @@ impl Controller {
 
     fn send_target(&mut self, side: Side) -> Result<(), Report> {
         let target = match side {
-            Side::Left => self.centre_left + self.offset_left,
+            Side::Left => -self.centre_left - self.offset_left,
             Side::Right => self.centre_right + self.offset_right,
         };
         self.hoverkite.set_target(side, target)
