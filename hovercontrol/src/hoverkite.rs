@@ -1,6 +1,7 @@
 use eyre::Report;
 use log::trace;
 use serialport::SerialPort;
+use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
@@ -76,12 +77,16 @@ impl Hoverkite {
         Ok(())
     }
 
-    pub fn set_max_speed(&mut self, max_speed: i16) -> Result<(), Report> {
-        println!("Max speed: {}", max_speed);
+    pub fn set_max_speed(
+        &mut self,
+        side: Side,
+        max_speed: &RangeInclusive<i16>,
+    ) -> Result<(), Report> {
+        println!("{:?} max speed: {:?}", side, max_speed);
         let mut command = vec![b'S'];
-        command.extend_from_slice(&max_speed.to_le_bytes());
-        self.send_command(Side::Left, &command)?;
-        self.send_command(Side::Right, &command)?;
+        command.extend_from_slice(&max_speed.start().to_le_bytes());
+        command.extend_from_slice(&max_speed.end().to_le_bytes());
+        self.send_command(side, &command)?;
         Ok(())
     }
 

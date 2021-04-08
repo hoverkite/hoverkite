@@ -1,3 +1,4 @@
+use crate::util::clamp;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA10, PA8, PA9},
@@ -118,7 +119,7 @@ impl Motor {
             return;
         }
 
-        let power = clamp(power, -1000, 1000);
+        let power: i16 = clamp(power, &(-1000..=1000));
         let (y, b, g) = match position {
             0 => (0, -power, power),
             1 => (power, -power, 0),
@@ -133,9 +134,9 @@ impl Motor {
         let y = y as i32 * power_max / 1000;
         let b = b as i32 * power_max / 1000;
         let g = g as i32 * power_max / 1000;
-        let y = clamp((y + power_max) as u16, 10, duty_max - 10);
-        let b = clamp((b + power_max) as u16, 10, duty_max - 10);
-        let g = clamp((g + power_max) as u16, 10, duty_max - 10);
+        let y = clamp((y + power_max) as u16, &(10..=duty_max - 10));
+        let b = clamp((b + power_max) as u16, &(10..=duty_max - 10));
+        let g = clamp((g + power_max) as u16, &(10..=duty_max - 10));
         self.pwm.set_duty_cycles(y, b, g);
     }
 
@@ -345,15 +346,5 @@ impl Pwm {
 
     pub fn duty_max(&self) -> u16 {
         self.auto_reload_value
-    }
-}
-
-fn clamp<T: PartialOrd>(x: T, low: T, high: T) -> T {
-    if x > high {
-        high
-    } else if x < low {
-        low
-    } else {
-        x
     }
 }

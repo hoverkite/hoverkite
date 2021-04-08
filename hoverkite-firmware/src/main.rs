@@ -3,6 +3,7 @@
 
 mod hoverboard;
 mod motor;
+mod util;
 
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
@@ -10,11 +11,12 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::{cmp::min, convert::TryInto, fmt::Write};
+use core::{convert::TryInto, fmt::Write, ops::RangeInclusive};
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
+use util::clamp;
 
 const WATCHDOG_MILLIS: u32 = 1000;
 
@@ -66,7 +68,7 @@ fn main() -> ! {
     let mut command_len = 0;
     let mut speed = 0;
     let mut target_position: Option<i64> = None;
-    let mut max_speed = 200;
+    let mut speed_limits = -200..=200;
     let mut spring_constant = 10;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
@@ -80,7 +82,7 @@ fn main() -> ! {
                 if process_command(
                     &command_buffer[0..command_len],
                     &mut hoverboard,
-                    &mut max_speed,
+                    &mut speed_limits,
                     &mut target_position,
                     &mut spring_constant,
                 ) {
@@ -112,7 +114,7 @@ fn main() -> ! {
         // Try to move towards the target position.
         if let Some(target_position) = target_position {
             let abs_difference = (target_position - position).abs();
-            let adjusted_speed = min(max_speed.into(), abs_difference * spring_constant) as i16;
+            let adjusted_speed = clamp(abs_difference * spring_constant, &speed_limits);
             speed = if target_position < position {
                 -adjusted_speed
             } else if target_position > position {
@@ -143,7 +145,7 @@ fn main() -> ! {
 fn process_command(
     command: &[u8],
     hoverboard: &mut Hoverboard,
-    max_speed: &mut i16,
+    speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
 ) -> bool {
@@ -238,15 +240,16 @@ fn process_command(
             }
             let power = char_to_digit::<i16>(command[1]) * 30;
             writeln!(hoverboard.serial, "max speed {}", power).unwrap();
-            *max_speed = power;
+            *speed_limits = -power..=power;
         }
         b'S' => {
-            if command.len() < 3 {
+            if command.len() < 5 {
                 return false;
             }
-            let power = i16::from_le_bytes(command[1..3].try_into().unwrap());
-            writeln!(hoverboard.serial, "max speed {}", power).unwrap();
-            *max_speed = power;
+            let min_power = i16::from_le_bytes(command[1..3].try_into().unwrap());
+            let max_power = i16::from_le_bytes(command[3..5].try_into().unwrap());
+            writeln!(hoverboard.serial, "max speed {}..{}", min_power, max_power).unwrap();
+            *speed_limits = min_power..=max_power;
         }
         b'k' => {
             if command.len() < 2 {
