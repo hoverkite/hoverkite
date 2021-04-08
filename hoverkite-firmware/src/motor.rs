@@ -17,6 +17,9 @@ use gd32f1x0_hal::{
 /// step.
 const MOTOR_POWER_SMOOTHING_CYCLES_PER_STEP: u32 = 5;
 
+/// If the motor power is below this level, don't bother running it at all.
+const MOTOR_POWER_DEAD_ZONE: i16 = 10;
+
 pub struct HallSensors {
     hall_a: PB11<Input<Floating>>,
     hall_b: PF1<Input<Floating>>,
@@ -109,8 +112,8 @@ impl Motor {
     }
 
     fn set_position_power(&mut self, power: i16, position: u8) {
-        // If power is 0, turn off entirely.
-        if power == 0 {
+        // If power is below a threshold, turn it off entirely.
+        if power.abs() < MOTOR_POWER_DEAD_ZONE {
             self.pwm.set_duty_cycles(0, 0, 0);
             return;
         }
