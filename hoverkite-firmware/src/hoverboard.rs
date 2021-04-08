@@ -258,6 +258,7 @@ impl Hoverboard {
         })
     }
 
+    /// Get the current position of the motor.
     pub fn motor_position(&self) -> i64 {
         free(|cs| {
             // SHARED must have been initialised by the time this is called.
@@ -268,6 +269,7 @@ impl Hoverboard {
         })
     }
 
+    /// Set the desired power for the motor.
     pub fn set_motor_power(&mut self, power: i16) {
         free(|cs| {
             // SHARED must have been initialised by the time this is called.
@@ -278,6 +280,7 @@ impl Hoverboard {
         })
     }
 
+    /// Set the motor's current position as 0.
     pub fn recentre_motor(&mut self) {
         free(|cs| {
             // SHARED must have been initialised by the time this is called.
