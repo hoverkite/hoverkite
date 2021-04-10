@@ -40,6 +40,7 @@ fn main() -> ! {
         dp.GPIOB,
         dp.GPIOC,
         dp.GPIOF,
+        dp.USART0,
         dp.USART1,
         dp.TIMER0,
         dp.DMA,

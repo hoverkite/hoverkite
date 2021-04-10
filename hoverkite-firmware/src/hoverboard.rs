@@ -10,14 +10,14 @@ use gd32f1x0_hal::{
     dma::{Event, Transfer, W},
     gpio::{
         gpioa::{PA0, PA12, PA15, PA2, PA3},
-        gpiob::{PB10, PB2, PB3},
+        gpiob::{PB10, PB2, PB3, PB6, PB7},
         gpioc::PC15,
         gpiof::PF0,
-        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
+        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF0, AF1,
     },
     pac::{
         adc::ctl1::CTN_A, interrupt, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0,
-        USART1,
+        USART0, USART1,
     },
     prelude::*,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -118,6 +118,7 @@ fn DMA_CHANNEL0() {
 }
 
 pub struct Hoverboard {
+    pub serial_remote: Serial<USART0, PB6<Alternate<AF0>>, PB7<Alternate<AF0>>>,
     pub serial: Serial<USART1, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
@@ -133,6 +134,7 @@ impl Hoverboard {
         gpiob: GPIOB,
         gpioc: GPIOC,
         gpiof: GPIOF,
+        usart0: USART0,
         usart1: USART1,
         timer0: TIMER0,
         dma: DMA,
@@ -147,12 +149,22 @@ impl Hoverboard {
         let mut gpioc = gpioc.split(ahb);
         let mut gpiof = gpiof.split(ahb);
 
-        // USART
-        let tx =
+        // USART0
+        let tx0 =
+            gpiob
+                .pb6
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let rx0 =
+            gpiob
+                .pb7
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+
+        // USART1
+        let tx1 =
             gpioa
                 .pa2
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
-        let rx =
+        let rx1 =
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
@@ -225,9 +237,19 @@ impl Hoverboard {
         }
 
         Hoverboard {
+            serial_remote: Serial::usart(
+                usart0,
+                (tx0, rx0),
+                Config {
+                    baudrate: USART_BAUD_RATE.bps(),
+                    ..Config::default()
+                },
+                clocks,
+                apb2,
+            ),
             serial: Serial::usart(
                 usart1,
-                (tx, rx),
+                (tx1, rx1),
                 Config {
                     baudrate: USART_BAUD_RATE.bps(),
                     ..Config::default()
