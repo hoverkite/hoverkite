@@ -1,8 +1,8 @@
 use crate::{
-    buffered_tx::{BufferState, BufferedSerialWriter},
+    buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
     motor::{HallSensors, Motor, Pwm},
 };
-use core::{cell::RefCell, mem};
+use core::{cell::RefCell, mem, ops::Deref};
 use cortex_m::{
     interrupt::{free, Mutex},
     peripheral::NVIC,
@@ -19,8 +19,8 @@ use gd32f1x0_hal::{
         Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
     pac::{
-        adc::ctl1::CTN_A, interrupt, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0,
-        USART0, USART1,
+        adc::ctl1::CTN_A, interrupt, usart0, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF,
+        TIMER0, USART0, USART1,
     },
     prelude::*,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -76,15 +76,37 @@ static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
 #[interrupt]
 fn USART0() {
     free(|cs| {
-        SERIAL0_BUFFER.borrow(cs).borrow_mut().try_write();
+        let buffer = &mut *SERIAL0_BUFFER.borrow(cs).borrow_mut();
+        buffer.try_write();
+
+        // If there are no bytes left to write, disable interrupts.
+        if buffer.is_empty() {
+            if let Some(tx) = buffer.writer() {
+                tx.unlisten();
+            }
+        }
     })
 }
 
 #[interrupt]
 fn USART1() {
     free(|cs| {
-        SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
+        let buffer = &mut *SERIAL1_BUFFER.borrow(cs).borrow_mut();
+        buffer.try_write();
+
+        // If there are no bytes left to write, disable interrupts.
+        if buffer.is_empty() {
+            if let Some(tx) = buffer.writer() {
+                tx.unlisten();
+            }
+        }
     })
+}
+
+impl<USART: Deref<Target = usart0::RegisterBlock>> Listenable for Tx<USART> {
+    fn listen(&mut self) {
+        self.listen()
+    }
 }
 
 pub struct Leds {

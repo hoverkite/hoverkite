@@ -60,6 +60,15 @@ impl SerialBuffer {
             Some(self.buffer[self.start])
         }
     }
+
+    /// Returns true if there are no bytes waiting to be written.
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+}
+
+pub trait Listenable {
+    fn listen(&mut self);
 }
 
 pub struct BufferedSerialWriter<W: 'static + Write<u8>> {
@@ -72,7 +81,7 @@ impl<W: Write<u8>> BufferedSerialWriter<W> {
     }
 }
 
-impl<W: Write<u8>> fmt::Write for BufferedSerialWriter<W> {
+impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut bytes = s.as_bytes();
         // Block until all bytes can be added to the buffer. It should be drained by the
@@ -87,6 +96,14 @@ impl<W: Write<u8>> fmt::Write for BufferedSerialWriter<W> {
                 // Try writing the first byte, as an interrupt won't happen if nothing has been
                 // written.
                 state.try_write();
+
+                if !state.is_empty() {
+                    if let Some(writer) = &mut state.writer {
+                        // Enable interrupts
+                        writer.listen();
+                        // TODO: Should this be on try_write instead?
+                    }
+                }
             });
             // TODO: WFI?
         }
@@ -113,7 +130,11 @@ impl<W: Write<u8>> BufferState<W> {
         self.writer = Some(writer);
     }
 
-    /// If the writer is set and there's data in the buffer waiting to be written, try
+    pub fn writer(&mut self) -> Option<&mut W> {
+        self.writer.as_mut()
+    }
+
+    /// If the writer is set and there's data in the buffer waiting to be written, try writing it.
     pub fn try_write(&mut self) {
         if let Some(writer) = &mut self.writer {
             // If there's a byte to write, try writing it.
@@ -124,5 +145,10 @@ impl<W: Write<u8>> BufferState<W> {
                 }
             }
         }
+    }
+
+    /// Returns true if there are no bytes waiting to be written.
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
     }
 }
