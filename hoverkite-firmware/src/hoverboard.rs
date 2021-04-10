@@ -1,5 +1,5 @@
 use crate::{
-    buffered_tx::{BufferedSerialWriter, SerialBuffer},
+    buffered_tx::{try_write, BufferedSerialWriter, SerialBuffer},
     motor::{HallSensors, Motor, Pwm},
 };
 use core::{cell::RefCell, mem};
@@ -79,12 +79,7 @@ fn USART0() {
         if let Some(tx) = &mut *SERIAL0_TX.borrow(cs).borrow_mut() {
             let buffer = &mut *SERIAL0_BUFFER.borrow(cs).borrow_mut();
             // If there's a byte to write, try writing it.
-            if let Some(byte) = buffer.peek() {
-                if tx.write(byte).is_ok() {
-                    // If the byte was written successfully, remove it from the buffer.
-                    buffer.take();
-                }
-            }
+            try_write(buffer, tx);
         }
     })
 }
@@ -95,12 +90,7 @@ fn USART1() {
         if let Some(tx) = &mut *SERIAL1_TX.borrow(cs).borrow_mut() {
             let buffer = &mut *SERIAL1_BUFFER.borrow(cs).borrow_mut();
             // If there's a byte to write, try writing it.
-            if let Some(byte) = buffer.peek() {
-                if tx.write(byte).is_ok() {
-                    // If the byte was written successfully, remove it from the buffer.
-                    buffer.take();
-                }
-            }
+            try_write(buffer, tx);
         }
     })
 }
@@ -158,9 +148,9 @@ fn DMA_CHANNEL0() {
 
 pub struct Hoverboard {
     pub serial_remote_rx: Rx<USART0>,
-    pub serial_remote_writer: BufferedSerialWriter,
+    pub serial_remote_writer: BufferedSerialWriter<Tx<USART0>>,
     pub serial_rx: Rx<USART1>,
-    pub serial_writer: BufferedSerialWriter,
+    pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
@@ -212,7 +202,7 @@ impl Hoverboard {
         .split();
         serial_remote_tx.listen();
         free(move |cs| SERIAL0_TX.borrow(cs).replace(Some(serial_remote_tx)));
-        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER);
+        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER, &SERIAL0_TX);
 
         // USART1
         let tx1 =
@@ -236,7 +226,7 @@ impl Hoverboard {
         .split();
         serial_tx.listen();
         free(move |cs| SERIAL1_TX.borrow(cs).replace(Some(serial_tx)));
-        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER);
+        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER, &SERIAL1_TX);
 
         // DMA controller
         let dma = dma.split(ahb);

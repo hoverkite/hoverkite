@@ -1,5 +1,6 @@
 use core::{cell::RefCell, cmp::min, fmt};
 use cortex_m::interrupt::{free, Mutex};
+use embedded_hal::serial::Write;
 
 const SERIAL_BUFFER_SIZE: usize = 100;
 
@@ -61,29 +62,50 @@ impl SerialBuffer {
     }
 }
 
-pub struct BufferedSerialWriter {
+pub struct BufferedSerialWriter<TX: 'static> {
     buffer: &'static Mutex<RefCell<SerialBuffer>>,
+    tx: &'static Mutex<RefCell<Option<TX>>>,
 }
 
-impl BufferedSerialWriter {
-    pub fn new(buffer: &'static Mutex<RefCell<SerialBuffer>>) -> Self {
-        Self { buffer }
+impl<TX: Write<u8>> BufferedSerialWriter<TX> {
+    pub fn new(
+        buffer: &'static Mutex<RefCell<SerialBuffer>>,
+        tx: &'static Mutex<RefCell<Option<TX>>>,
+    ) -> Self {
+        Self { buffer, tx }
     }
 }
 
-impl fmt::Write for BufferedSerialWriter {
+impl<TX: Write<u8>> fmt::Write for BufferedSerialWriter<TX> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut bytes = s.as_bytes();
         // Block until all bytes can be added to the buffer. It should be drained by the
         // interrupt handler.
         while bytes.len() > 0 {
             free(|cs| {
+                // Add as many bytes as possible to the buffer.
                 let buffer = &mut *self.buffer.borrow(cs).borrow_mut();
                 let written = buffer.add(&bytes);
                 bytes = &bytes[written..];
+
+                if let Some(tx) = &mut *self.tx.borrow(cs).borrow_mut() {
+                    // Try writing the first byte, as an interrupt won't happen if nothing has been
+                    // written.
+                    try_write(buffer, tx);
+                }
             });
             // TODO: WFI?
         }
         Ok(())
+    }
+}
+
+pub fn try_write(buffer: &mut SerialBuffer, tx: &mut impl Write<u8>) {
+    // If there's a byte to write, try writing it.
+    if let Some(byte) = buffer.peek() {
+        if tx.write(byte).is_ok() {
+            // If the byte was written successfully, remove it from the buffer.
+            buffer.take();
+        }
     }
 }
