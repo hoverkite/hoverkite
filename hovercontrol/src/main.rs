@@ -4,12 +4,12 @@ use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use hoverkite::{Hoverkite, Side, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use log::error;
+use std::env;
 use std::ops::RangeInclusive;
+use std::process::exit;
 use std::thread;
 use std::time::Duration;
 
-const LEFT_PORT: &str = "/dev/ttyUSB0";
-const RIGHT_PORT: &str = "/dev/ttyUSB1";
 const BAUD_RATE: u32 = 115_200;
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
@@ -31,13 +31,30 @@ fn main() -> Result<(), Report> {
     pretty_env_logger::init();
     color_backtrace::install();
 
-    let left_port = serialport::new(LEFT_PORT, BAUD_RATE)
+    let mut args = env::args();
+    let binary_name = args
+        .next()
+        .ok_or_else(|| eyre::eyre!("Binary name missing"))?;
+    if args.len() != 2 {
+        eprintln!("Usage:");
+        eprintln!("  {} <left serial port> <right serial port>", binary_name);
+        exit(1);
+    }
+    let left_port_name = args.next().unwrap();
+    let right_port_name = args.next().unwrap();
+
+    let left_port = serialport::new(&left_port_name, BAUD_RATE)
         .open()
-        .map_err(|e| error!("Failed to open left serial port {}: {}", LEFT_PORT, e))
+        .map_err(|e| error!("Failed to open left serial port {}: {}", left_port_name, e))
         .ok();
-    let right_port = serialport::new(RIGHT_PORT, BAUD_RATE)
+    let right_port = serialport::new(&right_port_name, BAUD_RATE)
         .open()
-        .map_err(|e| error!("Failed to open right serial port {}: {}", RIGHT_PORT, e))
+        .map_err(|e| {
+            error!(
+                "Failed to open right serial port {}: {}",
+                right_port_name, e
+            )
+        })
         .ok();
 
     let gilrs = Gilrs::new().unwrap();
