@@ -1,5 +1,5 @@
 use crate::{
-    buffered_tx::{try_write, BufferedSerialWriter, SerialBuffer},
+    buffered_tx::{BufferState, BufferedSerialWriter},
     motor::{HallSensors, Motor, Pwm},
 };
 use core::{cell::RefCell, mem};
@@ -68,30 +68,22 @@ impl AdcDmaState {
 }
 
 static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
-static SERIAL0_BUFFER: Mutex<RefCell<SerialBuffer>> = Mutex::new(RefCell::new(SerialBuffer::new()));
-static SERIAL0_TX: Mutex<RefCell<Option<Tx<USART0>>>> = Mutex::new(RefCell::new(None));
-static SERIAL1_BUFFER: Mutex<RefCell<SerialBuffer>> = Mutex::new(RefCell::new(SerialBuffer::new()));
-static SERIAL1_TX: Mutex<RefCell<Option<Tx<USART1>>>> = Mutex::new(RefCell::new(None));
+static SERIAL0_BUFFER: Mutex<RefCell<BufferState<Tx<USART0>>>> =
+    Mutex::new(RefCell::new(BufferState::new()));
+static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
+    Mutex::new(RefCell::new(BufferState::new()));
 
 #[interrupt]
 fn USART0() {
     free(|cs| {
-        if let Some(tx) = &mut *SERIAL0_TX.borrow(cs).borrow_mut() {
-            let buffer = &mut *SERIAL0_BUFFER.borrow(cs).borrow_mut();
-            // If there's a byte to write, try writing it.
-            try_write(buffer, tx);
-        }
+        SERIAL0_BUFFER.borrow(cs).borrow_mut().try_write();
     })
 }
 
 #[interrupt]
 fn USART1() {
     free(|cs| {
-        if let Some(tx) = &mut *SERIAL1_TX.borrow(cs).borrow_mut() {
-            let buffer = &mut *SERIAL1_BUFFER.borrow(cs).borrow_mut();
-            // If there's a byte to write, try writing it.
-            try_write(buffer, tx);
-        }
+        SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
     })
 }
 
@@ -201,8 +193,13 @@ impl Hoverboard {
         )
         .split();
         serial_remote_tx.listen();
-        free(move |cs| SERIAL0_TX.borrow(cs).replace(Some(serial_remote_tx)));
-        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER, &SERIAL0_TX);
+        free(move |cs| {
+            SERIAL0_BUFFER
+                .borrow(cs)
+                .borrow_mut()
+                .set_writer(serial_remote_tx)
+        });
+        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER);
 
         // USART1
         let tx1 =
@@ -225,8 +222,8 @@ impl Hoverboard {
         )
         .split();
         serial_tx.listen();
-        free(move |cs| SERIAL1_TX.borrow(cs).replace(Some(serial_tx)));
-        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER, &SERIAL1_TX);
+        free(move |cs| SERIAL1_BUFFER.borrow(cs).borrow_mut().set_writer(serial_tx));
+        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER);
 
         // DMA controller
         let dma = dma.split(ahb);

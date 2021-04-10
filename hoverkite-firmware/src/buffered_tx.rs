@@ -5,7 +5,7 @@ use embedded_hal::serial::Write;
 const SERIAL_BUFFER_SIZE: usize = 100;
 
 /// A circular buffer for sending to a serial port.
-pub struct SerialBuffer {
+struct SerialBuffer {
     buffer: [u8; SERIAL_BUFFER_SIZE],
     start: usize,
     length: usize,
@@ -62,21 +62,17 @@ impl SerialBuffer {
     }
 }
 
-pub struct BufferedSerialWriter<TX: 'static> {
-    buffer: &'static Mutex<RefCell<SerialBuffer>>,
-    tx: &'static Mutex<RefCell<Option<TX>>>,
+pub struct BufferedSerialWriter<W: 'static + Write<u8>> {
+    state: &'static Mutex<RefCell<BufferState<W>>>,
 }
 
-impl<TX: Write<u8>> BufferedSerialWriter<TX> {
-    pub fn new(
-        buffer: &'static Mutex<RefCell<SerialBuffer>>,
-        tx: &'static Mutex<RefCell<Option<TX>>>,
-    ) -> Self {
-        Self { buffer, tx }
+impl<W: Write<u8>> BufferedSerialWriter<W> {
+    pub fn new(state: &'static Mutex<RefCell<BufferState<W>>>) -> Self {
+        Self { state }
     }
 }
 
-impl<TX: Write<u8>> fmt::Write for BufferedSerialWriter<TX> {
+impl<W: Write<u8>> fmt::Write for BufferedSerialWriter<W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut bytes = s.as_bytes();
         // Block until all bytes can be added to the buffer. It should be drained by the
@@ -84,15 +80,13 @@ impl<TX: Write<u8>> fmt::Write for BufferedSerialWriter<TX> {
         while bytes.len() > 0 {
             free(|cs| {
                 // Add as many bytes as possible to the buffer.
-                let buffer = &mut *self.buffer.borrow(cs).borrow_mut();
-                let written = buffer.add(&bytes);
+                let state = &mut *self.state.borrow(cs).borrow_mut();
+                let written = state.buffer.add(&bytes);
                 bytes = &bytes[written..];
 
-                if let Some(tx) = &mut *self.tx.borrow(cs).borrow_mut() {
-                    // Try writing the first byte, as an interrupt won't happen if nothing has been
-                    // written.
-                    try_write(buffer, tx);
-                }
+                // Try writing the first byte, as an interrupt won't happen if nothing has been
+                // written.
+                state.try_write();
             });
             // TODO: WFI?
         }
@@ -100,12 +94,35 @@ impl<TX: Write<u8>> fmt::Write for BufferedSerialWriter<TX> {
     }
 }
 
-pub fn try_write(buffer: &mut SerialBuffer, tx: &mut impl Write<u8>) {
-    // If there's a byte to write, try writing it.
-    if let Some(byte) = buffer.peek() {
-        if tx.write(byte).is_ok() {
-            // If the byte was written successfully, remove it from the buffer.
-            buffer.take();
+pub struct BufferState<W> {
+    buffer: SerialBuffer,
+    writer: Option<W>,
+}
+
+impl<W> BufferState<W> {
+    pub const fn new() -> Self {
+        Self {
+            buffer: SerialBuffer::new(),
+            writer: None,
+        }
+    }
+}
+
+impl<W: Write<u8>> BufferState<W> {
+    pub fn set_writer(&mut self, writer: W) {
+        self.writer = Some(writer);
+    }
+
+    /// If the writer is set and there's data in the buffer waiting to be written, try
+    pub fn try_write(&mut self) {
+        if let Some(writer) = &mut self.writer {
+            // If there's a byte to write, try writing it.
+            if let Some(byte) = self.buffer.peek() {
+                if writer.write(byte).is_ok() {
+                    // If the byte was written successfully, remove it from the buffer.
+                    self.buffer.take();
+                }
+            }
         }
     }
 }
