@@ -358,7 +358,7 @@ dependencies = [
 [[package]]
 name = "gd32f1x0-hal"
 version = "0.1.0"
-source = "git+https://github.com/qwandor/gd32f1x0-hal?branch=main#0417e84a7552d3ebcae90d35331dda35d26fe8e3"
+source = "git+https://github.com/qwandor/gd32f1x0-hal?branch=main#793caac38aac12e9385ad0df702d955dbe5bc49a"
 dependencies = [
  "bxcan",
  "cast",

@@ -26,11 +26,12 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     let mut rcu = dp.RCU.constrain();
+    let mut flash = dp.FMC.constrain();
     let clocks = rcu
         .cfgr
         .sysclk(72.mhz())
         .adcclk(12.mhz())
-        .freeze(&dp.FMC.ws);
+        .freeze(&mut flash.ws);
 
     let mut watchdog = FreeWatchdog::new(dp.FWDGT);
     watchdog.start(WATCHDOG_MILLIS.ms());
