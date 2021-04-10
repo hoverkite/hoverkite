@@ -1,4 +1,7 @@
-use crate::motor::{HallSensors, Motor, Pwm};
+use crate::{
+    buffered_tx::{BufferedSerialWriter, SerialBuffer},
+    motor::{HallSensors, Motor, Pwm},
+};
 use core::{cell::RefCell, mem};
 use cortex_m::{
     interrupt::{free, Mutex},
@@ -9,11 +12,11 @@ use gd32f1x0_hal::{
     adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
     dma::{Event, Transfer, W},
     gpio::{
-        gpioa::{PA0, PA12, PA15, PA2, PA3},
-        gpiob::{PB10, PB2, PB3, PB6, PB7},
+        gpioa::{PA0, PA12, PA15},
+        gpiob::{PB10, PB2, PB3},
         gpioc::PC15,
         gpiof::PF0,
-        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF0, AF1,
+        Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
     pac::{
         adc::ctl1::CTN_A, interrupt, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0,
@@ -21,7 +24,7 @@ use gd32f1x0_hal::{
     },
     prelude::*,
     rcu::{Clocks, AHB, APB1, APB2},
-    serial::{Config, Serial},
+    serial::{Config, Rx, Serial, Tx},
 };
 
 const USART_BAUD_RATE: u32 = 115200;
@@ -65,6 +68,42 @@ impl AdcDmaState {
 }
 
 static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
+static SERIAL0_BUFFER: Mutex<RefCell<SerialBuffer>> = Mutex::new(RefCell::new(SerialBuffer::new()));
+static SERIAL0_TX: Mutex<RefCell<Option<Tx<USART0>>>> = Mutex::new(RefCell::new(None));
+static SERIAL1_BUFFER: Mutex<RefCell<SerialBuffer>> = Mutex::new(RefCell::new(SerialBuffer::new()));
+static SERIAL1_TX: Mutex<RefCell<Option<Tx<USART1>>>> = Mutex::new(RefCell::new(None));
+
+#[interrupt]
+fn USART0() {
+    free(|cs| {
+        if let Some(tx) = &mut *SERIAL0_TX.borrow(cs).borrow_mut() {
+            let buffer = &mut *SERIAL0_BUFFER.borrow(cs).borrow_mut();
+            // If there's a byte to write, try writing it.
+            if let Some(byte) = buffer.peek() {
+                if tx.write(byte).is_ok() {
+                    // If the byte was written successfully, remove it from the buffer.
+                    buffer.take();
+                }
+            }
+        }
+    })
+}
+
+#[interrupt]
+fn USART1() {
+    free(|cs| {
+        if let Some(tx) = &mut *SERIAL1_TX.borrow(cs).borrow_mut() {
+            let buffer = &mut *SERIAL1_BUFFER.borrow(cs).borrow_mut();
+            // If there's a byte to write, try writing it.
+            if let Some(byte) = buffer.peek() {
+                if tx.write(byte).is_ok() {
+                    // If the byte was written successfully, remove it from the buffer.
+                    buffer.take();
+                }
+            }
+        }
+    })
+}
 
 pub struct Leds {
     pub side: PA0<Output<PushPull>>,
@@ -118,8 +157,10 @@ fn DMA_CHANNEL0() {
 }
 
 pub struct Hoverboard {
-    pub serial_remote: Serial<USART0, PB6<Alternate<AF0>>, PB7<Alternate<AF0>>>,
-    pub serial: Serial<USART1, PA2<Alternate<AF1>>, PA3<Alternate<AF1>>>,
+    pub serial_remote_rx: Rx<USART0>,
+    pub serial_remote_writer: BufferedSerialWriter,
+    pub serial_rx: Rx<USART1>,
+    pub serial_writer: BufferedSerialWriter,
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
@@ -158,6 +199,20 @@ impl Hoverboard {
             gpiob
                 .pb7
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let (mut serial_remote_tx, serial_remote_rx) = Serial::usart(
+            usart0,
+            (tx0, rx0),
+            Config {
+                baudrate: USART_BAUD_RATE.bps(),
+                ..Config::default()
+            },
+            clocks,
+            apb2,
+        )
+        .split();
+        serial_remote_tx.listen();
+        free(move |cs| SERIAL0_TX.borrow(cs).replace(Some(serial_remote_tx)));
+        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER);
 
         // USART1
         let tx1 =
@@ -168,6 +223,20 @@ impl Hoverboard {
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+        let (mut serial_tx, serial_rx) = Serial::usart(
+            usart1,
+            (tx1, rx1),
+            Config {
+                baudrate: USART_BAUD_RATE.bps(),
+                ..Config::default()
+            },
+            clocks,
+            apb1,
+        )
+        .split();
+        serial_tx.listen();
+        free(move |cs| SERIAL1_TX.borrow(cs).replace(Some(serial_tx)));
+        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER);
 
         // DMA controller
         let dma = dma.split(ahb);
@@ -234,29 +303,14 @@ impl Hoverboard {
         unsafe {
             NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
             NVIC::unmask(Interrupt::DMA_CHANNEL0);
+            NVIC::unmask(Interrupt::USART1);
         }
 
         Hoverboard {
-            serial_remote: Serial::usart(
-                usart0,
-                (tx0, rx0),
-                Config {
-                    baudrate: USART_BAUD_RATE.bps(),
-                    ..Config::default()
-                },
-                clocks,
-                apb2,
-            ),
-            serial: Serial::usart(
-                usart1,
-                (tx1, rx1),
-                Config {
-                    baudrate: USART_BAUD_RATE.bps(),
-                    ..Config::default()
-                },
-                clocks,
-                apb1,
-            ),
+            serial_remote_rx,
+            serial_remote_writer,
+            serial_rx,
+            serial_writer,
             buzzer: gpiob.pb10.into_push_pull_output(&mut gpiob.config),
             power_latch: gpiob.pb2.into_push_pull_output(&mut gpiob.config),
             power_button: gpioc.pc15.into_floating_input(&mut gpioc.config),
