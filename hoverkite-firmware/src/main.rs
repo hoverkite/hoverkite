@@ -259,14 +259,6 @@ fn process_command(
                 writeln!(hoverboard.serial_writer, "Charger not connected").unwrap();
             }
         }
-        b's' => {
-            if command.len() < 2 {
-                return false;
-            }
-            let power = char_to_digit::<i16>(command[1]) * 30;
-            writeln!(hoverboard.serial_writer, "max speed {}", power).unwrap();
-            *speed_limits = -power..=power;
-        }
         b'S' => {
             if command.len() < 5 {
                 return false;
@@ -281,14 +273,6 @@ fn process_command(
             .unwrap();
             *speed_limits = min_power..=max_power;
         }
-        b'k' => {
-            if command.len() < 2 {
-                return false;
-            }
-            let spring = char_to_digit::<i64>(command[1]) * 2;
-            writeln!(hoverboard.serial_writer, "Spring constant {}", spring).unwrap();
-            *spring_constant = spring;
-        }
         b'K' => {
             if command.len() < 3 {
                 return false;
@@ -300,14 +284,6 @@ fn process_command(
         b'n' => {
             writeln!(hoverboard.serial_writer, "No target position").unwrap();
             *target_position = None;
-        }
-        b't' => {
-            if command.len() < 2 {
-                return false;
-            }
-            let target = char_to_digit::<i64>(command[1]) * 100;
-            writeln!(hoverboard.serial_writer, "Target position {}", target).unwrap();
-            *target_position = Some(target);
         }
         b'T' => {
             if command.len() < 9 {
@@ -341,23 +317,6 @@ fn process_command(
         .unwrap(),
     }
     true
-}
-
-fn char_to_digit<T: From<u8>>(char: u8) -> T {
-    match char {
-        b'0' => 0,
-        b'1' => 1,
-        b'2' => 2,
-        b'3' => 3,
-        b'4' => 4,
-        b'5' => 5,
-        b'6' => 6,
-        b'7' => 7,
-        b'8' => 8,
-        b'9' => 9,
-        _ => 0,
-    }
-    .into()
 }
 
 fn poweroff(hoverboard: &mut Hoverboard) {
