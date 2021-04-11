@@ -23,34 +23,34 @@ impl Side {
 }
 
 pub struct Hoverkite {
-    left_port: Option<Box<dyn SerialPort>>,
     right_port: Option<Box<dyn SerialPort>>,
-    /// The time that the last command was sent to the left port.
-    left_last_command_time: Instant,
+    left_port: Option<Box<dyn SerialPort>>,
     /// The time that the last command was sent to the right port.
     right_last_command_time: Instant,
+    /// The time that the last command was sent to the left port.
+    left_last_command_time: Instant,
     /// A pending target command that still needs to be sent but wasn't because of the minimum time
     /// between updates.
-    left_target_pending: Option<i64>,
     right_target_pending: Option<i64>,
-    left_buffer: VecDeque<u8>,
+    left_target_pending: Option<i64>,
     right_buffer: VecDeque<u8>,
+    left_buffer: VecDeque<u8>,
 }
 
 impl Hoverkite {
     pub fn new(
-        left_port: Option<Box<dyn SerialPort>>,
         right_port: Option<Box<dyn SerialPort>>,
+        left_port: Option<Box<dyn SerialPort>>,
     ) -> Self {
         Self {
-            left_port,
             right_port,
-            left_last_command_time: Instant::now(),
+            left_port,
             right_last_command_time: Instant::now(),
-            left_target_pending: None,
+            left_last_command_time: Instant::now(),
             right_target_pending: None,
-            left_buffer: VecDeque::new(),
+            left_target_pending: None,
             right_buffer: VecDeque::new(),
+            left_buffer: VecDeque::new(),
         }
     }
 
@@ -147,17 +147,17 @@ impl Hoverkite {
         trace!("Sending command to {:?}: {:?}", side, command);
         if let Some(port) = port {
             port.write_all(command)?;
-        } else if side == Side::Right {
+        } else if side == Side::Left {
             self.forward_command(command)?;
         }
         Ok(())
     }
 
-    /// Tell the left side to forward the command to the right side.
+    /// Tell the right side to forward the command to the left side.
     fn forward_command(&mut self, command: &[u8]) -> Result<(), Report> {
         let mut wrapped_command = vec![b'F', command.len() as u8];
         wrapped_command.extend_from_slice(command);
-        self.send_command(Side::Left, &wrapped_command)
+        self.send_command(Side::Right, &wrapped_command)
     }
 }
 
