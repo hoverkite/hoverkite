@@ -147,8 +147,17 @@ impl Hoverkite {
         trace!("Sending command: {:?}", command);
         if let Some(port) = port {
             port.write_all(command)?;
+        } else if side == Side::Right {
+            self.forward_command(command)?;
         }
         Ok(())
+    }
+
+    /// Tell the left side to forward the command to the right side.
+    fn forward_command(&mut self, command: &[u8]) -> Result<(), Report> {
+        let mut wrapped_command = vec![b'F', command.len() as u8];
+        wrapped_command.extend_from_slice(command);
+        self.send_command(Side::Left, &wrapped_command)
     }
 }
 

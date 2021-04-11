@@ -78,7 +78,7 @@ fn main() -> ! {
     log!(hoverboard.response_tx(), "Ready");
 
     let mut last_position = 0;
-    let mut command_buffer = [0; 10];
+    let mut command_buffer = [0; 12];
     let mut command_len = 0;
     let mut proxy_response_buffer = [0; 100];
     let mut proxy_response_length = 0;

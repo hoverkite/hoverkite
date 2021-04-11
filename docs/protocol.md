@@ -20,6 +20,7 @@ depends on the command.
 | T       | i64        | Set target position.                                    |
 | e       | none       | Set current position as 0 position and target position. |
 | p       | none       | Power off.                                              |
+| F       | u8, \*     | Forward the following N bytes to the other side.        |
 
 ## Responses
 

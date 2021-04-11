@@ -74,6 +74,13 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
     true
 }
 
+fn forward_command(hoverboard: &mut Hoverboard, command: &[u8]) {
+    #[cfg(feature = "primary")]
+    hoverboard.serial_writer.bwrite_all(command).unwrap();
+    #[cfg(feature = "secondary")]
+    log!(hoverboard.response_tx(), "Secondary can't forward.");
+}
+
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
 pub fn process_command(
@@ -88,6 +95,16 @@ pub fn process_command(
     }
 
     match command[0] {
+        b'F' => {
+            if command.len() < 2 {
+                return false;
+            }
+            let forward_length = command[1];
+            if command.len() < forward_length as usize + 2 {
+                return false;
+            }
+            forward_command(hoverboard, &command[2..]);
+        }
         b'l' => {
             if command.len() < 2 {
                 return false;
