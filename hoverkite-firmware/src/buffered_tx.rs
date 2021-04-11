@@ -116,8 +116,10 @@ impl<W: Write<u8> + Listenable> BufferedSerialWriter<W> {
                 state.try_write();
             });
 
-            // Wait for an interrupt.
-            wfi();
+            if bytes.len() > 0 {
+                // Wait for an interrupt.
+                wfi();
+            }
         }
     }
 }
