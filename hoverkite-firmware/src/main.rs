@@ -13,7 +13,6 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use core::fmt::Write;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
@@ -58,25 +57,23 @@ fn main() -> ! {
     // Keep power on.
     hoverboard.power_latch.set_high().unwrap();
 
-    writeln!(
+    log!(
         hoverboard.serial_writer,
         "System clock {} Hz",
         clocks.sysclk().0
-    )
-    .unwrap();
-    writeln!(
+    );
+    log!(
         hoverboard.serial_writer,
         "ADC clock {} Hz",
         clocks.adcclk().0
-    )
-    .unwrap();
+    );
 
     // If power button is pressed, wait until it is released.
     while hoverboard.power_button.is_high().unwrap() {
         watchdog.feed();
     }
 
-    writeln!(hoverboard.serial_writer, "Ready").unwrap();
+    log!(hoverboard.serial_writer, "Ready");
 
     let mut last_position = 0;
     let mut command_buffer = [0; 10];
@@ -103,18 +100,18 @@ fn main() -> ! {
                 ) {
                     command_len = 0;
                 } else if command_len > command_buffer.len() {
-                    writeln!(hoverboard.serial_writer, "Command too long").unwrap();
+                    log!(hoverboard.serial_writer, "Command too long");
                     command_len = 0;
                 }
             }
             Err(nb::Error::WouldBlock) => {}
             Err(nb::Error::Other(e)) => {
-                writeln!(
+                log!(
                     hoverboard.serial_writer,
                     "Read error {:?}, dropping {} bytes",
-                    e, command_len
-                )
-                .unwrap();
+                    e,
+                    command_len
+                );
                 command_len = 0;
             }
         }
@@ -122,7 +119,7 @@ fn main() -> ! {
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
-            writeln!(hoverboard.serial_writer, "Position {}", position).unwrap();
+            log!(hoverboard.serial_writer, "Position {}", position);
             last_position = position;
         }
 
@@ -168,6 +165,6 @@ fn main() -> ! {
 }
 
 pub fn poweroff(hoverboard: &mut Hoverboard) {
-    writeln!(hoverboard.serial_writer, "Power off").unwrap();
+    log!(hoverboard.serial_writer, "Power off");
     hoverboard.power_latch.set_low().unwrap()
 }

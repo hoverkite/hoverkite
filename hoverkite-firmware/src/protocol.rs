@@ -1,7 +1,18 @@
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
-use core::{convert::TryInto, fmt::Write, ops::RangeInclusive};
+use core::{convert::TryInto, ops::RangeInclusive};
 use gd32f1x0_hal::prelude::*;
+
+#[macro_export]
+macro_rules! log {
+    ($dst:expr, $($arg:tt)*) => (
+		{
+			core::fmt::Write::write_char(&mut $dst, '"').unwrap();
+			core::fmt::Write::write_fmt(&mut $dst, format_args!($($arg)*)).unwrap();
+			core::fmt::Write::write_char(&mut $dst,'\n').unwrap();
+		}
+    );
+}
 
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
@@ -23,14 +34,14 @@ pub fn process_command(
             }
             match command[1] {
                 b'0' => {
-                    writeln!(hoverboard.serial_writer, "LED off").unwrap();
+                    log!(hoverboard.serial_writer, "LED off");
                     hoverboard.leds.side.set_low().unwrap()
                 }
                 b'1' => {
-                    writeln!(hoverboard.serial_writer, "LED on").unwrap();
+                    log!(hoverboard.serial_writer, "LED on");
                     hoverboard.leds.side.set_high().unwrap()
                 }
-                _ => writeln!(hoverboard.serial_writer, "LED unrecognised").unwrap(),
+                _ => log!(hoverboard.serial_writer, "LED unrecognised"),
             }
         }
         b'o' => {
@@ -39,14 +50,14 @@ pub fn process_command(
             }
             match command[1] {
                 b'0' => {
-                    writeln!(hoverboard.serial_writer, "orange off").unwrap();
+                    log!(hoverboard.serial_writer, "orange off");
                     hoverboard.leds.orange.set_low().unwrap()
                 }
                 b'1' => {
-                    writeln!(hoverboard.serial_writer, "orange on").unwrap();
+                    log!(hoverboard.serial_writer, "orange on");
                     hoverboard.leds.orange.set_high().unwrap()
                 }
-                _ => writeln!(hoverboard.serial_writer, "LED unrecognised").unwrap(),
+                _ => log!(hoverboard.serial_writer, "LED unrecognised"),
             }
         }
         b'r' => {
@@ -55,14 +66,14 @@ pub fn process_command(
             }
             match command[1] {
                 b'0' => {
-                    writeln!(hoverboard.serial_writer, "red off").unwrap();
+                    log!(hoverboard.serial_writer, "red off");
                     hoverboard.leds.red.set_low().unwrap()
                 }
                 b'1' => {
-                    writeln!(hoverboard.serial_writer, "red on").unwrap();
+                    log!(hoverboard.serial_writer, "red on");
                     hoverboard.leds.red.set_high().unwrap()
                 }
-                _ => writeln!(hoverboard.serial_writer, "LED unrecognised").unwrap(),
+                _ => log!(hoverboard.serial_writer, "LED unrecognised"),
             }
         }
         b'g' => {
@@ -71,30 +82,31 @@ pub fn process_command(
             }
             match command[1] {
                 b'0' => {
-                    writeln!(hoverboard.serial_writer, "green off").unwrap();
+                    log!(hoverboard.serial_writer, "green off");
                     hoverboard.leds.green.set_low().unwrap()
                 }
                 b'1' => {
-                    writeln!(hoverboard.serial_writer, "green on").unwrap();
+                    log!(hoverboard.serial_writer, "green on");
                     hoverboard.leds.green.set_high().unwrap()
                 }
-                _ => writeln!(hoverboard.serial_writer, "LED unrecognised").unwrap(),
+                _ => log!(hoverboard.serial_writer, "LED unrecognised"),
             }
         }
         b'b' => {
             let readings = hoverboard.adc_readings();
-            writeln!(
+            log!(
                 hoverboard.serial_writer,
                 "Battery voltage: {} mV, backup: {} mV, current {} mV",
-                readings.battery_voltage, readings.backup_battery_voltage, readings.motor_current
-            )
-            .unwrap();
+                readings.battery_voltage,
+                readings.backup_battery_voltage,
+                readings.motor_current
+            );
         }
         b'c' => {
             if hoverboard.charge_state.is_low().unwrap() {
-                writeln!(hoverboard.serial_writer, "Charger connected").unwrap();
+                log!(hoverboard.serial_writer, "Charger connected");
             } else {
-                writeln!(hoverboard.serial_writer, "Charger not connected").unwrap();
+                log!(hoverboard.serial_writer, "Charger not connected");
             }
         }
         b'S' => {
@@ -103,12 +115,12 @@ pub fn process_command(
             }
             let min_power = i16::from_le_bytes(command[1..3].try_into().unwrap());
             let max_power = i16::from_le_bytes(command[3..5].try_into().unwrap());
-            writeln!(
+            log!(
                 hoverboard.serial_writer,
                 "max speed {}..{}",
-                min_power, max_power
-            )
-            .unwrap();
+                min_power,
+                max_power
+            );
             *speed_limits = min_power..=max_power;
         }
         b'K' => {
@@ -116,11 +128,11 @@ pub fn process_command(
                 return false;
             }
             let spring = u16::from_le_bytes(command[1..3].try_into().unwrap()).into();
-            writeln!(hoverboard.serial_writer, "Spring constant {}", spring).unwrap();
+            log!(hoverboard.serial_writer, "Spring constant {}", spring);
             *spring_constant = spring;
         }
         b'n' => {
-            writeln!(hoverboard.serial_writer, "No target position").unwrap();
+            log!(hoverboard.serial_writer, "No target position");
             *target_position = None;
         }
         b'T' => {
@@ -128,31 +140,30 @@ pub fn process_command(
                 return false;
             }
             let target = i64::from_le_bytes(command[1..9].try_into().unwrap());
-            writeln!(hoverboard.serial_writer, "Target position {}", target).unwrap();
+            log!(hoverboard.serial_writer, "Target position {}", target);
             *target_position = Some(target);
         }
         b'e' => {
-            writeln!(hoverboard.serial_writer, "Recentre").unwrap();
+            log!(hoverboard.serial_writer, "Recentre");
             hoverboard.recentre_motor();
             *target_position = Some(0);
         }
         b'+' => {
             let target = target_position.unwrap_or(0) + 10;
-            writeln!(hoverboard.serial_writer, "Target position {}", target).unwrap();
+            log!(hoverboard.serial_writer, "Target position {}", target);
             *target_position = Some(target);
         }
         b'-' => {
             let target = target_position.unwrap_or(0) - 10;
-            writeln!(hoverboard.serial_writer, "Target position {}", target).unwrap();
+            log!(hoverboard.serial_writer, "Target position {}", target);
             *target_position = Some(target);
         }
         b'p' => poweroff(hoverboard),
-        _ => writeln!(
+        _ => log!(
             hoverboard.serial_writer,
             "Unrecognised command {}",
             command[0]
-        )
-        .unwrap(),
+        ),
     }
     true
 }
