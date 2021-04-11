@@ -17,7 +17,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
-use protocol::{process_command, send_position};
+use protocol::{process_command, send_position, HoverboardExt};
 use util::clamp;
 
 const WATCHDOG_MILLIS: u32 = 1000;
@@ -58,12 +58,12 @@ fn main() -> ! {
     hoverboard.power_latch.set_high().unwrap();
 
     log!(
-        hoverboard.serial_writer,
+        hoverboard.response_tx(),
         "System clock {} Hz",
         clocks.sysclk().0
     );
     log!(
-        hoverboard.serial_writer,
+        hoverboard.response_tx(),
         "ADC clock {} Hz",
         clocks.adcclk().0
     );
@@ -73,7 +73,7 @@ fn main() -> ! {
         watchdog.feed();
     }
 
-    log!(hoverboard.serial_writer, "Ready");
+    log!(hoverboard.response_tx(), "Ready");
 
     let mut last_position = 0;
     let mut command_buffer = [0; 10];
@@ -87,7 +87,7 @@ fn main() -> ! {
         watchdog.feed();
 
         // Read from the USART if data is available.
-        match hoverboard.serial_rx.read() {
+        match hoverboard.command_rx().read() {
             Ok(char) => {
                 command_buffer[command_len] = char;
                 command_len += 1;
@@ -100,14 +100,14 @@ fn main() -> ! {
                 ) {
                     command_len = 0;
                 } else if command_len >= command_buffer.len() {
-                    log!(hoverboard.serial_writer, "Command too long");
+                    log!(hoverboard.response_tx(), "Command too long");
                     command_len = 0;
                 }
             }
             Err(nb::Error::WouldBlock) => {}
             Err(nb::Error::Other(e)) => {
                 log!(
-                    hoverboard.serial_writer,
+                    hoverboard.response_tx(),
                     "Read error {:?}, dropping {} bytes",
                     e,
                     command_len
@@ -119,7 +119,7 @@ fn main() -> ! {
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
-            send_position(&mut hoverboard.serial_writer, position);
+            send_position(hoverboard.response_tx(), position);
             last_position = position;
         }
 
@@ -165,6 +165,6 @@ fn main() -> ! {
 }
 
 pub fn poweroff(hoverboard: &mut Hoverboard) {
-    log!(hoverboard.serial_writer, "Power off");
+    log!(hoverboard.response_tx(), "Power off");
     hoverboard.power_latch.set_low().unwrap()
 }
