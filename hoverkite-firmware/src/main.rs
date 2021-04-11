@@ -99,7 +99,7 @@ fn main() -> ! {
                     &mut spring_constant,
                 ) {
                     command_len = 0;
-                } else if command_len > command_buffer.len() {
+                } else if command_len >= command_buffer.len() {
                     log!(hoverboard.serial_writer, "Command too long");
                     command_len = 0;
                 }
