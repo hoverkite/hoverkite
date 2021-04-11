@@ -35,27 +35,24 @@ fn main() -> Result<(), Report> {
     let binary_name = args
         .next()
         .ok_or_else(|| eyre::eyre!("Binary name missing"))?;
-    if args.len() != 2 {
+    if !(1..=2).contains(&args.len()) {
         eprintln!("Usage:");
-        eprintln!("  {} <left serial port> <right serial port>", binary_name);
+        eprintln!("  {} <left serial port> [<right serial port>]", binary_name);
         exit(1);
     }
     let left_port_name = args.next().unwrap();
-    let right_port_name = args.next().unwrap();
+    let right_port_name = args.next();
 
     let left_port = serialport::new(&left_port_name, BAUD_RATE)
         .open()
         .map_err(|e| error!("Failed to open left serial port {}: {}", left_port_name, e))
         .ok();
-    let right_port = serialport::new(&right_port_name, BAUD_RATE)
-        .open()
-        .map_err(|e| {
-            error!(
-                "Failed to open right serial port {}: {}",
-                right_port_name, e
-            )
-        })
-        .ok();
+    let right_port = right_port_name.and_then(|name| {
+        serialport::new(&name, BAUD_RATE)
+            .open()
+            .map_err(|e| error!("Failed to open right serial port {}: {}", name, e))
+            .ok()
+    });
 
     let gilrs = Gilrs::new().unwrap();
 
