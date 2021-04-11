@@ -17,7 +17,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
-use protocol::process_command;
+use protocol::{process_command, send_position};
 use util::clamp;
 
 const WATCHDOG_MILLIS: u32 = 1000;
@@ -119,7 +119,7 @@ fn main() -> ! {
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
-            log!(hoverboard.serial_writer, "Position {}", position);
+            send_position(&mut hoverboard.serial_writer, position);
             last_position = position;
         }
 

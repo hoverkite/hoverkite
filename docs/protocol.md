@@ -1,5 +1,7 @@
 # Protocol
 
+## Commands
+
 Each command sent from the controller to the hoverboard consists of a single ASCII character
 defining the command, followed by some number of bytes of parameters. The number of parameter bytes
 depends on the command.
@@ -18,3 +20,13 @@ depends on the command.
 | T       | i64        | Set target position.                                    |
 | e       | none       | Set current position as 0 position and target position. |
 | p       | none       | Power off.                                              |
+
+## Responses
+
+A response from the hoverboard to the controller similarly consists of a single ASCII character
+followed by some number of bytes of parameters.
+
+| Response | Parameters       | Meaning                 |
+| -------- | ---------------- | ----------------------- |
+| "        | Up until newline | Log message             |
+| P        | i64              | Current position update |

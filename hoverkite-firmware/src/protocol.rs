@@ -1,6 +1,7 @@
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
-use core::{convert::TryInto, ops::RangeInclusive};
+use core::{convert::TryInto, fmt::Debug, ops::RangeInclusive};
+use embedded_hal::blocking::serial::Write;
 use gd32f1x0_hal::prelude::*;
 
 #[macro_export]
@@ -12,6 +13,14 @@ macro_rules! log {
 			core::fmt::Write::write_char(&mut $dst,'\n').unwrap();
 		}
     );
+}
+
+pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64)
+where
+    W::Error: Debug,
+{
+    serial.bwrite_all(b"P").unwrap();
+    serial.bwrite_all(&position.to_le_bytes()).unwrap();
 }
 
 /// Process the given command, returning true if a command was successfully parsed or false if not
