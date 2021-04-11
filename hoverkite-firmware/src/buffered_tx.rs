@@ -1,5 +1,8 @@
 use core::{cell::RefCell, fmt};
-use cortex_m::interrupt::{free, Mutex};
+use cortex_m::{
+    asm::wfi,
+    interrupt::{free, Mutex},
+};
 use embedded_hal::serial::Write;
 
 const SERIAL_BUFFER_SIZE: usize = 100;
@@ -107,7 +110,9 @@ impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
                 // written.
                 state.try_write();
             });
-            // TODO: WFI?
+
+            // Wait for an interrupt.
+            wfi();
         }
         Ok(())
     }
