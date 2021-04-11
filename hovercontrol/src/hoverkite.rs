@@ -13,6 +13,15 @@ pub enum Side {
     Right,
 }
 
+impl Side {
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
 pub struct Hoverkite {
     left_port: Option<Box<dyn SerialPort>>,
     right_port: Option<Box<dyn SerialPort>>,
@@ -49,11 +58,11 @@ impl Hoverkite {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
-            let response = read_port(port, &mut self.left_buffer)?;
+            let response = read_port(port, &mut self.left_buffer, Side::Left)?;
             print_response(&response);
         }
         if let Some(port) = &mut self.right_port {
-            let response = read_port(port, &mut self.right_buffer)?;
+            let response = read_port(port, &mut self.right_buffer, Side::Right)?;
             print_response(&response);
         }
 
@@ -160,6 +169,7 @@ fn print_response(response: &Option<Response>) {
 fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut VecDeque<u8>,
+    side: Side,
 ) -> Result<Option<Response>, Report> {
     if port.bytes_to_read()? == 0 {
         return Ok(None);
@@ -169,17 +179,17 @@ fn read_port(
     let bytes_read = port.read(&mut temp)?;
     buffer.extend(&temp[0..bytes_read]);
 
-    Ok(parse_response(buffer))
+    Ok(parse_response(buffer, side))
 }
 
-fn parse_response(buffer: &mut VecDeque<u8>) -> Option<Response> {
+fn parse_response(buffer: &mut VecDeque<u8>, side: Side) -> Option<Response> {
     match buffer.front() {
         Some(b'"') | Some(b'\'') => {
             if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
                 let side = if buffer.pop_front().unwrap() == b'"' {
-                    Side::Left
+                    side
                 } else {
-                    Side::Right
+                    side.opposite()
                 };
                 let log: Vec<u8> = buffer.drain(0..end_of_line - 1).collect();
                 // Drop '\n'
@@ -196,9 +206,9 @@ fn parse_response(buffer: &mut VecDeque<u8>) -> Option<Response> {
         Some(b'P') | Some(b'p') => {
             if buffer.len() >= 9 {
                 let side = if buffer.pop_front().unwrap() == b'P' {
-                    Side::Left
+                    side
                 } else {
-                    Side::Right
+                    side.opposite()
                 };
                 let bytes: Vec<u8> = buffer.drain(0..8).collect();
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
