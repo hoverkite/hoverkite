@@ -1,9 +1,10 @@
-use core::{cell::RefCell, convert::Infallible, fmt};
+use core::{cell::RefCell, fmt};
 use cortex_m::{
     asm::wfi,
     interrupt::{free, Mutex},
 };
-use embedded_hal::serial::Write;
+use embedded_hal::{blocking, serial::Write};
+use nb::block;
 
 const SERIAL_BUFFER_SIZE: usize = 100;
 
@@ -118,6 +119,19 @@ impl<W: Write<u8> + Listenable> BufferedSerialWriter<W> {
             // Wait for an interrupt.
             wfi();
         }
+    }
+}
+
+impl<W: Write<u8> + Listenable> blocking::serial::Write<u8> for BufferedSerialWriter<W> {
+    type Error = W::Error;
+
+    fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.write_bytes(buffer);
+        Ok(())
+    }
+
+    fn bflush(&mut self) -> Result<(), Self::Error> {
+        block!(self.flush())
     }
 }
 
