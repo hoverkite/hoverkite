@@ -1,4 +1,4 @@
-use core::{cell::RefCell, fmt};
+use core::{cell::RefCell, convert::Infallible, fmt};
 use cortex_m::{
     asm::wfi,
     interrupt::{free, Mutex},
@@ -73,6 +73,11 @@ impl SerialBuffer {
     pub fn is_empty(&self) -> bool {
         self.length == 0
     }
+
+    /// Returns true if there is no space in the buffer for any more data.
+    pub fn is_full(&self) -> bool {
+        self.length == self.buffer.len()
+    }
 }
 
 /// Serial writer for which interrupts can be enabled and disabled.
@@ -84,19 +89,18 @@ pub trait Listenable {
     fn unlisten(&mut self);
 }
 
-pub struct BufferedSerialWriter<W: 'static + Write<u8>> {
+pub struct BufferedSerialWriter<W: 'static + Write<u8> + Listenable> {
     state: &'static Mutex<RefCell<BufferState<W>>>,
 }
 
-impl<W: Write<u8>> BufferedSerialWriter<W> {
+impl<W: Write<u8> + Listenable> BufferedSerialWriter<W> {
     pub fn new(state: &'static Mutex<RefCell<BufferState<W>>>) -> Self {
         Self { state }
     }
-}
 
-impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let mut bytes = s.as_bytes();
+    /// Write the given bytes to the buffer. This will block if there is not enough space in the
+    /// buffer.
+    pub fn write_bytes(&mut self, mut bytes: &[u8]) {
         // Block until all bytes can be added to the buffer. It should be drained by the
         // interrupt handler.
         while bytes.len() > 0 {
@@ -114,6 +118,43 @@ impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
             // Wait for an interrupt.
             wfi();
         }
+    }
+}
+
+impl<W: Write<u8> + Listenable> Write<u8> for BufferedSerialWriter<W> {
+    type Error = W::Error;
+
+    fn write(&mut self, word: u8) -> nb::Result<(), Self::Error> {
+        free(|cs| {
+            let state = &mut *self.state.borrow(cs).borrow_mut();
+            if state.buffer.is_full() {
+                Err(nb::Error::WouldBlock)
+            } else {
+                self.write_bytes(&[word]);
+                Ok(())
+            }
+        })
+    }
+
+    fn flush(&mut self) -> nb::Result<(), Self::Error> {
+        free(|cs| {
+            let state = &mut *self.state.borrow(cs).borrow_mut();
+            if state.buffer.is_empty() {
+                if let Some(writer) = &mut state.writer {
+                    writer.flush()
+                } else {
+                    Ok(())
+                }
+            } else {
+                Err(nb::Error::WouldBlock)
+            }
+        })
+    }
+}
+
+impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_bytes(s.as_bytes());
         Ok(())
     }
 }
