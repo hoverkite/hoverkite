@@ -180,13 +180,11 @@ fn read_port(
     buffer: &mut VecDeque<u8>,
     side: Side,
 ) -> Result<Option<Response>, Report> {
-    if port.bytes_to_read()? == 0 {
-        return Ok(None);
+    if port.bytes_to_read()? > 0 {
+        let mut temp = [0; 100];
+        let bytes_read = port.read(&mut temp)?;
+        buffer.extend(&temp[0..bytes_read]);
     }
-
-    let mut temp = [0; 100];
-    let bytes_read = port.read(&mut temp)?;
-    buffer.extend(&temp[0..bytes_read]);
 
     Ok(parse_response(buffer, side))
 }
@@ -231,6 +229,7 @@ fn parse_response(buffer: &mut VecDeque<u8>, side: Side) -> Option<Response> {
         }
         Some(r) => {
             error!("Unexpected response {:?}", r);
+            buffer.pop_front();
             None
         }
         None => None,
