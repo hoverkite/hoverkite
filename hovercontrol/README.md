@@ -8,7 +8,7 @@ port connected to each side of the hoverboard, and a game controller supported b
 You can run it like:
 
 ```shell
-$ cargo run --target x86_64-unknown-linux-gnu /dev/ttyUSB0 /dev/ttyUSB1
+$ cargo run /dev/ttyUSB0 /dev/ttyUSB1
 ```
 
 ## Control mapping
