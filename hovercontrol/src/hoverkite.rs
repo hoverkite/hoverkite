@@ -1,5 +1,5 @@
 use eyre::Report;
-use log::{error, info, trace};
+use log::{error, trace};
 use serialport::SerialPort;
 use std::convert::TryInto;
 use std::time::{Duration, Instant};
@@ -49,10 +49,20 @@ impl Hoverkite {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
-            read_port(port, &mut self.left_buffer, "Left")?;
+            let response = read_port(port, &mut self.left_buffer)?;
+            match response {
+                Some(Response::Log(log)) => println!("Left: '{}'", log),
+                Some(Response::Position(position)) => println!("Left at {}", position),
+                None => {}
+            }
         }
         if let Some(port) = &mut self.right_port {
-            read_port(port, &mut self.right_buffer, "Right")?;
+            let response = read_port(port, &mut self.right_buffer)?;
+            match response {
+                Some(Response::Log(log)) => println!("Right: '{}'", log),
+                Some(Response::Position(position)) => println!("Right at {}", position),
+                None => {}
+            }
         }
 
         Ok(())
@@ -144,7 +154,6 @@ impl Hoverkite {
 fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut VecDeque<u8>,
-    name: &str,
 ) -> Result<Option<Response>, Report> {
     if port.bytes_to_read()? == 0 {
         return Ok(None);
@@ -154,10 +163,10 @@ fn read_port(
     let bytes_read = port.read(&mut temp)?;
     buffer.extend(&temp[0..bytes_read]);
 
-    Ok(parse_response(buffer, name))
+    Ok(parse_response(buffer))
 }
 
-fn parse_response(buffer: &mut VecDeque<u8>, name: &str) -> Option<Response> {
+fn parse_response(buffer: &mut VecDeque<u8>) -> Option<Response> {
     match buffer.front() {
         Some(b'"') => {
             if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
@@ -167,7 +176,6 @@ fn parse_response(buffer: &mut VecDeque<u8>, name: &str) -> Option<Response> {
                 // Drop '\n'
                 buffer.pop_front();
                 let string = String::from_utf8_lossy(&log);
-                info!("{}: '{}'", name, string);
                 Some(Response::Log(string.into_owned()))
             } else {
                 None
