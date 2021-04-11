@@ -17,6 +17,8 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
+#[cfg(feature = "primary")]
+use protocol::process_response;
 use protocol::{process_command, send_position, HoverboardExt};
 use util::clamp;
 
@@ -78,6 +80,8 @@ fn main() -> ! {
     let mut last_position = 0;
     let mut command_buffer = [0; 10];
     let mut command_len = 0;
+    let mut proxy_response_buffer = [0; 100];
+    let mut proxy_response_length = 0;
     let mut speed;
     let mut target_position: Option<i64> = None;
     let mut speed_limits = -200..=200;
@@ -86,7 +90,7 @@ fn main() -> ! {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
 
-        // Read from the USART if data is available.
+        // Read from the command USART if data is available.
         match hoverboard.command_rx().read() {
             Ok(char) => {
                 command_buffer[command_len] = char;
@@ -113,6 +117,34 @@ fn main() -> ! {
                     command_len
                 );
                 command_len = 0;
+            }
+        }
+
+        // Read from the secondary USART if data is available
+        #[cfg(feature = "primary")]
+        match hoverboard.serial_rx.read() {
+            Ok(char) => {
+                proxy_response_buffer[proxy_response_length] = char;
+                proxy_response_length += 1;
+                if process_response(
+                    &proxy_response_buffer[0..proxy_response_length],
+                    &mut hoverboard,
+                ) {
+                    proxy_response_length = 0;
+                } else if proxy_response_length >= proxy_response_buffer.len() {
+                    log!(hoverboard.response_tx(), "Secondary response too long");
+                    proxy_response_length = 0;
+                }
+            }
+            Err(nb::Error::WouldBlock) => {}
+            Err(nb::Error::Other(e)) => {
+                log!(
+                    hoverboard.response_tx(),
+                    "Read error on secondary {:?}, dropping {} bytes",
+                    e,
+                    proxy_response_length
+                );
+                proxy_response_length = 0;
             }
         }
 

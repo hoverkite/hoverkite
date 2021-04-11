@@ -32,6 +32,37 @@ where
     serial.bwrite_all(&position.to_le_bytes()).unwrap();
 }
 
+/// Process the given response from the secondary board.
+#[cfg(feature = "primary")]
+pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
+    if response.len() < 1 {
+        return false;
+    }
+
+    match response[0] {
+        b'"' => {
+            if response.last() != Some(&b'\n') {
+                return false;
+            }
+            let log = &response[1..response.len() - 1];
+            log!(hoverboard.response_tx(), "Secondary log {:?}", log);
+        }
+        b'P' => {
+            if response.len() < 9 {
+                return false;
+            }
+            let position = i64::from_le_bytes(response[1..9].try_into().unwrap());
+            log!(hoverboard.response_tx(), "Secondary position {}", position);
+        }
+        _ => log!(
+            hoverboard.response_tx(),
+            "Unrecognised response {}",
+            response[0]
+        ),
+    }
+    true
+}
+
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
 pub fn process_command(
