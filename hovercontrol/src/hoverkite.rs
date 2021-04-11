@@ -144,7 +144,7 @@ impl Hoverkite {
                 &mut self.right_port
             }
         };
-        trace!("Sending command: {:?}", command);
+        trace!("Sending command to {:?}: {:?}", side, command);
         if let Some(port) = port {
             port.write_all(command)?;
         } else if side == Side::Right {
