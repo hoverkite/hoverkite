@@ -108,6 +108,19 @@ pub fn process_command(
             }
             forward_command(hoverboard, &command[2..]);
         }
+        b't' => {
+            // Send command to Bluetooth module
+            if command.last() != Some(&b'\n') {
+                return false;
+            }
+            let bt_command = &command[1..command.len() - 1];
+            log!(hoverboard.response_tx(), "BT {:?}", bt_command);
+            hoverboard
+                .serial_remote_writer
+                .bwrite_all(bt_command)
+                .unwrap();
+            hoverboard.serial_remote_writer.bwrite_all(b"\r\n").unwrap();
+        }
         b'l' => {
             if command.len() < 2 {
                 return false;

@@ -148,6 +148,41 @@ fn main() -> ! {
             }
         }
 
+        // Read from Bluetooth module if data is available.
+        #[cfg(feature = "secondary")]
+        match hoverboard.serial_remote_rx.read() {
+            Ok(char) => {
+                proxy_response_buffer[proxy_response_length] = char;
+                proxy_response_length += 1;
+
+                if char == 187 {
+                    log!(
+                        hoverboard.response_tx(),
+                        "Bluetooth bytes {:?}",
+                        &proxy_response_buffer[0..proxy_response_length]
+                    );
+                    proxy_response_length = 0;
+                } else if proxy_response_length >= proxy_response_buffer.len() {
+                    log!(
+                        hoverboard.response_tx(),
+                        "Bluetooth response too long {:?}",
+                        &proxy_response_buffer
+                    );
+                    proxy_response_length = 0;
+                }
+            }
+            Err(nb::Error::WouldBlock) => {}
+            Err(nb::Error::Other(e)) => {
+                log!(
+                    hoverboard.response_tx(),
+                    "Read error on secondary {:?}, dropping {} bytes",
+                    e,
+                    proxy_response_length
+                );
+                proxy_response_length = 0;
+            }
+        }
+
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
