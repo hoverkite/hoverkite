@@ -1,4 +1,4 @@
-use core::{cell::RefCell, cmp::min, fmt};
+use core::{cell::RefCell, fmt};
 use cortex_m::interrupt::{free, Mutex};
 use embedded_hal::serial::Write;
 
@@ -20,23 +20,28 @@ impl SerialBuffer {
         }
     }
 
+    /// Try to add the given byte to the buffer. Returns true on success, or false if the buffer
+    /// was already full.
+    pub fn add(&mut self, byte: u8) -> bool {
+        if self.length == self.buffer.len() {
+            return false;
+        }
+        self.buffer[(self.start + self.length) % self.buffer.len()] = byte;
+        self.length += 1;
+        true
+    }
+
     /// Add as many bytes as possible from the given slice to the buffer. Returns the number of
     /// bytes added.
-    pub fn add(&mut self, mut bytes: &[u8]) -> usize {
+    pub fn add_all(&mut self, bytes: &[u8]) -> usize {
         let mut added = 0;
-        if self.start + self.length < self.buffer.len() {
-            let length_at_end = min(self.buffer.len() - self.length, bytes.len());
-            self.buffer[self.length..self.length + length_at_end]
-                .copy_from_slice(&bytes[0..length_at_end]);
-            bytes = &bytes[added..];
-            added += length_at_end;
+        for &byte in bytes {
+            if self.add(byte) {
+                added += 1;
+            } else {
+                break;
+            }
         }
-        if self.start > 0 {
-            let length_at_start = min(self.start, bytes.len());
-            self.buffer[0..length_at_start].copy_from_slice(&bytes[0..length_at_start]);
-            added += length_at_start;
-        }
-        self.length += added;
         added
     }
 
@@ -90,7 +95,7 @@ impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
             free(|cs| {
                 // Add as many bytes as possible to the buffer.
                 let state = &mut *self.state.borrow(cs).borrow_mut();
-                let written = state.buffer.add(&bytes);
+                let written = state.buffer.add_all(&bytes);
                 bytes = &bytes[written..];
 
                 // Try writing the first byte, as an interrupt won't happen if nothing has been
