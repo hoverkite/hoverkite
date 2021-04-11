@@ -25,16 +25,9 @@ codegen-units = 1 # better optimizations
 debug = true # symbols are nice and they don't increase the size on Flash
 lto = true # better optimizations
 
-# Copy the defaults from the release profile, so you can `cargo build` without
-# specifying --release and without running out of flash space.
+# Optimise dev builds a bit, so that you can build without running out of flash space.
 # https://doc.rust-lang.org/cargo/reference/profiles.html
 [profile.dev]
-opt-level = 3
-debug = true
-debug-assertions = false
-overflow-checks = false
+opt-level = 1
 lto = true
-panic = 'unwind'
-incremental = false
 codegen-units = 1
-rpath = false
