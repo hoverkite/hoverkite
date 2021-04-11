@@ -1,8 +1,9 @@
 use eyre::Report;
-use log::trace;
+use log::{error, info, trace};
 use serialport::SerialPort;
-use std::ops::RangeInclusive;
+use std::convert::TryInto;
 use std::time::{Duration, Instant};
+use std::{collections::VecDeque, ops::RangeInclusive};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
@@ -23,10 +24,8 @@ pub struct Hoverkite {
     /// between updates.
     left_target_pending: Option<i64>,
     right_target_pending: Option<i64>,
-    left_buffer: [u8; 100],
-    right_buffer: [u8; 100],
-    left_length: usize,
-    right_length: usize,
+    left_buffer: VecDeque<u8>,
+    right_buffer: VecDeque<u8>,
 }
 
 impl Hoverkite {
@@ -41,10 +40,8 @@ impl Hoverkite {
             right_last_command_time: Instant::now(),
             left_target_pending: None,
             right_target_pending: None,
-            left_buffer: [0; 100],
-            right_buffer: [0; 100],
-            left_length: 0,
-            right_length: 0,
+            left_buffer: VecDeque::new(),
+            right_buffer: VecDeque::new(),
         }
     }
 
@@ -52,15 +49,10 @@ impl Hoverkite {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
-            read_port(port, &mut self.left_buffer, &mut self.left_length, "Left")?;
+            read_port(port, &mut self.left_buffer, "Left")?;
         }
         if let Some(port) = &mut self.right_port {
-            read_port(
-                port,
-                &mut self.right_buffer,
-                &mut self.right_length,
-                "Right",
-            )?;
+            read_port(port, &mut self.right_buffer, "Right")?;
         }
 
         Ok(())
@@ -151,24 +143,53 @@ impl Hoverkite {
 
 fn read_port(
     port: &mut Box<dyn SerialPort>,
-    buffer: &mut [u8],
-    length: &mut usize,
+    buffer: &mut VecDeque<u8>,
     name: &str,
-) -> Result<(), Report> {
-    if port.bytes_to_read()? > 0 {
-        *length += port.read(&mut buffer[*length..])?;
-        if let Some(end_of_line) = buffer[0..*length].iter().position(|&c| c == b'\n') {
-            let string = String::from_utf8_lossy(&buffer[0..end_of_line]);
-            println!("{}: '{}'", name, string);
-            let remaining_length = *length - end_of_line - 1;
-            let remaining_bytes = buffer[end_of_line + 1..*length].to_owned();
-            buffer[0..remaining_length].clone_from_slice(&remaining_bytes);
-            *length = remaining_length;
-        } else if *length == buffer.len() {
-            let string = String::from_utf8_lossy(&buffer[0..*length]);
-            println!("{}: '{}'", name, string);
-            *length = 0;
-        }
+) -> Result<Option<Response>, Report> {
+    if port.bytes_to_read()? == 0 {
+        return Ok(None);
     }
-    Ok(())
+
+    let mut temp = [0; 100];
+    let bytes_read = port.read(&mut temp)?;
+    buffer.extend(&temp[0..bytes_read]);
+
+    Ok(parse_response(buffer, name))
+}
+
+fn parse_response(buffer: &mut VecDeque<u8>, name: &str) -> Option<Response> {
+    match buffer.front() {
+        Some(b'"') => {
+            if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
+                buffer.pop_front();
+                let log: Vec<u8> = buffer.drain(0..end_of_line).collect();
+                let string = String::from_utf8_lossy(&log);
+                info!("{}: '{}'", name, string);
+                Some(Response::Log(string.into_owned()))
+            } else {
+                None
+            }
+        }
+        Some(b'P') => {
+            if buffer.len() >= 9 {
+                buffer.pop_front();
+                let bytes: Vec<u8> = buffer.drain(0..8).collect();
+                let position = i64::from_le_bytes(bytes.try_into().unwrap());
+                Some(Response::Position(position))
+            } else {
+                None
+            }
+        }
+        Some(r) => {
+            error!("Unexpected response {:?}", r);
+            None
+        }
+        None => None,
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Response {
+    Log(String),
+    Position(i64),
 }
