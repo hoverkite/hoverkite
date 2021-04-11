@@ -26,7 +26,9 @@ depends on the command.
 A response from the hoverboard to the controller similarly consists of a single ASCII character
 followed by some number of bytes of parameters.
 
-| Response | Parameters       | Meaning                 |
-| -------- | ---------------- | ----------------------- |
-| "        | Up until newline | Log message             |
-| P        | i64              | Current position update |
+| Response | Parameters       | Meaning                                          |
+| -------- | ---------------- | ------------------------------------------------ |
+| "        | Up until newline | Log message                                      |
+| '        | Up until newline | Log message forwarded from secondary             |
+| P        | i64              | Current position update                          |
+| p        | i64              | Current position update forwarded from secondary |

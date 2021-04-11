@@ -151,7 +151,7 @@ fn main() -> ! {
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
-            send_position(hoverboard.response_tx(), position);
+            send_position(hoverboard.response_tx(), position, false);
             last_position = position;
         }
 

@@ -50,19 +50,11 @@ impl Hoverkite {
 
         if let Some(port) = &mut self.left_port {
             let response = read_port(port, &mut self.left_buffer)?;
-            match response {
-                Some(Response::Log(log)) => println!("Left: '{}'", log),
-                Some(Response::Position(position)) => println!("Left at {}", position),
-                None => {}
-            }
+            print_response(&response);
         }
         if let Some(port) = &mut self.right_port {
             let response = read_port(port, &mut self.right_buffer)?;
-            match response {
-                Some(Response::Log(log)) => println!("Right: '{}'", log),
-                Some(Response::Position(position)) => println!("Right at {}", position),
-                None => {}
-            }
+            print_response(&response);
         }
 
         Ok(())
@@ -151,6 +143,20 @@ impl Hoverkite {
     }
 }
 
+fn print_response(response: &Option<Response>) {
+    match response {
+        Some(Response {
+            side,
+            response: SideResponse::Log(log),
+        }) => println!("{:?}: '{}'", side, log),
+        Some(Response {
+            side,
+            response: SideResponse::Position(position),
+        }) => println!("{:?} at {}", side, position),
+        None => {}
+    }
+}
+
 fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut VecDeque<u8>,
@@ -168,26 +174,38 @@ fn read_port(
 
 fn parse_response(buffer: &mut VecDeque<u8>) -> Option<Response> {
     match buffer.front() {
-        Some(b'"') => {
+        Some(b'"') | Some(b'\'') => {
             if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
-                // Drop '"'
-                buffer.pop_front();
+                let side = if buffer.pop_front().unwrap() == b'"' {
+                    Side::Left
+                } else {
+                    Side::Right
+                };
                 let log: Vec<u8> = buffer.drain(0..end_of_line - 1).collect();
                 // Drop '\n'
                 buffer.pop_front();
                 let string = String::from_utf8_lossy(&log);
-                Some(Response::Log(string.into_owned()))
+                Some(Response {
+                    side,
+                    response: SideResponse::Log(string.into_owned()),
+                })
             } else {
                 None
             }
         }
-        Some(b'P') => {
+        Some(b'P') | Some(b'p') => {
             if buffer.len() >= 9 {
-                // Drop 'P'
-                buffer.pop_front();
+                let side = if buffer.pop_front().unwrap() == b'P' {
+                    Side::Left
+                } else {
+                    Side::Right
+                };
                 let bytes: Vec<u8> = buffer.drain(0..8).collect();
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
-                Some(Response::Position(position))
+                Some(Response {
+                    side,
+                    response: SideResponse::Position(position),
+                })
             } else {
                 None
             }
@@ -201,7 +219,13 @@ fn parse_response(buffer: &mut VecDeque<u8>) -> Option<Response> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Response {
+pub struct Response {
+    pub side: Side,
+    pub response: SideResponse,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SideResponse {
     Log(String),
     Position(i64),
 }

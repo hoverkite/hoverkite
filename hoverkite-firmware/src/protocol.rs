@@ -24,12 +24,23 @@ macro_rules! log {
     );
 }
 
-pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64)
+pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64, from_other_side: bool)
 where
     W::Error: Debug,
 {
-    serial.bwrite_all(b"P").unwrap();
+    serial
+        .bwrite_all(if from_other_side { b"p" } else { b"P" })
+        .unwrap();
     serial.bwrite_all(&position.to_le_bytes()).unwrap();
+}
+
+pub fn send_secondary_log<W: Write<u8>>(serial: &mut W, log: &[u8])
+where
+    W::Error: Debug,
+{
+    serial.bwrite_all(b"'").unwrap();
+    serial.bwrite_all(log).unwrap();
+    serial.bwrite_all(b"\n").unwrap();
 }
 
 /// Process the given response from the secondary board.
@@ -45,14 +56,14 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
                 return false;
             }
             let log = &response[1..response.len() - 1];
-            log!(hoverboard.response_tx(), "Secondary log {:?}", log);
+            send_secondary_log(hoverboard.response_tx(), log);
         }
         b'P' => {
             if response.len() < 9 {
                 return false;
             }
             let position = i64::from_le_bytes(response[1..9].try_into().unwrap());
-            log!(hoverboard.response_tx(), "Secondary position {}", position);
+            send_position(hoverboard.response_tx(), position, true);
         }
         _ => log!(
             hoverboard.response_tx(),
