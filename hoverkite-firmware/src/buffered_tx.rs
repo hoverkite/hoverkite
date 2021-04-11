@@ -72,8 +72,13 @@ impl SerialBuffer {
     }
 }
 
+/// Serial writer for which interrupts can be enabled and disabled.
 pub trait Listenable {
+    /// Enable interrupt for when when a byte may be written.
     fn listen(&mut self);
+
+    /// Disable interrupt for when a byte may be written.
+    fn unlisten(&mut self);
 }
 
 pub struct BufferedSerialWriter<W: 'static + Write<u8>> {
@@ -98,17 +103,9 @@ impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
                 let written = state.buffer.add_all(&bytes);
                 bytes = &bytes[written..];
 
-                // Try writing the first byte, as an interrupt won't happen if nothing has been
+                // Try writing the first byte, as an interrupt might not happen if nothing has been
                 // written.
                 state.try_write();
-
-                if !state.is_empty() {
-                    if let Some(writer) = &mut state.writer {
-                        // Enable interrupts
-                        writer.listen();
-                        // TODO: Should this be on try_write instead?
-                    }
-                }
             });
             // TODO: WFI?
         }
@@ -130,7 +127,7 @@ impl<W> BufferState<W> {
     }
 }
 
-impl<W: Write<u8>> BufferState<W> {
+impl<W: Write<u8> + Listenable> BufferState<W> {
     pub fn set_writer(&mut self, writer: W) {
         self.writer = Some(writer);
     }
@@ -149,11 +146,13 @@ impl<W: Write<u8>> BufferState<W> {
                     self.buffer.take();
                 }
             }
-        }
-    }
 
-    /// Returns true if there are no bytes waiting to be written.
-    pub fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
+            // If there are bytes left to write, enable interrupts, otherwise disable them.
+            if self.buffer.is_empty() {
+                writer.unlisten();
+            } else {
+                writer.listen();
+            }
+        }
     }
 }

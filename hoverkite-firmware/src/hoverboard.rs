@@ -76,36 +76,24 @@ static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
 #[interrupt]
 fn USART0() {
     free(|cs| {
-        let buffer = &mut *SERIAL0_BUFFER.borrow(cs).borrow_mut();
-        buffer.try_write();
-
-        // If there are no bytes left to write, disable interrupts.
-        if buffer.is_empty() {
-            if let Some(tx) = buffer.writer() {
-                tx.unlisten();
-            }
-        }
+        SERIAL0_BUFFER.borrow(cs).borrow_mut().try_write();
     })
 }
 
 #[interrupt]
 fn USART1() {
     free(|cs| {
-        let buffer = &mut *SERIAL1_BUFFER.borrow(cs).borrow_mut();
-        buffer.try_write();
-
-        // If there are no bytes left to write, disable interrupts.
-        if buffer.is_empty() {
-            if let Some(tx) = buffer.writer() {
-                tx.unlisten();
-            }
-        }
+        SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
     })
 }
 
 impl<USART: Deref<Target = usart0::RegisterBlock>> Listenable for Tx<USART> {
     fn listen(&mut self) {
         self.listen()
+    }
+
+    fn unlisten(&mut self) {
+        self.unlisten()
     }
 }
 
