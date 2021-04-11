@@ -161,8 +161,11 @@ fn parse_response(buffer: &mut VecDeque<u8>, name: &str) -> Option<Response> {
     match buffer.front() {
         Some(b'"') => {
             if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
+                // Drop '"'
                 buffer.pop_front();
-                let log: Vec<u8> = buffer.drain(0..end_of_line).collect();
+                let log: Vec<u8> = buffer.drain(0..end_of_line - 1).collect();
+                // Drop '\n'
+                buffer.pop_front();
                 let string = String::from_utf8_lossy(&log);
                 info!("{}: '{}'", name, string);
                 Some(Response::Log(string.into_owned()))
@@ -172,6 +175,7 @@ fn parse_response(buffer: &mut VecDeque<u8>, name: &str) -> Option<Response> {
         }
         Some(b'P') => {
             if buffer.len() >= 9 {
+                // Drop 'P'
                 buffer.pop_front();
                 let bytes: Vec<u8> = buffer.drain(0..8).collect();
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
