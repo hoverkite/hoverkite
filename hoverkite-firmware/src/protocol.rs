@@ -65,6 +65,9 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
             let position = i64::from_le_bytes(response[1..9].try_into().unwrap());
             send_position(hoverboard.response_tx(), position, true);
         }
+        b'p' => {
+            poweroff(hoverboard);
+        }
         _ => log!(
             hoverboard.response_tx(),
             "Unrecognised response {}",

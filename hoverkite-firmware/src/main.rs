@@ -196,6 +196,13 @@ fn main() -> ! {
             while hoverboard.power_button.is_high().unwrap() {
                 watchdog.feed();
             }
+            #[cfg(feature = "secondary")]
+            {
+                log!(hoverboard.response_tx(), "Telling primary to power off");
+                // Tell primary to power off, but only here in response to the power button press.
+                hoverboard.serial_writer.bwrite_all(b"p").unwrap();
+                hoverboard.serial_writer.bflush().unwrap();
+            }
             poweroff(&mut hoverboard);
         }
     }

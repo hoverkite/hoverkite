@@ -33,3 +33,4 @@ followed by some number of bytes of parameters.
 | '        | Up until newline | Log message forwarded from secondary             |
 | I        | i64              | Current position update                          |
 | i        | i64              | Current position update forwarded from secondary |
+| p        | none             | Power off.                                       |
