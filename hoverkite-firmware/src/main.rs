@@ -185,6 +185,7 @@ fn main() -> ! {
             hoverboard.leds.green.set_low().unwrap();
             hoverboard.leds.orange.set_low().unwrap();
             hoverboard.leds.red.set_low().unwrap();
+            hoverboard.leds.side.set_low().unwrap();
         }
 
         // Drive the motor.
