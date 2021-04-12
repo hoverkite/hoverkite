@@ -174,6 +174,11 @@ fn main() -> ! {
                 hoverboard.leds.orange.set_low().unwrap();
                 hoverboard.leds.red.set_high().unwrap();
             }
+            if difference.abs() < 5 {
+                hoverboard.leds.side.set_low().unwrap();
+            } else {
+                hoverboard.leds.side.set_high().unwrap();
+            }
         } else {
             speed = 0;
 
