@@ -210,9 +210,9 @@ fn parse_response(buffer: &mut VecDeque<u8>, side: Side) -> Option<Response> {
                 None
             }
         }
-        Some(b'P') | Some(b'p') => {
+        Some(b'I') | Some(b'i') => {
             if buffer.len() >= 9 {
-                let side = if buffer.pop_front().unwrap() == b'P' {
+                let side = if buffer.pop_front().unwrap() == b'I' {
                     side
                 } else {
                     side.opposite()

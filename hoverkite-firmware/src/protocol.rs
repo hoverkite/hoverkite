@@ -29,7 +29,7 @@ where
     W::Error: Debug,
 {
     serial
-        .bwrite_all(if from_other_side { b"p" } else { b"P" })
+        .bwrite_all(if from_other_side { b"i" } else { b"I" })
         .unwrap();
     serial.bwrite_all(&position.to_le_bytes()).unwrap();
 }
@@ -58,7 +58,7 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
             let log = &response[1..response.len() - 1];
             send_secondary_log(hoverboard.response_tx(), log);
         }
-        b'P' => {
+        b'I' => {
             if response.len() < 9 {
                 return false;
             }
