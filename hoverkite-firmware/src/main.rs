@@ -197,6 +197,14 @@ fn main() -> ! {
 }
 
 pub fn poweroff(hoverboard: &mut Hoverboard) {
+    #[cfg(feature = "primary")]
+    {
+        log!(hoverboard.response_tx(), "Telling secondary to power off");
+        // Ensure secondary powers off before we do.
+        hoverboard.serial_writer.bwrite_all(b"p").unwrap();
+        hoverboard.serial_writer.bflush().unwrap();
+    }
     log!(hoverboard.response_tx(), "Power off");
-    hoverboard.power_latch.set_low().unwrap()
+    hoverboard.power_latch.set_low().unwrap();
+    log!(hoverboard.response_tx(), "Powered off");
 }
