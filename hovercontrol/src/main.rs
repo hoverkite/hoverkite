@@ -13,17 +13,32 @@ use std::time::Duration;
 const BAUD_RATE: u32 = 115_200;
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
+// 50 or 75 lets you turn the bar closer to 90 degrees.
 const DEFAULT_SCALE: f32 = 30.0;
 const MAX_SCALE: f32 = 100.0;
 
+// I'm not really sure how to reason about this. At the end, I think you had
+// Right: 'max speed -300..30'
+// Left: 'max speed -30..300'
+// which is a bit confusing, because you have to do the reverse-right dance in
+// your head.
+// Could each half of the board be told which way is "forwards", and then log
+// everything with forwards = positive?
+// Do we ever allow the user to change the max reverse speed?
 const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=30;
 const MAX_MAX_SPEED: i16 = 300;
 const MAX_SPEED_STEP: i16 = 10;
 
+// I had this all the way down at 2, and it was fine.
+// 2 also reduced juddering, but I think that the correct solution to that is
+// to add histeresis to the position measurement.
 const DEFAULT_SPRING_CONSTANT: u16 = 10;
 const MAX_SPRING_CONSTANT: u16 = 50;
 const SPRING_CONSTANT_STEP: u16 = 2;
 
+// maybe we could make press-and-hold on the triggers change the centre point 
+// using a constand speed, as long as current position is within some distance
+// of that target?
 const CENTRE_STEP: i64 = 10;
 
 fn main() -> Result<(), Report> {
