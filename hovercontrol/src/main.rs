@@ -13,7 +13,7 @@ use std::time::Duration;
 const BAUD_RATE: u32 = 115_200;
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
-const DEFAULT_SCALE: f32 = 30.0;
+const DEFAULT_SCALE: f32 = 50.0;
 const MAX_SCALE: f32 = 100.0;
 
 const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=30;
@@ -24,7 +24,7 @@ const DEFAULT_SPRING_CONSTANT: u16 = 10;
 const MAX_SPRING_CONSTANT: u16 = 50;
 const SPRING_CONSTANT_STEP: u16 = 2;
 
-const CENTRE_STEP: i64 = 10;
+const CENTRE_STEP: i64 = 20;
 
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
