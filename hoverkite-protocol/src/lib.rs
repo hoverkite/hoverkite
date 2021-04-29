@@ -1,30 +1,55 @@
 use core::ops::RangeInclusive;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Side {
+    Left,
+    Right,
+}
+
+impl Side {
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    SetMaxSpeed { max_speed: RangeInclusive<i16> },
-    SetSpringConstant { spring_constant: u16 },
-    SetTarget { target: i64 },
+    // FIXME: stop using RangeInclusive, so we can derive Copy
+    SetMaxSpeed(RangeInclusive<i16>),
+    SetSpringConstant(u16),
+    SetTarget(i64),
+    Recenter,      // vec![b'e'] -
+    BatteryReport, // vec![b'b'] -
+    Relax,         // vec![b'n'] -
+    PowerOff,      // vec![b'p'] -
 }
 
 impl From<Command> for Vec<u8> {
     fn from(command: Command) -> Vec<u8> {
         match command {
-            Command::SetMaxSpeed { max_speed } => {
+            Command::SetMaxSpeed(max_speed) => {
                 let mut encoded = vec![b'S'];
                 encoded.extend_from_slice(&max_speed.start().to_le_bytes());
                 encoded.extend_from_slice(&max_speed.end().to_le_bytes());
                 encoded
             }
-            Command::SetSpringConstant { spring_constant } => {
+            Command::SetSpringConstant(spring_constant) => {
                 let mut encoded = vec![b'K'];
                 encoded.extend_from_slice(&spring_constant.to_le_bytes());
                 encoded
             }
-            Command::SetTarget { target } => {
+            Command::SetTarget(target) => {
                 let mut encoded = vec![b'T'];
                 encoded.extend_from_slice(&target.to_le_bytes());
                 encoded
             }
+            Command::Recenter => vec![b'e'],
+            Command::BatteryReport => vec![b'b'],
+            Command::Relax => vec![b'n'],
+            Command::PowerOff => vec![b'p'],
         }
     }
 }
@@ -51,6 +76,15 @@ impl From<DirectedCommand> for Vec<u8> {
                 wrapped_command.extend_from_slice(&encoded);
                 wrapped_command
             }
+        }
+    }
+}
+
+impl From<&DirectedCommand> for Side {
+    fn from(command: &DirectedCommand) -> Side {
+        match command {
+            DirectedCommand::Left(_) => Side::Left,
+            DirectedCommand::Right(_) => Side::Right,
         }
     }
 }

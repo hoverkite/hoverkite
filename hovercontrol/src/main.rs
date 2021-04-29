@@ -2,7 +2,8 @@ mod hoverkite;
 
 use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use hoverkite::{Hoverkite, Side, MIN_TIME_BETWEEN_TARGET_UPDATES};
+use hoverkite::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
+use hoverkite_protocol::{Command, Side};
 use log::error;
 use std::env;
 use std::ops::RangeInclusive;
@@ -168,19 +169,22 @@ impl Controller {
             }
             EventType::ButtonPressed(Button::LeftThumb, _code) => {
                 self.centre_left = 0;
-                self.hoverkite.send_command(Side::Left, &[b'e'])?;
+                self.hoverkite.send_command(Side::Left, Command::Recenter)?;
             }
             EventType::ButtonPressed(Button::RightThumb, _code) => {
                 self.centre_right = 0;
-                self.hoverkite.send_command(Side::Right, &[b'e'])?;
+                self.hoverkite
+                    .send_command(Side::Right, Command::Recenter)?;
             }
             EventType::ButtonPressed(Button::South, _code) => {
-                self.hoverkite.send_command(Side::Left, &[b'b'])?;
-                self.hoverkite.send_command(Side::Right, &[b'b'])?;
+                self.hoverkite
+                    .send_command(Side::Left, Command::BatteryReport)?;
+                self.hoverkite
+                    .send_command(Side::Right, Command::BatteryReport)?;
             }
             EventType::ButtonPressed(Button::East, _code) => {
-                self.hoverkite.send_command(Side::Left, &[b'n'])?;
-                self.hoverkite.send_command(Side::Right, &[b'n'])?;
+                self.hoverkite.send_command(Side::Left, Command::Relax)?;
+                self.hoverkite.send_command(Side::Right, Command::Relax)?;
             }
             EventType::ButtonPressed(Button::West, _code) => {
                 if self.spring_constant > SPRING_CONSTANT_STEP {
@@ -196,8 +200,9 @@ impl Controller {
             }
             EventType::ButtonPressed(Button::Mode, _code) => {
                 // Power off
-                self.hoverkite.send_command(Side::Left, &[b'p'])?;
-                self.hoverkite.send_command(Side::Right, &[b'p'])?;
+                self.hoverkite.send_command(Side::Left, Command::PowerOff)?;
+                self.hoverkite
+                    .send_command(Side::Right, Command::PowerOff)?;
             }
             EventType::ButtonPressed(button, code) => {
                 println!("Button {:?} pressed: {:?}", button, code);

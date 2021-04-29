@@ -228,11 +228,16 @@ dependencies = [
  "color-backtrace",
  "eyre",
  "gilrs",
+ "hoverkite-protocol",
  "log",
  "pretty_env_logger",
  "serialport",
  "stable-eyre",
 ]
+
+[[package]]
+name = "hoverkite-protocol"
+version = "0.1.0"
 
 [[package]]
 name = "humantime"
