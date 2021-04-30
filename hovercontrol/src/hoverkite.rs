@@ -110,10 +110,9 @@ impl Hoverkite {
             }
         };
         println!("Target {:?} {}", side, target);
-        let mut command = vec![b'T'];
-        command.extend_from_slice(&target.to_le_bytes());
         self.send_command(side, Command::SetTarget(target))
     }
+
     pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), Report> {
         let port = match side {
             Side::Left => {
