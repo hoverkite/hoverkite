@@ -9,14 +9,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  find-crates:
+    name: Find all crates
+    runs-on: ubuntu-latest
+    outputs:
+      crates: ${{ steps.find.outputs.crates }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Find crates
+        id: find
+        run: echo "::set-output name=crates::$(find -name Cargo.toml -printf '%h\n' | sed 's:./::' | jq -R | jq -sc)"
+
   format:
     name: Format
+    needs: find-crates
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        directory:
-          - hovercontrol
-          - hoverkite-firmware
+        directory: ${{ fromJSON(needs.find-crates.outputs.crates) }}
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -27,12 +37,11 @@ jobs:
 
   build:
     name: Build and test
+    needs: find-crates
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        directory:
-          - hovercontrol
-          - hoverkite-firmware
+        directory: ${{ fromJSON(needs.find-crates.outputs.crates) }}
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
