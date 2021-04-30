@@ -214,7 +214,9 @@ pub fn poweroff(hoverboard: &mut Hoverboard) {
     {
         log!(hoverboard.response_tx(), "Telling secondary to power off");
         // Ensure secondary powers off before we do.
-        hoverboard.serial_writer.bwrite_all(b"p").unwrap();
+        hoverkite_protocol::Command::PowerOff
+            .write_to(&mut hoverboard.serial_writer)
+            .unwrap();
         hoverboard.serial_writer.bflush().unwrap();
     }
     log!(hoverboard.response_tx(), "Power off");

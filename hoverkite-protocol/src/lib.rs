@@ -54,10 +54,10 @@ impl Command {
     // FIXME: this goes away once the blanket impl exists.
     #[cfg(feature = "std")]
     pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
-        self.write_to(WriteCompat(writer))
+        self.write_to(&mut WriteCompat(writer))
     }
 
-    pub fn write_to<W>(&self, mut writer: W) -> Result<(), W::Error>
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
         W: embedded_hal::blocking::serial::Write<u8>,
     {
