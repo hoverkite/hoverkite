@@ -50,8 +50,4 @@ jobs:
       - name: Run tests
         run: cargo test
       - name: Run clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          name: clippy ${{ matrix.directory }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --manifest-path ${{ matrix.directory }}/Cargo.toml
+        run: cargo clippy # -- -D warnings
