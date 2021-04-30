@@ -92,10 +92,48 @@ impl From<&DirectedCommand> for Side {
     }
 }
 
+#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    use super::*;
+
+    mod basic {
+        use super::*;
+
+        #[test]
+        fn power_off() {
+            let command = Command::PowerOff;
+            let mut buf = vec![];
+            command.write_to(&mut buf).unwrap();
+            assert_eq!(buf, [b'p']);
+        }
+
+        #[test]
+        fn set_target() {
+            let command = Command::SetTarget(42);
+            let mut buf = vec![];
+            command.write_to(&mut buf).unwrap();
+            assert_eq!(buf, [b'T', 42, 0, 0, 0, 0, 0, 0, 0]);
+        }
+    }
+
+    mod directed {
+        use super::*;
+
+        #[test]
+        fn power_off_left() {
+            let command = DirectedCommand::Left(Command::PowerOff);
+            let mut buf = vec![];
+            command.write_to(&mut buf).unwrap();
+            assert_eq!(buf, [b'p']);
+        }
+
+        #[test]
+        fn power_off_right() {
+            let command = DirectedCommand::Right(Command::PowerOff);
+            let mut buf = vec![];
+            command.write_to(&mut buf).unwrap();
+            assert_eq!(buf, [b'F', 1, b'p']);
+        }
     }
 }
