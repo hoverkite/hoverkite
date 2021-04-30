@@ -57,35 +57,24 @@ impl Command {
 
 // ??? Should we add `Both(Command)`, or add command-specific forwarding
 // ??? logic to the firmware for SetMaxSpeed and SetSpringConstant?
-pub enum DirectedCommand {
-    /// This is sent as-is.
-    Right(Command),
-    /// Tell the right side to forward the command to the left side.
-    Left(Command),
+pub struct DirectedCommand {
+    pub side: Side,
+    pub command: Command,
 }
 
 #[cfg(feature = "std")]
 impl DirectedCommand {
     pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
-        match self {
-            DirectedCommand::Left(command) => command.write_to(writer)?,
-            DirectedCommand::Right(command) => {
+        match self.side {
+            Side::Left => self.command.write_to(writer)?,
+            Side::Right => {
                 let mut encoded: std::vec::Vec<u8> = vec![];
-                command.write_to(&mut encoded)?;
+                self.command.write_to(&mut encoded)?;
                 writer.write_all(&[b'F', encoded.len() as u8])?;
                 writer.write_all(&encoded)?;
             }
         }
         Ok(())
-    }
-}
-
-impl From<&DirectedCommand> for Side {
-    fn from(command: &DirectedCommand) -> Side {
-        match command {
-            DirectedCommand::Left(_) => Side::Left,
-            DirectedCommand::Right(_) => Side::Right,
-        }
     }
 }
 
@@ -119,7 +108,10 @@ mod tests {
 
         #[test]
         fn power_off_left() {
-            let command = DirectedCommand::Left(Command::PowerOff);
+            let command = DirectedCommand {
+                side: Side::Left,
+                command: Command::PowerOff,
+            };
             let mut buf = vec![];
             command.write_to(&mut buf).unwrap();
             assert_eq!(buf, [b'p']);
@@ -127,7 +119,10 @@ mod tests {
 
         #[test]
         fn power_off_right() {
-            let command = DirectedCommand::Right(Command::PowerOff);
+            let command = DirectedCommand {
+                side: Side::Right,
+                command: Command::PowerOff,
+            };
             let mut buf = vec![];
             command.write_to(&mut buf).unwrap();
             assert_eq!(buf, [b'F', 1, b'p']);

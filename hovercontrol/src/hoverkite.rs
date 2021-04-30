@@ -131,7 +131,7 @@ impl Hoverkite {
         } else if side == Side::Left {
             // Tell the right side to forward the command to the left side.
             let port = self.right_port.as_mut().unwrap();
-            DirectedCommand::Left(command).write_to(port)?;
+            DirectedCommand { side, command }.write_to(port)?;
         }
         Ok(())
     }
