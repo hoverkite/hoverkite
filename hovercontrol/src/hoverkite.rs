@@ -127,12 +127,11 @@ impl Hoverkite {
         };
         trace!("Sending command to {:?}: {:?}", side, command);
         if let Some(port) = port {
-            let encoded: Vec<u8> = command.into();
-            port.write_all(&encoded)?;
+            command.write_to(port)?;
         } else if side == Side::Left {
             // Tell the right side to forward the command to the left side.
-            let encoded: Vec<u8> = DirectedCommand::Left(command).into();
-            self.right_port.as_mut().unwrap().write_all(&encoded)?;
+            let port = self.right_port.as_mut().unwrap();
+            DirectedCommand::Left(command).write_to(port)?;
         }
         Ok(())
     }

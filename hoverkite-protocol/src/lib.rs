@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use core::ops::RangeInclusive;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -21,36 +23,35 @@ pub enum Command {
     SetMaxSpeed(RangeInclusive<i16>),
     SetSpringConstant(u16),
     SetTarget(i64),
-    Recenter,      // vec![b'e'] -
-    BatteryReport, // vec![b'b'] -
-    Relax,         // vec![b'n'] -
-    PowerOff,      // vec![b'p'] -
+    Recenter,
+    BatteryReport,
+    Relax,
+    PowerOff,
 }
 
-impl From<Command> for Vec<u8> {
-    fn from(command: Command) -> Vec<u8> {
-        match command {
+#[cfg(feature = "std")]
+impl Command {
+    pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
+        match self {
             Command::SetMaxSpeed(max_speed) => {
-                let mut encoded = vec![b'S'];
-                encoded.extend_from_slice(&max_speed.start().to_le_bytes());
-                encoded.extend_from_slice(&max_speed.end().to_le_bytes());
-                encoded
+                writer.write_all(&[b'S'])?;
+                writer.write_all(&max_speed.start().to_le_bytes())?;
+                writer.write_all(&max_speed.end().to_le_bytes())?;
             }
             Command::SetSpringConstant(spring_constant) => {
-                let mut encoded = vec![b'K'];
-                encoded.extend_from_slice(&spring_constant.to_le_bytes());
-                encoded
+                writer.write_all(&[b'K'])?;
+                writer.write_all(&spring_constant.to_le_bytes())?;
             }
             Command::SetTarget(target) => {
-                let mut encoded = vec![b'T'];
-                encoded.extend_from_slice(&target.to_le_bytes());
-                encoded
+                writer.write_all(&[b'T'])?;
+                writer.write_all(&target.to_le_bytes())?;
             }
-            Command::Recenter => vec![b'e'],
-            Command::BatteryReport => vec![b'b'],
-            Command::Relax => vec![b'n'],
-            Command::PowerOff => vec![b'p'],
-        }
+            Command::Recenter => writer.write_all(&[b'e'])?,
+            Command::BatteryReport => writer.write_all(&[b'b'])?,
+            Command::Relax => writer.write_all(&[b'n'])?,
+            Command::PowerOff => writer.write_all(&[b'p'])?,
+        };
+        Ok(())
     }
 }
 
@@ -66,17 +67,19 @@ pub enum DirectedCommand {
     // ??? logic to the firmware for SetMaxSpeed and SetSpringConstant?
 }
 
-impl From<DirectedCommand> for Vec<u8> {
-    fn from(command: DirectedCommand) -> Vec<u8> {
-        match command {
-            DirectedCommand::Left(command) => command.into(),
+#[cfg(feature = "std")]
+impl DirectedCommand {
+    pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            DirectedCommand::Left(command) => command.write_to(writer)?,
             DirectedCommand::Right(command) => {
-                let encoded: Vec<u8> = command.into();
-                let mut wrapped_command = vec![b'F', encoded.len() as u8];
-                wrapped_command.extend_from_slice(&encoded);
-                wrapped_command
+                let mut encoded: std::vec::Vec<u8> = vec![];
+                command.write_to(&mut encoded)?;
+                writer.write_all(&[b'F', encoded.len() as u8])?;
+                writer.write_all(&encoded)?;
             }
         }
+        Ok(())
     }
 }
 
