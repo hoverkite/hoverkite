@@ -45,5 +45,6 @@ jobs:
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
+          name: clippy ${{ matrix.directory }}
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
