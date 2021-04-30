@@ -77,10 +77,13 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
     true
 }
 
+#[cfg(feature = "primary")]
 fn forward_command(hoverboard: &mut Hoverboard, command: &[u8]) {
-    #[cfg(feature = "primary")]
     hoverboard.serial_writer.bwrite_all(command).unwrap();
-    #[cfg(feature = "secondary")]
+}
+
+#[cfg(feature = "secondary")]
+fn forward_command(hoverboard: &mut Hoverboard, _command: &[u8]) {
     log!(hoverboard.response_tx(), "Secondary can't forward.");
 }
 

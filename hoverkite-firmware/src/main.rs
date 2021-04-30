@@ -80,7 +80,9 @@ fn main() -> ! {
     let mut last_position = 0;
     let mut command_buffer = [0; 12];
     let mut command_len = 0;
+    #[cfg(feature = "primary")]
     let mut proxy_response_buffer = [0; 100];
+    #[cfg(feature = "primary")]
     let mut proxy_response_length = 0;
     let mut speed;
     let mut target_position: Option<i64> = None;
