@@ -54,4 +54,4 @@ jobs:
         with:
           name: clippy ${{ matrix.directory }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features
+          args: --all-features --manifest-path ${{ matrix.directory }}/Cargo.toml
