@@ -55,16 +55,13 @@ impl Command {
     }
 }
 
+// ??? Should we add `Both(Command)`, or add command-specific forwarding
+// ??? logic to the firmware for SetMaxSpeed and SetSpringConstant?
 pub enum DirectedCommand {
-    // This is sent as-is.
+    /// This is sent as-is.
     Right(Command),
-    // Tell the right side to forward the command to the left side.
-    // let mut wrapped_command = vec![b'F', command.len() as u8];
-    // wrapped_command.extend_from_slice(command);
-    // self.send_command(Side::Right, &wrapped_command)
+    /// Tell the right side to forward the command to the left side.
     Left(Command),
-    // ??? Should we add `Both(Command)`, or add command-specific forwarding
-    // ??? logic to the firmware for SetMaxSpeed and SetSpringConstant?
 }
 
 #[cfg(feature = "std")]
