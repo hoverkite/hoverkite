@@ -1,0 +1,23 @@
+name: Rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory:
+          - hovercontrol
+          - hoverkite-firmware
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Format Rust code
+        run: cargo fmt --all -- --check
