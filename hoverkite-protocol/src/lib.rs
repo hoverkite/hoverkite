@@ -55,35 +55,36 @@ impl Command {
     }
 }
 
-// ??? Should we add `Both(Command)`, or add command-specific forwarding
-// ??? logic to the firmware for SetMaxSpeed and SetSpringConstant?
-pub struct DirectedCommand {
-    pub side: Side,
-    pub command: Command,
-}
+pub struct SecondaryCommand(pub Command);
 
 #[cfg(feature = "std")]
-impl DirectedCommand {
+impl SecondaryCommand {
     pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
-        match self.side {
-            Side::Left => self.command.write_to(writer)?,
-            Side::Right => {
-                let mut encoded: std::vec::Vec<u8> = vec![];
-                self.command.write_to(&mut encoded)?;
-                writer.write_all(&[b'F', encoded.len() as u8])?;
-                writer.write_all(&encoded)?;
-            }
-        }
+        let mut encoded: std::vec::Vec<u8> = vec![];
+        self.0.write_to(&mut encoded)?;
+        writer.write_all(&[b'F', encoded.len() as u8])?;
+        writer.write_all(&encoded)?;
         Ok(())
     }
 }
+
+// ... and then we could have an enum that represents all possible messages
+// that can be sent/received over the wire that looks something like this?
+// enum Message {
+//     Command(Command),
+//     SecondaryCommand(SecondaryCommand),
+//     LogMessage(LogMessage),
+//     SecondaryLogMessage(SecondaryLogMessage),
+//     CurrentPosition(CurrentPosition)
+//     SecondaryCurrentPosition(SecondaryCurrentPosition)
+// }
 
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    mod basic {
+    mod command {
         use super::*;
 
         #[test]
@@ -103,26 +104,12 @@ mod tests {
         }
     }
 
-    mod directed {
+    mod secondary_command {
         use super::*;
 
         #[test]
-        fn power_off_left() {
-            let command = DirectedCommand {
-                side: Side::Left,
-                command: Command::PowerOff,
-            };
-            let mut buf = vec![];
-            command.write_to(&mut buf).unwrap();
-            assert_eq!(buf, [b'p']);
-        }
-
-        #[test]
-        fn power_off_right() {
-            let command = DirectedCommand {
-                side: Side::Right,
-                command: Command::PowerOff,
-            };
+        fn power_off_secondary() {
+            let command = SecondaryCommand(Command::PowerOff);
             let mut buf = vec![];
             command.write_to(&mut buf).unwrap();
             assert_eq!(buf, [b'F', 1, b'p']);

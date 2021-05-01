@@ -1,5 +1,5 @@
 use eyre::Report;
-use hoverkite_protocol::{Command, DirectedCommand, Side};
+use hoverkite_protocol::{Command, SecondaryCommand, Side};
 use log::{error, trace};
 use serialport::SerialPort;
 use std::convert::TryInto;
@@ -114,23 +114,24 @@ impl Hoverkite {
     }
 
     pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), Report> {
-        let port = match side {
+        trace!("Sending command to {:?}: {:?}", side, command);
+        match side {
             Side::Left => {
                 self.left_last_command_time = Instant::now();
-                &mut self.left_port
             }
             Side::Right => {
                 self.right_last_command_time = Instant::now();
-                &mut self.right_port
             }
         };
-        trace!("Sending command to {:?}: {:?}", side, command);
-        if let Some(port) = port {
-            command.write_to(port)?;
-        } else if side == Side::Left {
-            // Tell the right side to forward the command to the left side.
-            let port = self.right_port.as_mut().unwrap();
-            DirectedCommand { side, command }.write_to(port)?;
+        match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
+            (Side::Left, Some(port), _) => command.write_to(port)?,
+            (Side::Left, None, Some(port)) => SecondaryCommand(command).write_to(port)?,
+            (Side::Right, _, Some(port)) => command.write_to(port)?,
+            (Side::Right, Some(port), None) => SecondaryCommand(command).write_to(port)?,
+            (_, None, None) => error!(
+                "No serial ports available. Can't send command to {:?}: {:?}",
+                side, command
+            ),
         }
         Ok(())
     }
