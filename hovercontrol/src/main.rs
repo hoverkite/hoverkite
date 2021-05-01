@@ -178,13 +178,15 @@ impl Controller {
             }
             EventType::ButtonPressed(Button::South, _code) => {
                 self.hoverkite
-                    .send_command(Side::Left, Command::BatteryReport)?;
+                    .send_command(Side::Left, Command::ReportBattery)?;
                 self.hoverkite
-                    .send_command(Side::Right, Command::BatteryReport)?;
+                    .send_command(Side::Right, Command::ReportBattery)?;
             }
             EventType::ButtonPressed(Button::East, _code) => {
-                self.hoverkite.send_command(Side::Left, Command::Relax)?;
-                self.hoverkite.send_command(Side::Right, Command::Relax)?;
+                self.hoverkite
+                    .send_command(Side::Left, Command::RemoveTarget)?;
+                self.hoverkite
+                    .send_command(Side::Right, Command::RemoveTarget)?;
             }
             EventType::ButtonPressed(Button::West, _code) => {
                 if self.spring_constant > SPRING_CONSTANT_STEP {

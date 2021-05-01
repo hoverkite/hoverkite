@@ -24,8 +24,8 @@ pub enum Command {
     SetSpringConstant(u16),
     SetTarget(i64),
     Recenter,
-    BatteryReport,
-    Relax,
+    ReportBattery,
+    RemoveTarget,
     PowerOff,
 }
 
@@ -47,8 +47,8 @@ impl Command {
                 writer.write_all(&target.to_le_bytes())?;
             }
             Command::Recenter => writer.write_all(&[b'e'])?,
-            Command::BatteryReport => writer.write_all(&[b'b'])?,
-            Command::Relax => writer.write_all(&[b'n'])?,
+            Command::ReportBattery => writer.write_all(&[b'b'])?,
+            Command::RemoveTarget => writer.write_all(&[b'n'])?,
             Command::PowerOff => writer.write_all(&[b'p'])?,
         };
         Ok(())
