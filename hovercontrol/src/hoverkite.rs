@@ -1,4 +1,5 @@
 use eyre::Report;
+use hoverkite_protocol::{Command, SecondaryCommand, Side};
 use log::{error, trace};
 use serialport::SerialPort;
 use std::convert::TryInto;
@@ -6,21 +7,6 @@ use std::time::{Duration, Instant};
 use std::{collections::VecDeque, ops::RangeInclusive};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Side {
-    Left,
-    Right,
-}
-
-impl Side {
-    pub fn opposite(self) -> Self {
-        match self {
-            Self::Left => Self::Right,
-            Self::Right => Self::Left,
-        }
-    }
-}
 
 pub struct Hoverkite {
     right_port: Option<Box<dyn SerialPort>>,
@@ -86,19 +72,16 @@ impl Hoverkite {
         max_speed: &RangeInclusive<i16>,
     ) -> Result<(), Report> {
         println!("{:?} max speed: {:?}", side, max_speed);
-        let mut command = vec![b'S'];
-        command.extend_from_slice(&max_speed.start().to_le_bytes());
-        command.extend_from_slice(&max_speed.end().to_le_bytes());
-        self.send_command(side, &command)?;
+        let command = Command::SetMaxSpeed(max_speed.clone());
+        self.send_command(side, command)?;
         Ok(())
     }
 
     pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), Report> {
         println!("Spring constant: {}", spring_constant);
-        let mut command = vec![b'K'];
-        command.extend_from_slice(&spring_constant.to_le_bytes());
-        self.send_command(Side::Left, &command)?;
-        self.send_command(Side::Right, &command)?;
+        let command = Command::SetSpringConstant(spring_constant);
+        self.send_command(Side::Left, command.clone())?;
+        self.send_command(Side::Right, command)?;
         Ok(())
     }
 
@@ -127,37 +110,30 @@ impl Hoverkite {
             }
         };
         println!("Target {:?} {}", side, target);
-        let mut command = vec![b'T'];
-        command.extend_from_slice(&target.to_le_bytes());
-        self.send_command(side, &command)
+        self.send_command(side, Command::SetTarget(target))
     }
 
-    /// Send the given raw command.
-    pub fn send_command(&mut self, side: Side, command: &[u8]) -> Result<(), Report> {
-        let port = match side {
+    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), Report> {
+        trace!("Sending command to {:?}: {:?}", side, command);
+        match side {
             Side::Left => {
                 self.left_last_command_time = Instant::now();
-                &mut self.left_port
             }
             Side::Right => {
                 self.right_last_command_time = Instant::now();
-                &mut self.right_port
             }
         };
-        trace!("Sending command to {:?}: {:?}", side, command);
-        if let Some(port) = port {
-            port.write_all(command)?;
-        } else if side == Side::Left {
-            self.forward_command(command)?;
+        match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
+            (Side::Left, Some(port), _) => command.write_to(port)?,
+            (Side::Left, None, Some(port)) => SecondaryCommand(command).write_to(port)?,
+            (Side::Right, _, Some(port)) => command.write_to(port)?,
+            (Side::Right, Some(port), None) => SecondaryCommand(command).write_to(port)?,
+            (_, None, None) => error!(
+                "No serial ports available. Can't send command to {:?}: {:?}",
+                side, command
+            ),
         }
         Ok(())
-    }
-
-    /// Tell the right side to forward the command to the left side.
-    fn forward_command(&mut self, command: &[u8]) -> Result<(), Report> {
-        let mut wrapped_command = vec![b'F', command.len() as u8];
-        wrapped_command.extend_from_slice(command);
-        self.send_command(Side::Right, &wrapped_command)
     }
 }
 
