@@ -3,12 +3,12 @@
 use core::ops::RangeInclusive;
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
-/// TODO: propose the following impl to embedded_hal crate:
-///
-/// #[cfg(feature = "std")]
-/// impl<T: std::io::Write> embedded_hal::blocking::serial::Write<u8> for T {...}
+// TODO: propose the following impl to embedded_hal crate:
+//
+// #[cfg(feature = "std")]
+// impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for W {...}
 #[cfg(feature = "std")]
-pub struct WriteCompat<T: std::io::Write>(pub T);
+pub struct WriteCompat<W: std::io::Write>(pub W);
 
 #[cfg(feature = "std")]
 impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for WriteCompat<W> {

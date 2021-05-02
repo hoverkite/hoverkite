@@ -13,7 +13,7 @@ embedded-hal = "0.2.4"
 nb = "1.0.0"
 panic-halt = "0.2.0"
 gd32f1x0-hal = { version = "0.1.0", features = ["rt", "gd32f130x8"], git = "https://github.com/qwandor/gd32f1x0-hal", branch = "main" }
-hoverkite-protocol = { path = "../hoverkite-protocol", default-features=false }
+hoverkite-protocol = { path = "../hoverkite-protocol", default-features = false }
 
 [features]
 primary = []
