@@ -2,6 +2,27 @@
 
 use core::ops::RangeInclusive;
 
+/// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
+// TODO: propose the following impl to embedded_hal crate:
+//
+// #[cfg(feature = "std")]
+// impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for W {...}
+#[cfg(feature = "std")]
+pub struct WriteCompat<W: std::io::Write>(pub W);
+
+#[cfg(feature = "std")]
+impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for WriteCompat<W> {
+    type Error = std::io::Error;
+
+    fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
+        self.0.write_all(buffer)
+    }
+
+    fn bflush(&mut self) -> Result<(), Self::Error> {
+        self.0.flush()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
     Left,
@@ -29,27 +50,35 @@ pub enum Command {
     PowerOff,
 }
 
-#[cfg(feature = "std")]
 impl Command {
-    pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
+    // FIXME: this goes away once the blanket impl exists.
+    #[cfg(feature = "std")]
+    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        self.write_to(&mut WriteCompat(writer))
+    }
+
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
         match self {
             Command::SetMaxSpeed(max_speed) => {
-                writer.write_all(&[b'S'])?;
-                writer.write_all(&max_speed.start().to_le_bytes())?;
-                writer.write_all(&max_speed.end().to_le_bytes())?;
+                writer.bwrite_all(&[b'S'])?;
+                writer.bwrite_all(&max_speed.start().to_le_bytes())?;
+                writer.bwrite_all(&max_speed.end().to_le_bytes())?;
             }
             Command::SetSpringConstant(spring_constant) => {
-                writer.write_all(&[b'K'])?;
-                writer.write_all(&spring_constant.to_le_bytes())?;
+                writer.bwrite_all(&[b'K'])?;
+                writer.bwrite_all(&spring_constant.to_le_bytes())?;
             }
             Command::SetTarget(target) => {
-                writer.write_all(&[b'T'])?;
-                writer.write_all(&target.to_le_bytes())?;
+                writer.bwrite_all(&[b'T'])?;
+                writer.bwrite_all(&target.to_le_bytes())?;
             }
-            Command::Recenter => writer.write_all(&[b'e'])?,
-            Command::ReportBattery => writer.write_all(&[b'b'])?,
-            Command::RemoveTarget => writer.write_all(&[b'n'])?,
-            Command::PowerOff => writer.write_all(&[b'p'])?,
+            Command::Recenter => writer.bwrite_all(&[b'e'])?,
+            Command::ReportBattery => writer.bwrite_all(&[b'b'])?,
+            Command::RemoveTarget => writer.bwrite_all(&[b'n'])?,
+            Command::PowerOff => writer.bwrite_all(&[b'p'])?,
         };
         Ok(())
     }
@@ -57,11 +86,13 @@ impl Command {
 
 pub struct SecondaryCommand(pub Command);
 
+// I'm not expecting to need this anywhere other than on the host.
+// Famous last words.
 #[cfg(feature = "std")]
 impl SecondaryCommand {
-    pub fn write_to(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
+    pub fn write_to_std(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
         let mut encoded: std::vec::Vec<u8> = vec![];
-        self.0.write_to(&mut encoded)?;
+        self.0.write_to_std(&mut encoded)?;
         writer.write_all(&[b'F', encoded.len() as u8])?;
         writer.write_all(&encoded)?;
         Ok(())
@@ -91,7 +122,7 @@ mod tests {
         fn power_off() {
             let command = Command::PowerOff;
             let mut buf = vec![];
-            command.write_to(&mut buf).unwrap();
+            command.write_to_std(&mut buf).unwrap();
             assert_eq!(buf, [b'p']);
         }
 
@@ -99,7 +130,7 @@ mod tests {
         fn set_target() {
             let command = Command::SetTarget(42);
             let mut buf = vec![];
-            command.write_to(&mut buf).unwrap();
+            command.write_to_std(&mut buf).unwrap();
             assert_eq!(buf, [b'T', 42, 0, 0, 0, 0, 0, 0, 0]);
         }
     }
@@ -111,7 +142,7 @@ mod tests {
         fn power_off_secondary() {
             let command = SecondaryCommand(Command::PowerOff);
             let mut buf = vec![];
-            command.write_to(&mut buf).unwrap();
+            command.write_to_std(&mut buf).unwrap();
             assert_eq!(buf, [b'F', 1, b'p']);
         }
     }

@@ -7,6 +7,8 @@ mod motor;
 mod protocol;
 mod util;
 
+#[cfg(feature = "primary")]
+use hoverkite_protocol::Command;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -216,7 +218,9 @@ pub fn poweroff(hoverboard: &mut Hoverboard) {
     {
         log!(hoverboard.response_tx(), "Telling secondary to power off");
         // Ensure secondary powers off before we do.
-        hoverboard.serial_writer.bwrite_all(b"p").unwrap();
+        Command::PowerOff
+            .write_to(&mut hoverboard.serial_writer)
+            .unwrap();
         hoverboard.serial_writer.bflush().unwrap();
     }
     log!(hoverboard.response_tx(), "Power off");

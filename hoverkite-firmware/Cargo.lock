@@ -240,8 +240,16 @@ dependencies = [
  "cortex-m-semihosting",
  "embedded-hal",
  "gd32f1x0-hal",
+ "hoverkite-protocol",
  "nb 1.0.0",
  "panic-halt",
+]
+
+[[package]]
+name = "hoverkite-protocol"
+version = "0.1.0"
+dependencies = [
+ "embedded-hal",
 ]
 
 [[package]]

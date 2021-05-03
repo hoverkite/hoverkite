@@ -124,10 +124,10 @@ impl Hoverkite {
             }
         };
         match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
-            (Side::Left, Some(port), _) => command.write_to(port)?,
-            (Side::Left, None, Some(port)) => SecondaryCommand(command).write_to(port)?,
-            (Side::Right, _, Some(port)) => command.write_to(port)?,
-            (Side::Right, Some(port), None) => SecondaryCommand(command).write_to(port)?,
+            (Side::Left, Some(port), _) => command.write_to_std(port)?,
+            (Side::Left, None, Some(port)) => SecondaryCommand(command).write_to_std(port)?,
+            (Side::Right, _, Some(port)) => command.write_to_std(port)?,
+            (Side::Right, Some(port), None) => SecondaryCommand(command).write_to_std(port)?,
             (_, None, None) => error!(
                 "No serial ports available. Can't send command to {:?}: {:?}",
                 side, command
