@@ -208,26 +208,27 @@ mod tests {
     }
 
     // TODO: see if it's possible to verify this round-trip property
-    // using cargo-verify.
+    // for all Command variants using cargo-propverify, so we don't
+    // have to maintain this test as we add/remove variants.
     mod round_trip {
         use super::*;
+        use test_case::test_case;
 
-        fn assert_round_trip_equality(command: Command) {
+        use Command::*;
+        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetSpringConstant(42))]
+        #[test_case(SetTarget(-42))]
+        #[test_case(Recenter)]
+        #[test_case(ReportBattery)]
+        #[test_case(ReportCharger)]
+        #[test_case(RemoveTarget)]
+        #[test_case(PowerOff)]
+        fn round_trip_equality(command: Command) {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
             let round_tripped_command = Command::parse(&buf).unwrap();
 
             assert_eq!(round_tripped_command, command)
-        }
-
-        #[test]
-        fn power_off() {
-            assert_round_trip_equality(Command::PowerOff);
-        }
-
-        #[test]
-        fn set_target() {
-            assert_round_trip_equality(Command::SetTarget(42));
         }
     }
 }
