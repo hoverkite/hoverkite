@@ -191,13 +191,13 @@ pub fn process_command(
                     readings.motor_current
                 );
             }
-            // b'c' => {
-            //     if hoverboard.charge_state.is_low().unwrap() {
-            //         log!(hoverboard.response_tx(), "Charger connected");
-            //     } else {
-            //         log!(hoverboard.response_tx(), "Charger not connected");
-            //     }
-            // }
+            Command::ReportCharger => {
+                if hoverboard.charge_state.is_low().unwrap() {
+                    log!(hoverboard.response_tx(), "Charger connected");
+                } else {
+                    log!(hoverboard.response_tx(), "Charger not connected");
+                }
+            }
             Command::SetMaxSpeed(limits) => {
                 log!(hoverboard.response_tx(), "max speed {:?}", limits);
                 *speed_limits = limits;
