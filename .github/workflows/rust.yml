@@ -68,6 +68,8 @@ jobs:
     strategy:
       matrix:
         directory: ${{ fromJSON(needs.find-crates.outputs.crates) }}
+        exclude:
+          - directory: hoverkite-firmware
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
