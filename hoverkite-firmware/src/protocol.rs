@@ -116,70 +116,6 @@ pub fn process_command(
         Message::SecondaryCommand(sc) => {
             forward_command(hoverboard, &sc.0);
         }
-        // b'l' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "LED off");
-        //             hoverboard.leds.side.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "LED on");
-        //             hoverboard.leds.side.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'o' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "orange off");
-        //             hoverboard.leds.orange.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "orange on");
-        //             hoverboard.leds.orange.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'r' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "red off");
-        //             hoverboard.leds.red.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "red on");
-        //             hoverboard.leds.red.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'g' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "green off");
-        //             hoverboard.leds.green.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "green on");
-        //             hoverboard.leds.green.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
         Message::Command(c) => match c {
             Command::ReportBattery => {
                 let readings = hoverboard.adc_readings();
@@ -221,16 +157,6 @@ pub fn process_command(
                 hoverboard.recenter_motor();
                 *target_position = Some(0);
             }
-            // b'+' => {
-            //     let target = target_position.unwrap_or(0) + 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
-            // b'-' => {
-            //     let target = target_position.unwrap_or(0) - 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
             Command::PowerOff => poweroff(hoverboard),
         },
     }
