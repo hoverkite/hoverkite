@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use core::ops::RangeInclusive;
+use core::{convert::TryInto, ops::RangeInclusive};
+
+use nb::Error::{Other, WouldBlock};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:
@@ -82,7 +84,119 @@ impl Command {
         };
         Ok(())
     }
+
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        let first = buf.get(0).ok_or(WouldBlock)?;
+        match first {
+            // b'l' => match buf.get(1).ok_or(WouldBlock)? {
+            //     b'0' => {
+            //         log!(hoverboard.response_tx(), "LED off");
+            //         hoverboard.leds.side.set_low().unwrap()
+            //     }
+            //     b'1' => {
+            //         log!(hoverboard.response_tx(), "LED on");
+            //         hoverboard.leds.side.set_high().unwrap()
+            //     }
+            //     _ => log!(hoverboard.response_tx(), "LED unrecognised"),
+            // },
+            // b'o' => {
+            //     if command.len() < 2 {
+            //         return false;
+            //     }
+            //     match command[1] {
+            //         b'0' => {
+            //             log!(hoverboard.response_tx(), "orange off");
+            //             hoverboard.leds.orange.set_low().unwrap()
+            //         }
+            //         b'1' => {
+            //             log!(hoverboard.response_tx(), "orange on");
+            //             hoverboard.leds.orange.set_high().unwrap()
+            //         }
+            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
+            //     }
+            // }
+            // b'r' => {
+            //     if command.len() < 2 {
+            //         return false;
+            //     }
+            //     match command[1] {
+            //         b'0' => {
+            //             log!(hoverboard.response_tx(), "red off");
+            //             hoverboard.leds.red.set_low().unwrap()
+            //         }
+            //         b'1' => {
+            //             log!(hoverboard.response_tx(), "red on");
+            //             hoverboard.leds.red.set_high().unwrap()
+            //         }
+            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
+            //     }
+            // }
+            // b'g' => {
+            //     if command.len() < 2 {
+            //         return false;
+            //     }
+            //     match command[1] {
+            //         b'0' => {
+            //             log!(hoverboard.response_tx(), "green off");
+            //             hoverboard.leds.green.set_low().unwrap()
+            //         }
+            //         b'1' => {
+            //             log!(hoverboard.response_tx(), "green on");
+            //             hoverboard.leds.green.set_high().unwrap()
+            //         }
+            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
+            //     }
+            // }
+            b'b' => Ok(Self::ReportBattery),
+            // b'c' => {
+            //     if hoverboard.charge_state.is_low().unwrap() {
+            //         log!(hoverboard.response_tx(), "Charger connected");
+            //     } else {
+            //         log!(hoverboard.response_tx(), "Charger not connected");
+            //     }
+            // }
+            b'S' => {
+                if buf.len() < 5 {
+                    return Err(WouldBlock);
+                }
+                let min_power = i16::from_le_bytes(buf[1..3].try_into().unwrap());
+                let max_power = i16::from_le_bytes(buf[3..5].try_into().unwrap());
+
+                Ok(Self::SetMaxSpeed(min_power..=max_power))
+            }
+            b'K' => {
+                if buf.len() < 3 {
+                    return Err(WouldBlock);
+                }
+                let spring = u16::from_le_bytes(buf[1..3].try_into().unwrap()).into();
+                Ok(Self::SetSpringConstant(spring))
+            }
+            b'n' => Ok(Self::RemoveTarget),
+            b'T' => {
+                if buf.len() < 9 {
+                    return Err(WouldBlock);
+                }
+                let target = i64::from_le_bytes(buf[1..9].try_into().unwrap());
+                Ok(Self::SetTarget(target))
+            }
+            b'e' => Ok(Self::Recenter),
+            // b'+' => {
+            //     let target = target_position.unwrap_or(0) + 10;
+            //     log!(hoverboard.response_tx(), "Target position {}", target);
+            //     *target_position = Some(target);
+            // }
+            // b'-' => {
+            //     let target = target_position.unwrap_or(0) - 10;
+            //     log!(hoverboard.response_tx(), "Target position {}", target);
+            //     *target_position = Some(target);
+            // }
+            b'p' => Ok(Self::PowerOff),
+            _ => Err(Other(ParseError)),
+        }
+    }
 }
+
+pub struct ParseError;
 
 pub struct SecondaryCommand(pub Command);
 
@@ -99,16 +213,34 @@ impl SecondaryCommand {
     }
 }
 
-// ... and then we could have an enum that represents all possible messages
-// that can be sent/received over the wire that looks something like this?
-// enum Message {
-//     Command(Command),
-//     SecondaryCommand(SecondaryCommand),
-//     LogMessage(LogMessage),
-//     SecondaryLogMessage(SecondaryLogMessage),
-//     CurrentPosition(CurrentPosition)
-//     SecondaryCurrentPosition(SecondaryCurrentPosition)
-// }
+pub enum Message {
+    Command(Command),
+    SecondaryCommand(SecondaryCommand),
+    // TODO: add variants for the other things, or create a second enum that contains them.
+    // Something like:
+    //     LogMessage(LogMessage),
+    //     SecondaryLogMessage(SecondaryLogMessage),
+    //     CurrentPosition(CurrentPosition),
+    //     SecondaryCurrentPosition(SecondaryCurrentPosition),
+}
+
+impl Message {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        let first = buf.get(0).ok_or(WouldBlock)?;
+        match first {
+            b'F' => {
+                let forward_length = buf.get(1).ok_or(WouldBlock)?;
+                if buf.len() < *forward_length as usize + 2 {
+                    return Err(WouldBlock);
+                }
+                Ok(Self::SecondaryCommand(SecondaryCommand(Command::parse(
+                    &buf[2..],
+                )?)))
+            }
+            _ => Ok(Self::Command(Command::parse(buf)?)),
+        }
+    }
+}
 
 #[cfg(feature = "std")]
 #[cfg(test)]
