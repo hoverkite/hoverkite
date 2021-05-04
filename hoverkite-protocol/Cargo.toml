@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 embedded-hal = "0.2.4"
+nb = "1.0.0"
 
 [features]
 default = ["std"]
