@@ -196,6 +196,7 @@ impl Command {
     }
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ParseError;
 
 pub struct SecondaryCommand(pub Command);
