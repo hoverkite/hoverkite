@@ -355,7 +355,7 @@ impl Hoverboard {
     }
 
     /// Set the motor's current position as 0.
-    pub fn recentre_motor(&mut self) {
+    pub fn recenter_motor(&mut self) {
         free(|cs| {
             // SHARED must have been initialised by the time this is called.
             let shared = &mut *SHARED.borrow(cs).borrow_mut();

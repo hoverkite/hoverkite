@@ -217,8 +217,8 @@ pub fn process_command(
                 *target_position = Some(target);
             }
             Command::Recenter => {
-                log!(hoverboard.response_tx(), "Recentre");
-                hoverboard.recentre_motor();
+                log!(hoverboard.response_tx(), "Recenter");
+                hoverboard.recenter_motor();
                 *target_position = Some(0);
             }
             // b'+' => {
