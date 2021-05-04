@@ -90,65 +90,6 @@ impl Command {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         let first = buf.get(0).ok_or(WouldBlock)?;
         match first {
-            // b'l' => match buf.get(1).ok_or(WouldBlock)? {
-            //     b'0' => {
-            //         log!(hoverboard.response_tx(), "LED off");
-            //         hoverboard.leds.side.set_low().unwrap()
-            //     }
-            //     b'1' => {
-            //         log!(hoverboard.response_tx(), "LED on");
-            //         hoverboard.leds.side.set_high().unwrap()
-            //     }
-            //     _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            // },
-            // b'o' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "orange off");
-            //             hoverboard.leds.orange.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "orange on");
-            //             hoverboard.leds.orange.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
-            // b'r' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "red off");
-            //             hoverboard.leds.red.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "red on");
-            //             hoverboard.leds.red.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
-            // b'g' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "green off");
-            //             hoverboard.leds.green.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "green on");
-            //             hoverboard.leds.green.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
             b'b' => Ok(Self::ReportBattery),
             b'c' => Ok(Self::ReportCharger),
             b'S' => {
@@ -176,16 +117,6 @@ impl Command {
                 Ok(Self::SetTarget(target))
             }
             b'e' => Ok(Self::Recenter),
-            // b'+' => {
-            //     let target = target_position.unwrap_or(0) + 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
-            // b'-' => {
-            //     let target = target_position.unwrap_or(0) - 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
             b'p' => Ok(Self::PowerOff),
             _ => Err(Other(ParseError)),
         }
