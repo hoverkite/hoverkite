@@ -48,6 +48,7 @@ pub enum Command {
     SetTarget(i64),
     Recenter,
     ReportBattery,
+    ReportCharger,
     RemoveTarget,
     PowerOff,
 }
@@ -79,6 +80,7 @@ impl Command {
             }
             Command::Recenter => writer.bwrite_all(&[b'e'])?,
             Command::ReportBattery => writer.bwrite_all(&[b'b'])?,
+            Command::ReportCharger => writer.bwrite_all(&[b'c'])?,
             Command::RemoveTarget => writer.bwrite_all(&[b'n'])?,
             Command::PowerOff => writer.bwrite_all(&[b'p'])?,
         };
@@ -148,13 +150,7 @@ impl Command {
             //     }
             // }
             b'b' => Ok(Self::ReportBattery),
-            // b'c' => {
-            //     if hoverboard.charge_state.is_low().unwrap() {
-            //         log!(hoverboard.response_tx(), "Charger connected");
-            //     } else {
-            //         log!(hoverboard.response_tx(), "Charger not connected");
-            //     }
-            // }
+            b'c' => Ok(Self::ReportCharger),
             b'S' => {
                 if buf.len() < 5 {
                     return Err(WouldBlock);
