@@ -206,4 +206,28 @@ mod tests {
             assert_eq!(buf, [b'F', 1, b'p']);
         }
     }
+
+    // TODO: see if it's possible to verify this round-trip property
+    // using cargo-verify.
+    mod round_trip {
+        use super::*;
+
+        fn assert_round_trip_equality(command: Command) {
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            let round_tripped_command = Command::parse(&buf).unwrap();
+
+            assert_eq!(round_tripped_command, command)
+        }
+
+        #[test]
+        fn power_off() {
+            assert_round_trip_equality(Command::PowerOff);
+        }
+
+        #[test]
+        fn set_target() {
+            assert_round_trip_equality(Command::SetTarget(42));
+        }
+    }
 }
