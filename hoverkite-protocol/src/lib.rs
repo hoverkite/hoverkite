@@ -213,8 +213,8 @@ mod tests {
     mod round_trip {
         use super::*;
         use test_case::test_case;
-
         use Command::*;
+
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
