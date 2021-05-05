@@ -187,20 +187,26 @@ pub enum Message {
     //     SecondaryCurrentPosition(SecondaryCurrentPosition),
 }
 
+impl From<SecondaryCommand> for Message {
+    fn from(val: SecondaryCommand) -> Self {
+        Message::SecondaryCommand(val)
+    }
+}
+
+impl From<Command> for Message {
+    fn from(val: Command) -> Self {
+        Message::Command(val)
+    }
+}
+
 impl Message {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
-        let first = buf.get(0).ok_or(WouldBlock)?;
-        match first {
-            b'F' => {
-                let forward_length = buf.get(1).ok_or(WouldBlock)?;
-                if buf.len() < *forward_length as usize + 2 {
-                    return Err(WouldBlock);
-                }
-                Ok(Self::SecondaryCommand(SecondaryCommand(Command::parse(
-                    &buf[2..],
-                )?)))
+        match *buf {
+            [b'F', forward_length, ref rest @ ..] if rest.len() == forward_length as usize => {
+                Ok(SecondaryCommand(Command::parse(rest)?).into())
             }
-            _ => Ok(Self::Command(Command::parse(buf)?)),
+            [b'F', ..] => Err(WouldBlock),
+            _ => Ok(Command::parse(buf)?.into()),
         }
     }
 }
