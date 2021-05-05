@@ -107,7 +107,8 @@ pub fn process_command(
                 command[0],
                 err
             );
-            // make sure the buffer progresses here
+            // Make sure the buffer progresses here, and we don't get stuck with the same duff
+            // input bytes at the start of our buffer forever.
             return true;
         }
     };
