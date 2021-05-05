@@ -87,30 +87,30 @@ impl Command {
         W: embedded_hal::blocking::serial::Write<u8>,
     {
         match self {
-            Command::SetSideLed(on) => writer.bwrite_all(&[b'l', bool_to_ascii(*on)])?,
-            Command::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
-            Command::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
-            Command::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
-            Command::SetMaxSpeed(max_speed) => {
+            Self::SetSideLed(on) => writer.bwrite_all(&[b'l', bool_to_ascii(*on)])?,
+            Self::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
+            Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
+            Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
+            Self::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(&[b'S'])?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
                 writer.bwrite_all(&max_speed.end().to_le_bytes())?;
             }
-            Command::SetSpringConstant(spring_constant) => {
+            Self::SetSpringConstant(spring_constant) => {
                 writer.bwrite_all(&[b'K'])?;
                 writer.bwrite_all(&spring_constant.to_le_bytes())?;
             }
-            Command::SetTarget(target) => {
+            Self::SetTarget(target) => {
                 writer.bwrite_all(&[b'T'])?;
                 writer.bwrite_all(&target.to_le_bytes())?;
             }
-            Command::Recenter => writer.bwrite_all(&[b'e'])?,
-            Command::ReportBattery => writer.bwrite_all(&[b'b'])?,
-            Command::ReportCharger => writer.bwrite_all(&[b'c'])?,
-            Command::RemoveTarget => writer.bwrite_all(&[b'n'])?,
-            Command::IncrementTarget => writer.bwrite_all(&[b'+'])?,
-            Command::DecrementTarget => writer.bwrite_all(&[b'-'])?,
-            Command::PowerOff => writer.bwrite_all(&[b'p'])?,
+            Self::Recenter => writer.bwrite_all(&[b'e'])?,
+            Self::ReportBattery => writer.bwrite_all(&[b'b'])?,
+            Self::ReportCharger => writer.bwrite_all(&[b'c'])?,
+            Self::RemoveTarget => writer.bwrite_all(&[b'n'])?,
+            Self::IncrementTarget => writer.bwrite_all(&[b'+'])?,
+            Self::DecrementTarget => writer.bwrite_all(&[b'-'])?,
+            Self::PowerOff => writer.bwrite_all(&[b'p'])?,
         };
         Ok(())
     }
