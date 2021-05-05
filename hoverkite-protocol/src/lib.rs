@@ -42,14 +42,20 @@ impl Side {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
+    // b'l'
+    // b'o'
+    // b'r'
+    // b'g'
+    ReportBattery,
+    ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
     SetMaxSpeed(RangeInclusive<i16>),
     SetSpringConstant(u16),
     SetTarget(i64),
-    Recenter,
-    ReportBattery,
-    ReportCharger,
     RemoveTarget,
+    Recenter,
+    // b'+'
+    // b'-'
     PowerOff,
 }
 
