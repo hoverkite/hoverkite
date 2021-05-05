@@ -42,10 +42,10 @@ impl Side {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    // b'l'
-    // b'o'
-    // b'r'
-    // b'g'
+    SetSideLed(bool),
+    SetOrangeLed(bool),
+    SetRedLed(bool),
+    SetGreenLed(bool),
     ReportBattery,
     ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
@@ -57,6 +57,22 @@ pub enum Command {
     // b'+'
     // b'-'
     PowerOff,
+}
+
+fn ascii_to_bool(char: u8) -> Result<bool, ParseError> {
+    match char {
+        b'1' => Ok(true),
+        b'0' => Ok(false),
+        _ => Err(ParseError),
+    }
+}
+
+fn bool_to_ascii(on: bool) -> u8 {
+    if on {
+        b'1'
+    } else {
+        b'0'
+    }
 }
 
 impl Command {
@@ -71,6 +87,10 @@ impl Command {
         W: embedded_hal::blocking::serial::Write<u8>,
     {
         match self {
+            Command::SetSideLed(on) => writer.bwrite_all(&[b'l', bool_to_ascii(*on)])?,
+            Command::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
+            Command::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
+            Command::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
             Command::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(&[b'S'])?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
@@ -96,65 +116,18 @@ impl Command {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         let first = buf.get(0).ok_or(WouldBlock)?;
         match first {
-            // b'l' => match buf.get(1).ok_or(WouldBlock)? {
-            //     b'0' => {
-            //         log!(hoverboard.response_tx(), "LED off");
-            //         hoverboard.leds.side.set_low().unwrap()
-            //     }
-            //     b'1' => {
-            //         log!(hoverboard.response_tx(), "LED on");
-            //         hoverboard.leds.side.set_high().unwrap()
-            //     }
-            //     _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            // },
-            // b'o' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "orange off");
-            //             hoverboard.leds.orange.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "orange on");
-            //             hoverboard.leds.orange.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
-            // b'r' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "red off");
-            //             hoverboard.leds.red.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "red on");
-            //             hoverboard.leds.red.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
-            // b'g' => {
-            //     if command.len() < 2 {
-            //         return false;
-            //     }
-            //     match command[1] {
-            //         b'0' => {
-            //             log!(hoverboard.response_tx(), "green off");
-            //             hoverboard.leds.green.set_low().unwrap()
-            //         }
-            //         b'1' => {
-            //             log!(hoverboard.response_tx(), "green on");
-            //             hoverboard.leds.green.set_high().unwrap()
-            //         }
-            //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-            //     }
-            // }
+            b'l' => Ok(Command::SetSideLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'o' => Ok(Command::SetOrangeLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'r' => Ok(Command::SetRedLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'g' => Ok(Command::SetGreenLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
             b'b' => Ok(Self::ReportBattery),
             b'c' => Ok(Self::ReportCharger),
             b'S' => {
@@ -290,6 +263,10 @@ mod tests {
         use test_case::test_case;
         use Command::*;
 
+        #[test_case(SetSideLed(true))]
+        #[test_case(SetOrangeLed(false))]
+        #[test_case(SetRedLed(true))]
+        #[test_case(SetGreenLed(false))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
