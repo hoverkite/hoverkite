@@ -116,71 +116,43 @@ pub fn process_command(
         Message::SecondaryCommand(sc) => {
             forward_command(hoverboard, &sc.0);
         }
-        // b'l' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "LED off");
-        //             hoverboard.leds.side.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "LED on");
-        //             hoverboard.leds.side.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'o' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "orange off");
-        //             hoverboard.leds.orange.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "orange on");
-        //             hoverboard.leds.orange.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'r' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "red off");
-        //             hoverboard.leds.red.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "red on");
-        //             hoverboard.leds.red.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
-        // b'g' => {
-        //     if command.len() < 2 {
-        //         return false;
-        //     }
-        //     match command[1] {
-        //         b'0' => {
-        //             log!(hoverboard.response_tx(), "green off");
-        //             hoverboard.leds.green.set_low().unwrap()
-        //         }
-        //         b'1' => {
-        //             log!(hoverboard.response_tx(), "green on");
-        //             hoverboard.leds.green.set_high().unwrap()
-        //         }
-        //         _ => log!(hoverboard.response_tx(), "LED unrecognised"),
-        //     }
-        // }
         Message::Command(c) => match c {
+            Command::SetSideLed(on) => {
+                if on {
+                    log!(hoverboard.response_tx(), "side LED on");
+                    hoverboard.leds.side.set_high().unwrap()
+                } else {
+                    log!(hoverboard.response_tx(), "side LED off");
+                    hoverboard.leds.side.set_low().unwrap()
+                }
+            }
+            Command::SetOrangeLed(on) => {
+                if on {
+                    log!(hoverboard.response_tx(), "orange on");
+                    hoverboard.leds.orange.set_high().unwrap()
+                } else {
+                    log!(hoverboard.response_tx(), "orange off");
+                    hoverboard.leds.orange.set_low().unwrap()
+                }
+            }
+            Command::SetRedLed(on) => {
+                if on {
+                    log!(hoverboard.response_tx(), "green on");
+                    hoverboard.leds.red.set_high().unwrap()
+                } else {
+                    log!(hoverboard.response_tx(), "green off");
+                    hoverboard.leds.red.set_low().unwrap()
+                }
+            }
+            Command::SetGreenLed(on) => {
+                if on {
+                    log!(hoverboard.response_tx(), "green on");
+                    hoverboard.leds.green.set_high().unwrap()
+                } else {
+                    log!(hoverboard.response_tx(), "green off");
+                    hoverboard.leds.green.set_low().unwrap()
+                }
+            }
             Command::ReportBattery => {
                 let readings = hoverboard.adc_readings();
                 log!(
