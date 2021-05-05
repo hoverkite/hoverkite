@@ -117,21 +117,13 @@ impl Command {
 
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         let first = buf.get(0).ok_or(WouldBlock)?;
-        match first {
-            b'l' => Ok(Command::SetSideLed(ascii_to_bool(
-                *buf.get(1).ok_or(WouldBlock)?,
-            )?)),
-            b'o' => Ok(Command::SetOrangeLed(ascii_to_bool(
-                *buf.get(1).ok_or(WouldBlock)?,
-            )?)),
-            b'r' => Ok(Command::SetRedLed(ascii_to_bool(
-                *buf.get(1).ok_or(WouldBlock)?,
-            )?)),
-            b'g' => Ok(Command::SetGreenLed(ascii_to_bool(
-                *buf.get(1).ok_or(WouldBlock)?,
-            )?)),
-            b'b' => Ok(Self::ReportBattery),
-            b'c' => Ok(Self::ReportCharger),
+        let command = match first {
+            b'l' => Self::SetSideLed(ascii_to_bool(*buf.get(1).ok_or(WouldBlock)?)?),
+            b'o' => Self::SetOrangeLed(ascii_to_bool(*buf.get(1).ok_or(WouldBlock)?)?),
+            b'r' => Self::SetRedLed(ascii_to_bool(*buf.get(1).ok_or(WouldBlock)?)?),
+            b'g' => Self::SetGreenLed(ascii_to_bool(*buf.get(1).ok_or(WouldBlock)?)?),
+            b'b' => Self::ReportBattery,
+            b'c' => Self::ReportCharger,
             b'S' => {
                 if buf.len() < 5 {
                     return Err(WouldBlock);
@@ -139,29 +131,30 @@ impl Command {
                 let min_power = i16::from_le_bytes(buf[1..3].try_into().unwrap());
                 let max_power = i16::from_le_bytes(buf[3..5].try_into().unwrap());
 
-                Ok(Self::SetMaxSpeed(min_power..=max_power))
+                Self::SetMaxSpeed(min_power..=max_power)
             }
             b'K' => {
                 if buf.len() < 3 {
                     return Err(WouldBlock);
                 }
                 let spring = u16::from_le_bytes(buf[1..3].try_into().unwrap()).into();
-                Ok(Self::SetSpringConstant(spring))
+                Self::SetSpringConstant(spring)
             }
-            b'n' => Ok(Self::RemoveTarget),
+            b'n' => Self::RemoveTarget,
             b'T' => {
                 if buf.len() < 9 {
                     return Err(WouldBlock);
                 }
                 let target = i64::from_le_bytes(buf[1..9].try_into().unwrap());
-                Ok(Self::SetTarget(target))
+                Self::SetTarget(target)
             }
-            b'e' => Ok(Self::Recenter),
-            b'+' => Ok(Self::IncrementTarget),
-            b'-' => Ok(Self::DecrementTarget),
-            b'p' => Ok(Self::PowerOff),
-            _ => Err(Other(ParseError)),
-        }
+            b'e' => Self::Recenter,
+            b'+' => Self::IncrementTarget,
+            b'-' => Self::DecrementTarget,
+            b'p' => Self::PowerOff,
+            _ => return Err(Other(ParseError)),
+        };
+        Ok(command)
     }
 }
 
