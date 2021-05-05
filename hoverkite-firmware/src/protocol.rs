@@ -7,13 +7,12 @@ use core::{
     ops::{Deref, RangeInclusive},
 };
 use embedded_hal::blocking::serial::Write;
-use embedded_hal::serial::Read;
 use gd32f1x0_hal::{
     pac::{self, usart0},
     prelude::*,
     serial::{Rx, Tx},
 };
-use hoverkite_protocol::{Command, Message, MessageReader, ParseError};
+use hoverkite_protocol::{Command, Message, MessageReader};
 
 #[macro_export]
 macro_rules! log {
@@ -97,7 +96,7 @@ pub fn process_command(
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
-) -> bool {
+) {
     match message {
         Message::SecondaryCommand(sc) => {
             forward_command(hoverboard, &sc.0);
@@ -189,7 +188,6 @@ pub fn process_command(
             Command::PowerOff => poweroff(hoverboard),
         },
     }
-    true
 }
 
 pub trait HoverboardExt {
