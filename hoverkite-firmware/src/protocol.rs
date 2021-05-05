@@ -7,12 +7,13 @@ use core::{
     ops::{Deref, RangeInclusive},
 };
 use embedded_hal::blocking::serial::Write;
+use embedded_hal::serial::Read;
 use gd32f1x0_hal::{
     pac::{self, usart0},
     prelude::*,
     serial::{Rx, Tx},
 };
-use hoverkite_protocol::{Command, Message};
+use hoverkite_protocol::{Command, Message, MessageReader, ParseError};
 
 #[macro_export]
 macro_rules! log {
@@ -91,28 +92,12 @@ fn forward_command(hoverboard: &mut Hoverboard, _command: &Command) {
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
 pub fn process_command(
-    command: &[u8],
+    message: Message,
     hoverboard: &mut Hoverboard,
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
 ) -> bool {
-    let message = match Message::parse(command) {
-        Ok(message) => message,
-        Err(nb::Error::WouldBlock) => return false,
-        Err(err) => {
-            log!(
-                hoverboard.response_tx(),
-                "Unrecognised command {} or problem {:?}",
-                command[0],
-                err
-            );
-            // Make sure the buffer progresses here, and we don't get stuck with the same duff
-            // input bytes at the start of our buffer forever.
-            return true;
-        }
-    };
-
     match message {
         Message::SecondaryCommand(sc) => {
             forward_command(hoverboard, &sc.0);
@@ -184,9 +169,6 @@ pub fn process_command(
                 *target_position = None;
             }
             Command::SetTarget(target) => {
-                if command.len() < 9 {
-                    return false;
-                }
                 *target_position = Some(target);
             }
             Command::Recenter => {
@@ -213,7 +195,7 @@ pub fn process_command(
 pub trait HoverboardExt {
     type CommandUsart: Deref<Target = usart0::RegisterBlock>;
 
-    fn command_rx(&mut self) -> &mut Rx<Self::CommandUsart>;
+    fn command_rx(&mut self) -> &mut MessageReader<Rx<Self::CommandUsart>>;
     fn response_tx(&mut self) -> &mut BufferedSerialWriter<Tx<Self::CommandUsart>>;
 }
 
@@ -221,7 +203,7 @@ pub trait HoverboardExt {
 impl HoverboardExt for Hoverboard {
     type CommandUsart = pac::USART0;
 
-    fn command_rx(&mut self) -> &mut Rx<pac::USART0> {
+    fn command_rx(&mut self) -> &mut MessageReader<Rx<pac::USART0>> {
         &mut self.serial_remote_rx
     }
 
@@ -234,7 +216,7 @@ impl HoverboardExt for Hoverboard {
 impl HoverboardExt for Hoverboard {
     type CommandUsart = pac::USART1;
 
-    fn command_rx(&mut self) -> &mut Rx<pac::USART1> {
+    fn command_rx(&mut self) -> &mut MessageReader<Rx<pac::USART1>> {
         &mut self.serial_rx
     }
 

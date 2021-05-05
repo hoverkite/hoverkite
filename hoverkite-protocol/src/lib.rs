@@ -204,6 +204,36 @@ impl Message {
     }
 }
 
+pub struct MessageReader<R: embedded_hal::serial::Read<u8>> {
+    reader: R,
+    buf: [u8; 12],
+}
+
+impl<R: embedded_hal::serial::Read<u8>> MessageReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self {
+            reader,
+            buf: [0; 12],
+        }
+    }
+}
+
+impl<R: embedded_hal::serial::Read<u8>> embedded_hal::serial::Read<Message> for MessageReader<R> {
+    type Error = nb::Error<ParseError>;
+
+    fn read(&mut self) -> nb::Result<Message, Self::Error> {
+        todo!()
+
+        // match self.reader.read()
+        // command_buffer[command_len] = char;
+        // command_len += 1;
+        // if command_len >= command_buffer.len() {
+        //     log!(hoverboard.response_tx(), "Command too long");
+        //     command_len = 0;
+        // }
+    }
+}
+
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {

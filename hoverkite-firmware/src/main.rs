@@ -9,6 +9,7 @@ mod util;
 
 #[cfg(feature = "primary")]
 use hoverkite_protocol::Command;
+use hoverkite_protocol::MessageReader;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -21,8 +22,10 @@ use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
-use protocol::{process_command, send_position, HoverboardExt};
+use protocol::{process_command, send_position};
 use util::clamp;
+
+use crate::protocol::HoverboardExt;
 
 const WATCHDOG_MILLIS: u32 = 1000;
 
@@ -80,7 +83,6 @@ fn main() -> ! {
     log!(hoverboard.response_tx(), "Ready");
 
     let mut last_position = 0;
-    let mut command_buffer = [0; 12];
     let mut command_len = 0;
     #[cfg(feature = "primary")]
     let mut proxy_response_buffer = [0; 100];
@@ -96,23 +98,27 @@ fn main() -> ! {
 
         // Read from the command USART if data is available.
         match hoverboard.command_rx().read() {
-            Ok(char) => {
-                command_buffer[command_len] = char;
-                command_len += 1;
+            Ok(message) => {
                 if process_command(
-                    &command_buffer[0..command_len],
+                    message,
                     &mut hoverboard,
                     &mut speed_limits,
                     &mut target_position,
                     &mut spring_constant,
                 ) {
                     command_len = 0;
-                } else if command_len >= command_buffer.len() {
-                    log!(hoverboard.response_tx(), "Command too long");
-                    command_len = 0;
                 }
             }
             Err(nb::Error::WouldBlock) => {}
+            // something like:
+            // Err(nb::Error::Other(ParseError)) => {
+            //     log!(
+            //         hoverboard.response_tx(),
+            //         "Unrecognised command {} or problem {:?}",
+            //         command[0],
+            //         err
+            //     );
+            // }
             Err(nb::Error::Other(e)) => {
                 log!(
                     hoverboard.response_tx(),

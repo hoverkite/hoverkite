@@ -26,6 +26,7 @@ use gd32f1x0_hal::{
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
 };
+use hoverkite_protocol::MessageReader;
 
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
@@ -149,9 +150,9 @@ fn DMA_CHANNEL0() {
 }
 
 pub struct Hoverboard {
-    pub serial_remote_rx: Rx<USART0>,
+    pub serial_remote_rx: MessageReader<Rx<USART0>>,
     pub serial_remote_writer: BufferedSerialWriter<Tx<USART0>>,
-    pub serial_rx: Rx<USART1>,
+    pub serial_rx: MessageReader<Rx<USART1>>,
     pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
     pub buzzer: PB10<Output<PushPull>>,
     pub power_latch: PB2<Output<PushPull>>,
@@ -305,9 +306,9 @@ impl Hoverboard {
         }
 
         Hoverboard {
-            serial_remote_rx,
+            serial_remote_rx: MessageReader::new(serial_remote_rx),
             serial_remote_writer,
-            serial_rx,
+            serial_rx: MessageReader::new(serial_rx),
             serial_writer,
             buzzer: gpiob.pb10.into_push_pull_output(&mut gpiob.config),
             power_latch: gpiob.pb2.into_push_pull_output(&mut gpiob.config),
