@@ -193,16 +193,16 @@ pub fn process_command(
                 hoverboard.recenter_motor();
                 *target_position = Some(0);
             }
-            // b'+' => {
-            //     let target = target_position.unwrap_or(0) + 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
-            // b'-' => {
-            //     let target = target_position.unwrap_or(0) - 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
+            Command::IncrementTarget => {
+                let target = target_position.unwrap_or(0) + 10;
+                log!(hoverboard.response_tx(), "Target position {}", target);
+                *target_position = Some(target);
+            }
+            Command::DecrementTarget => {
+                let target = target_position.unwrap_or(0) - 10;
+                log!(hoverboard.response_tx(), "Target position {}", target);
+                *target_position = Some(target);
+            }
             Command::PowerOff => poweroff(hoverboard),
         },
     }

@@ -54,8 +54,8 @@ pub enum Command {
     SetTarget(i64),
     RemoveTarget,
     Recenter,
-    // b'+'
-    // b'-'
+    IncrementTarget,
+    DecrementTarget,
     PowerOff,
 }
 
@@ -108,6 +108,8 @@ impl Command {
             Command::ReportBattery => writer.bwrite_all(&[b'b'])?,
             Command::ReportCharger => writer.bwrite_all(&[b'c'])?,
             Command::RemoveTarget => writer.bwrite_all(&[b'n'])?,
+            Command::IncrementTarget => writer.bwrite_all(&[b'+'])?,
+            Command::DecrementTarget => writer.bwrite_all(&[b'-'])?,
             Command::PowerOff => writer.bwrite_all(&[b'p'])?,
         };
         Ok(())
@@ -155,16 +157,8 @@ impl Command {
                 Ok(Self::SetTarget(target))
             }
             b'e' => Ok(Self::Recenter),
-            // b'+' => {
-            //     let target = target_position.unwrap_or(0) + 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
-            // b'-' => {
-            //     let target = target_position.unwrap_or(0) - 10;
-            //     log!(hoverboard.response_tx(), "Target position {}", target);
-            //     *target_position = Some(target);
-            // }
+            b'+' => Ok(Self::IncrementTarget),
+            b'-' => Ok(Self::DecrementTarget),
             b'p' => Ok(Self::PowerOff),
             _ => Err(Other(ParseError)),
         }
