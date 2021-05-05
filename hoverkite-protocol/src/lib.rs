@@ -288,5 +288,26 @@ mod tests {
 
             assert_eq!(round_tripped_command, Err(WouldBlock))
         }
+
+        #[test_case(SetSideLed(true))]
+        #[test_case(SetOrangeLed(false))]
+        #[test_case(SetRedLed(true))]
+        #[test_case(SetGreenLed(false))]
+        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetSpringConstant(42))]
+        #[test_case(SetTarget(-42))]
+        #[test_case(Recenter)]
+        #[test_case(ReportBattery)]
+        #[test_case(ReportCharger)]
+        #[test_case(RemoveTarget)]
+        #[test_case(PowerOff)]
+        fn parse_error_if_extra_byte(command: Command) {
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            buf.push(42);
+            let round_tripped_command = Command::parse(&buf);
+
+            assert_eq!(round_tripped_command, Err(Other(ParseError)))
+        }
     }
 }
