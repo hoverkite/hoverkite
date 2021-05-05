@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use core::ops::RangeInclusive;
+use core::{convert::TryInto, ops::RangeInclusive};
+
+use nb::Error::{Other, WouldBlock};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:
@@ -40,14 +42,37 @@ impl Side {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
+    SetSideLed(bool),
+    SetOrangeLed(bool),
+    SetRedLed(bool),
+    SetGreenLed(bool),
+    ReportBattery,
+    ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
     SetMaxSpeed(RangeInclusive<i16>),
     SetSpringConstant(u16),
     SetTarget(i64),
-    Recenter,
-    ReportBattery,
     RemoveTarget,
+    Recenter,
+    IncrementTarget,
+    DecrementTarget,
     PowerOff,
+}
+
+fn ascii_to_bool(char: u8) -> Result<bool, ParseError> {
+    match char {
+        b'1' => Ok(true),
+        b'0' => Ok(false),
+        _ => Err(ParseError),
+    }
+}
+
+fn bool_to_ascii(on: bool) -> u8 {
+    if on {
+        b'1'
+    } else {
+        b'0'
+    }
 }
 
 impl Command {
@@ -62,6 +87,10 @@ impl Command {
         W: embedded_hal::blocking::serial::Write<u8>,
     {
         match self {
+            Command::SetSideLed(on) => writer.bwrite_all(&[b'l', bool_to_ascii(*on)])?,
+            Command::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
+            Command::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
+            Command::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
             Command::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(&[b'S'])?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
@@ -77,12 +106,67 @@ impl Command {
             }
             Command::Recenter => writer.bwrite_all(&[b'e'])?,
             Command::ReportBattery => writer.bwrite_all(&[b'b'])?,
+            Command::ReportCharger => writer.bwrite_all(&[b'c'])?,
             Command::RemoveTarget => writer.bwrite_all(&[b'n'])?,
+            Command::IncrementTarget => writer.bwrite_all(&[b'+'])?,
+            Command::DecrementTarget => writer.bwrite_all(&[b'-'])?,
             Command::PowerOff => writer.bwrite_all(&[b'p'])?,
         };
         Ok(())
     }
+
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        let first = buf.get(0).ok_or(WouldBlock)?;
+        match first {
+            b'l' => Ok(Command::SetSideLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'o' => Ok(Command::SetOrangeLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'r' => Ok(Command::SetRedLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'g' => Ok(Command::SetGreenLed(ascii_to_bool(
+                *buf.get(1).ok_or(WouldBlock)?,
+            )?)),
+            b'b' => Ok(Self::ReportBattery),
+            b'c' => Ok(Self::ReportCharger),
+            b'S' => {
+                if buf.len() < 5 {
+                    return Err(WouldBlock);
+                }
+                let min_power = i16::from_le_bytes(buf[1..3].try_into().unwrap());
+                let max_power = i16::from_le_bytes(buf[3..5].try_into().unwrap());
+
+                Ok(Self::SetMaxSpeed(min_power..=max_power))
+            }
+            b'K' => {
+                if buf.len() < 3 {
+                    return Err(WouldBlock);
+                }
+                let spring = u16::from_le_bytes(buf[1..3].try_into().unwrap()).into();
+                Ok(Self::SetSpringConstant(spring))
+            }
+            b'n' => Ok(Self::RemoveTarget),
+            b'T' => {
+                if buf.len() < 9 {
+                    return Err(WouldBlock);
+                }
+                let target = i64::from_le_bytes(buf[1..9].try_into().unwrap());
+                Ok(Self::SetTarget(target))
+            }
+            b'e' => Ok(Self::Recenter),
+            b'+' => Ok(Self::IncrementTarget),
+            b'-' => Ok(Self::DecrementTarget),
+            b'p' => Ok(Self::PowerOff),
+            _ => Err(Other(ParseError)),
+        }
+    }
 }
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct ParseError;
 
 pub struct SecondaryCommand(pub Command);
 
@@ -99,16 +183,34 @@ impl SecondaryCommand {
     }
 }
 
-// ... and then we could have an enum that represents all possible messages
-// that can be sent/received over the wire that looks something like this?
-// enum Message {
-//     Command(Command),
-//     SecondaryCommand(SecondaryCommand),
-//     LogMessage(LogMessage),
-//     SecondaryLogMessage(SecondaryLogMessage),
-//     CurrentPosition(CurrentPosition)
-//     SecondaryCurrentPosition(SecondaryCurrentPosition)
-// }
+pub enum Message {
+    Command(Command),
+    SecondaryCommand(SecondaryCommand),
+    // TODO: add variants for the other things, or create a second enum that contains them.
+    // Something like:
+    //     LogMessage(LogMessage),
+    //     SecondaryLogMessage(SecondaryLogMessage),
+    //     CurrentPosition(CurrentPosition),
+    //     SecondaryCurrentPosition(SecondaryCurrentPosition),
+}
+
+impl Message {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        let first = buf.get(0).ok_or(WouldBlock)?;
+        match first {
+            b'F' => {
+                let forward_length = buf.get(1).ok_or(WouldBlock)?;
+                if buf.len() < *forward_length as usize + 2 {
+                    return Err(WouldBlock);
+                }
+                Ok(Self::SecondaryCommand(SecondaryCommand(Command::parse(
+                    &buf[2..],
+                )?)))
+            }
+            _ => Ok(Self::Command(Command::parse(buf)?)),
+        }
+    }
+}
 
 #[cfg(feature = "std")]
 #[cfg(test)]
@@ -144,6 +246,35 @@ mod tests {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
             assert_eq!(buf, [b'F', 1, b'p']);
+        }
+    }
+
+    // TODO: see if it's possible to verify this round-trip property
+    // for all Command variants using cargo-propverify, so we don't
+    // have to maintain this test as we add/remove variants.
+    mod round_trip {
+        use super::*;
+        use test_case::test_case;
+        use Command::*;
+
+        #[test_case(SetSideLed(true))]
+        #[test_case(SetOrangeLed(false))]
+        #[test_case(SetRedLed(true))]
+        #[test_case(SetGreenLed(false))]
+        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetSpringConstant(42))]
+        #[test_case(SetTarget(-42))]
+        #[test_case(Recenter)]
+        #[test_case(ReportBattery)]
+        #[test_case(ReportCharger)]
+        #[test_case(RemoveTarget)]
+        #[test_case(PowerOff)]
+        fn round_trip_equality(command: Command) {
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            let round_tripped_command = Command::parse(&buf).unwrap();
+
+            assert_eq!(round_tripped_command, command)
         }
     }
 }
