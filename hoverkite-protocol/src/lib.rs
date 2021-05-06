@@ -210,10 +210,20 @@ impl From<Command> for Message {
 impl Message {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         match *buf {
-            [b'F', forward_length, ref rest @ ..] if rest.len() == forward_length as usize => {
-                Ok(SecondaryCommand(Command::parse(rest)?).into())
+            [b'F', ref rest @ ..] => {
+                if let [forward_length, ref rest @ ..] = *rest {
+                    let forward_length = forward_length as usize;
+                    if rest.len() < forward_length {
+                        Err(WouldBlock)
+                    } else if rest.len() == forward_length {
+                        Ok(SecondaryCommand(Command::parse(rest)?).into())
+                    } else {
+                        Err(Other(ParseError))
+                    }
+                } else {
+                    Err(WouldBlock)
+                }
             }
-            [b'F', ..] => Err(WouldBlock),
             _ => Ok(Command::parse(buf)?.into()),
         }
     }
