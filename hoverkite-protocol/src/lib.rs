@@ -117,34 +117,49 @@ impl Command {
 
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         let command = match *buf {
+            [] | [b'l'] | [b'o'] | [b'r'] | [b'g'] => return Err(WouldBlock),
             [b'l', on] => Self::SetSideLed(ascii_to_bool(on)?),
             [b'o', on] => Self::SetOrangeLed(ascii_to_bool(on)?),
             [b'r', on] => Self::SetRedLed(ascii_to_bool(on)?),
             [b'g', on] => Self::SetGreenLed(ascii_to_bool(on)?),
             [b'b'] => Self::ReportBattery,
             [b'c'] => Self::ReportCharger,
-            [b'S', min_lsb, min_msb, max_lsb, max_msb] => {
-                let min_power = i16::from_le_bytes([min_lsb, min_msb]);
-                let max_power = i16::from_le_bytes([max_lsb, max_msb]);
-                Self::SetMaxSpeed(min_power..=max_power)
+            [b'S', ref rest @ ..] => {
+                if rest.len() < 4 {
+                    return Err(WouldBlock);
+                } else if let [min_lsb, min_msb, max_lsb, max_msb] = *rest {
+                    let min_power = i16::from_le_bytes([min_lsb, min_msb]);
+                    let max_power = i16::from_le_bytes([max_lsb, max_msb]);
+                    Self::SetMaxSpeed(min_power..=max_power)
+                } else {
+                    return Err(Other(ParseError));
+                }
             }
-            [b'K', lsb, msb] => {
-                let spring = u16::from_le_bytes([lsb, msb]);
-                Self::SetSpringConstant(spring)
+            [b'K', ref rest @ ..] => {
+                if rest.len() < 2 {
+                    return Err(WouldBlock);
+                } else if let [lsb, msb] = *rest {
+                    let spring = u16::from_le_bytes([lsb, msb]);
+                    Self::SetSpringConstant(spring)
+                } else {
+                    return Err(Other(ParseError));
+                }
             }
             [b'n'] => Self::RemoveTarget,
-            [b'T', b0, b1, b2, b3, b4, b5, b6, b7] => {
-                let target = i64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7]);
-                Self::SetTarget(target)
+            [b'T', ref rest @ ..] => {
+                if rest.len() < 8 {
+                    return Err(WouldBlock);
+                } else if let [b0, b1, b2, b3, b4, b5, b6, b7] = *rest {
+                    let target = i64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7]);
+                    Self::SetTarget(target)
+                } else {
+                    return Err(Other(ParseError));
+                }
             }
             [b'e'] => Self::Recenter,
             [b'+'] => Self::IncrementTarget,
             [b'-'] => Self::DecrementTarget,
             [b'p'] => Self::PowerOff,
-            [] | [b'l'] | [b'o'] | [b'r'] | [b'g'] => return Err(WouldBlock),
-            [b'S', ref rest @ ..] if rest.len() < 4 => return Err(WouldBlock),
-            [b'K', _lsb] => return Err(WouldBlock),
-            [b'T', ref rest @ ..] if rest.len() < 8 => return Err(WouldBlock),
             _ => return Err(Other(ParseError)),
         };
         Ok(command)
