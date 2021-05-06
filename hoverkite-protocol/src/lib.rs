@@ -169,6 +169,7 @@ impl Command {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ParseError;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SecondaryCommand(pub Command);
 
 // I'm not expecting to need this anywhere other than on the host.
@@ -184,6 +185,7 @@ impl SecondaryCommand {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Message {
     Command(Command),
     SecondaryCommand(SecondaryCommand),
@@ -193,6 +195,16 @@ pub enum Message {
     //     SecondaryLogMessage(SecondaryLogMessage),
     //     CurrentPosition(CurrentPosition),
     //     SecondaryCurrentPosition(SecondaryCurrentPosition),
+}
+
+#[cfg(feature = "std")]
+impl Message {
+    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Self::Command(c) => c.write_to_std(writer),
+            Self::SecondaryCommand(sc) => sc.write_to_std(writer),
+        }
+    }
 }
 
 impl From<SecondaryCommand> for Message {
@@ -266,6 +278,34 @@ mod tests {
         }
     }
 
+    mod message {
+        use super::*;
+
+        #[test]
+        fn missing_byte_secondary() {
+            let message = Message::from(SecondaryCommand(Command::PowerOff));
+
+            let mut buf = vec![];
+            message.write_to_std(&mut buf).unwrap();
+            for remove_count in 1..=buf.len() {
+                let round_tripped_message = Message::parse(&buf[..buf.len() - remove_count]);
+                assert_eq!(round_tripped_message, Err(WouldBlock))
+            }
+        }
+
+        #[test]
+        fn parse_error_if_extra_byte() {
+            let message = Message::from(SecondaryCommand(Command::PowerOff));
+
+            let mut buf = vec![];
+            message.write_to_std(&mut buf).unwrap();
+            buf.push(42);
+            let round_tripped_message = Message::parse(&buf);
+
+            assert_eq!(round_tripped_message, Err(Other(ParseError)))
+        }
+    }
+
     // TODO: see if it's possible to verify this round-trip property
     // for all Command variants using cargo-propverify, so we don't
     // have to maintain this test as we add/remove variants.
@@ -309,9 +349,10 @@ mod tests {
         fn would_block_if_missing_byte(command: Command) {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
-            let round_tripped_command = Command::parse(&buf[..buf.len() - 1]);
-
-            assert_eq!(round_tripped_command, Err(WouldBlock))
+            for remove_count in 1..=buf.len() {
+                let round_tripped_command = Command::parse(&buf[..buf.len() - remove_count]);
+                assert_eq!(round_tripped_command, Err(WouldBlock))
+            }
         }
 
         #[test_case(SetSideLed(true))]
