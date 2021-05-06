@@ -325,6 +325,8 @@ mod tests {
         #[test_case(ReportBattery)]
         #[test_case(ReportCharger)]
         #[test_case(RemoveTarget)]
+        #[test_case(IncrementTarget)]
+        #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
         fn round_trip_equality(command: Command) {
             let mut buf = vec![];
@@ -345,6 +347,8 @@ mod tests {
         #[test_case(ReportBattery)]
         #[test_case(ReportCharger)]
         #[test_case(RemoveTarget)]
+        #[test_case(IncrementTarget)]
+        #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
         fn would_block_if_missing_byte(command: Command) {
             let mut buf = vec![];
@@ -366,6 +370,8 @@ mod tests {
         #[test_case(ReportBattery)]
         #[test_case(ReportCharger)]
         #[test_case(RemoveTarget)]
+        #[test_case(IncrementTarget)]
+        #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
         fn parse_error_if_extra_byte(command: Command) {
             let mut buf = vec![];
