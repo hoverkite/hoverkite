@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use core::mem::size_of;
 use core::{convert::TryInto, ops::RangeInclusive};
 
 use nb::Error::{Other, WouldBlock};
@@ -127,34 +128,30 @@ impl Command {
             [b'S', ref rest @ ..] => {
                 if rest.len() < 4 {
                     return Err(WouldBlock);
-                } else if let [min_lsb, min_msb, max_lsb, max_msb] = *rest {
-                    let min_power = i16::from_le_bytes([min_lsb, min_msb]);
-                    let max_power = i16::from_le_bytes([max_lsb, max_msb]);
-                    Self::SetMaxSpeed(min_power..=max_power)
-                } else {
+                }
+                if rest.len() > 4 {
                     return Err(Other(ParseError));
                 }
+                let min_power = i16::from_le_bytes(rest[..2].try_into().unwrap());
+                let max_power = i16::from_le_bytes(rest[2..4].try_into().unwrap());
+                Self::SetMaxSpeed(min_power..=max_power)
             }
             [b'K', ref rest @ ..] => {
-                if rest.len() < 2 {
+                if rest.len() < size_of::<u16>() {
                     return Err(WouldBlock);
-                } else if let [lsb, msb] = *rest {
-                    let spring = u16::from_le_bytes([lsb, msb]);
-                    Self::SetSpringConstant(spring)
-                } else {
-                    return Err(Other(ParseError));
                 }
+                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let spring = u16::from_le_bytes(bytes);
+                Self::SetSpringConstant(spring)
             }
             [b'n'] => Self::RemoveTarget,
             [b'T', ref rest @ ..] => {
-                if rest.len() < 8 {
+                if rest.len() < size_of::<i64>() {
                     return Err(WouldBlock);
-                } else if let [b0, b1, b2, b3, b4, b5, b6, b7] = *rest {
-                    let target = i64::from_le_bytes([b0, b1, b2, b3, b4, b5, b6, b7]);
-                    Self::SetTarget(target)
-                } else {
-                    return Err(Other(ParseError));
                 }
+                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let target = i64::from_le_bytes(bytes);
+                Self::SetTarget(target)
             }
             [b'e'] => Self::Recenter,
             [b'+'] => Self::IncrementTarget,
