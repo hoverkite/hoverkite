@@ -302,3 +302,68 @@ pub enum SideResponse {
         charger_connected: bool,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    #[test]
+    fn parse_invalid() {
+        let mut buffer = VecDeque::new();
+        buffer.extend(b"x");
+        assert_eq!(parse_response(&mut buffer, Side::Right), None);
+        assert_eq!(buffer.len(), 0);
+    }
+
+    #[test]
+    fn parse_empty() {
+        let mut buffer = VecDeque::new();
+        assert_eq!(parse_response(&mut buffer, Side::Right), None);
+        assert_eq!(buffer.len(), 0);
+    }
+
+    // TODO: test_case doesn't allow test cases which differ only in case.
+    #[test_case(b"I")]
+    #[test_case(b"B12345")]
+    #[test_case(b"C")]
+    #[test_case(b"\"blah")]
+    fn parse_partial(partial_response: &[u8]) {
+        for length in 1..=partial_response.len() {
+            let mut buffer = VecDeque::new();
+            buffer.extend(&partial_response[..length]);
+            assert_eq!(parse_response(&mut buffer, Side::Right), None);
+            // No bytes should be consumed from the buffer.
+            assert_eq!(buffer.len(), length);
+        }
+    }
+
+    #[test]
+    fn parse_invalid_charge_state() {
+        let mut buffer = VecDeque::new();
+        buffer.extend(b"Cx");
+        assert_eq!(parse_response(&mut buffer, Side::Right), None);
+        assert_eq!(buffer.len(), 0);
+    }
+
+    #[test_case(b"I12345678", SideResponse::Position(4050765991979987505))]
+    #[test_case(b"B123456", SideResponse::BatteryReadings {
+        battery_voltage: 12849,
+        backup_battery_voltage: 13363,
+        motor_current: 13877,
+    })]
+    #[test_case(b"C0", SideResponse::ChargeState { charger_connected: false })]
+    #[test_case(b"C1", SideResponse::ChargeState { charger_connected: true })]
+    fn parse_valid(bytes: &[u8], response: SideResponse) {
+        let mut buffer = VecDeque::new();
+        buffer.extend(bytes);
+        assert_eq!(
+            parse_response(&mut buffer, Side::Right),
+            Some(Response {
+                side: Side::Right,
+                response
+            })
+        );
+        assert_eq!(buffer.len(), 0);
+    }
+}
