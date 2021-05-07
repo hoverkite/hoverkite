@@ -1,10 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod command;
+#[cfg(feature = "std")]
+mod response;
 
 use nb::Error::{Other, WouldBlock};
 
 pub use command::{Command, SecondaryCommand};
+#[cfg(feature = "std")]
+pub use response::{Response, SideResponse, UnexpectedResponse};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:
