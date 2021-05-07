@@ -147,6 +147,18 @@ fn print_response(response: &Option<Response>) {
             side,
             response: SideResponse::Position(position),
         }) => println!("{:?} at {}", side, position),
+        Some(Response {
+            side,
+            response:
+                SideResponse::BatteryReadings {
+                    battery_voltage,
+                    backup_battery_voltage,
+                    motor_current,
+                },
+        }) => println!(
+            "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
+            side, battery_voltage, backup_battery_voltage, motor_current
+        ),
         None => {}
     }
 }
@@ -203,6 +215,29 @@ fn parse_response(buffer: &mut VecDeque<u8>, side: Side) -> Option<Response> {
                 None
             }
         }
+        Some(b'B') | Some(b'b') => {
+            if buffer.len() >= 7 {
+                let side = if buffer.pop_front().unwrap() == b'B' {
+                    side
+                } else {
+                    side.opposite()
+                };
+                let bytes: Vec<u8> = buffer.drain(0..6).collect();
+                let battery_voltage = u16::from_le_bytes(bytes[0..2].try_into().unwrap());
+                let backup_battery_voltage = u16::from_le_bytes(bytes[2..4].try_into().unwrap());
+                let motor_current = u16::from_le_bytes(bytes[4..6].try_into().unwrap());
+                Some(Response {
+                    side,
+                    response: SideResponse::BatteryReadings {
+                        battery_voltage,
+                        backup_battery_voltage,
+                        motor_current,
+                    },
+                })
+            } else {
+                None
+            }
+        }
         Some(r) => {
             error!("Unexpected response {:?}", r);
             buffer.pop_front();
@@ -222,4 +257,9 @@ pub struct Response {
 pub enum SideResponse {
     Log(String),
     Position(i64),
+    BatteryReadings {
+        battery_voltage: u16,
+        backup_battery_voltage: u16,
+        motor_current: u16,
+    },
 }

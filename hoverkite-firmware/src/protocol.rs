@@ -35,6 +35,25 @@ where
     serial.bwrite_all(&position.to_le_bytes()).unwrap();
 }
 
+fn send_battery_readings<W: Write<u8>>(
+    serial: &mut W,
+    battery_voltage: u16,
+    backup_battery_voltage: u16,
+    motor_current: u16,
+    from_other_side: bool,
+) where
+    W::Error: Debug,
+{
+    serial
+        .bwrite_all(if from_other_side { b"b" } else { b"B" })
+        .unwrap();
+    serial.bwrite_all(&battery_voltage.to_le_bytes()).unwrap();
+    serial
+        .bwrite_all(&backup_battery_voltage.to_le_bytes())
+        .unwrap();
+    serial.bwrite_all(&motor_current.to_le_bytes()).unwrap();
+}
+
 pub fn send_secondary_log<W: Write<u8>>(serial: &mut W, log: &[u8])
 where
     W::Error: Debug,
@@ -65,6 +84,21 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
             }
             let position = i64::from_le_bytes(response[1..9].try_into().unwrap());
             send_position(hoverboard.response_tx(), position, true);
+        }
+        b'B' => {
+            if response.len() < 7 {
+                return false;
+            }
+            let battery_voltage = u16::from_le_bytes(response[1..3].try_into().unwrap());
+            let backup_battery_voltage = u16::from_le_bytes(response[3..5].try_into().unwrap());
+            let motor_current = u16::from_le_bytes(response[5..7].try_into().unwrap());
+            send_battery_readings(
+                hoverboard.response_tx(),
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+                true,
+            );
         }
         b'p' => {
             poweroff(hoverboard);
@@ -156,12 +190,12 @@ pub fn process_command(
             }
             Command::ReportBattery => {
                 let readings = hoverboard.adc_readings();
-                log!(
+                send_battery_readings(
                     hoverboard.response_tx(),
-                    "Battery voltage: {} mV, backup: {} mV, current {} mV",
                     readings.battery_voltage,
                     readings.backup_battery_voltage,
-                    readings.motor_current
+                    readings.motor_current,
+                    false,
                 );
             }
             Command::ReportCharger => {

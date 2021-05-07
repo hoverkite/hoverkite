@@ -27,10 +27,12 @@ depends on the command.
 A response from the hoverboard to the controller similarly consists of a single ASCII character
 followed by some number of bytes of parameters.
 
-| Response | Parameters       | Meaning                                          |
-| -------- | ---------------- | ------------------------------------------------ |
-| "        | Up until newline | Log message                                      |
-| '        | Up until newline | Log message forwarded from secondary             |
-| I        | i64              | Current position update                          |
-| i        | i64              | Current position update forwarded from secondary |
-| p        | none             | Power off.                                       |
+| Response | Parameters       | Meaning                                                                         |
+| -------- | ---------------- | ------------------------------------------------------------------------------- |
+| "        | Up until newline | Log message                                                                     |
+| '        | Up until newline | Log message forwarded from secondary                                            |
+| I        | i64              | Current position update                                                         |
+| i        | i64              | Current position update forwarded from secondary                                |
+| B        | u16, u16, u16    | Battery voltage, backup battery voltage, motor current                          |
+| b        | u16, u16, u16    | Battery voltage, backup battery voltage, motor current forwarded from secondary |
+| p        | none             | Power off.                                                                      |
