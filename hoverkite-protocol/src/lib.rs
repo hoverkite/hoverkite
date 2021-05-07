@@ -218,27 +218,26 @@ impl From<Command> for Message {
 
 impl Message {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
-        match *buf {
-            [b'F', ref rest @ ..] => {
-                if let [forward_length, ref rest @ ..] = *rest {
-                    let forward_length = forward_length as usize;
-                    if rest.len() < forward_length {
-                        Err(WouldBlock)
-                    } else if rest.len() == forward_length {
-                        match Command::parse(rest) {
-                            Ok(command) => Ok(SecondaryCommand(command).into()),
-                            // This will happen if the forward_length byte is corrupt.
-                            Err(WouldBlock) => Err(Other(ParseError)),
-                            Err(e) => Err(e),
-                        }
-                    } else {
-                        Err(Other(ParseError))
+        if let [b'F', ref rest @ ..] = *buf {
+            if let [forward_length, ref rest @ ..] = *rest {
+                let forward_length = forward_length as usize;
+                if rest.len() < forward_length {
+                    Err(WouldBlock)
+                } else if rest.len() == forward_length {
+                    match Command::parse(rest) {
+                        Ok(command) => Ok(SecondaryCommand(command).into()),
+                        // This will happen if the forward_length byte is corrupt.
+                        Err(WouldBlock) => Err(Other(ParseError)),
+                        Err(e) => Err(e),
                     }
                 } else {
-                    Err(WouldBlock)
+                    Err(Other(ParseError))
                 }
+            } else {
+                Err(WouldBlock)
             }
-            _ => Ok(Command::parse(buf)?.into()),
+        } else {
+            Ok(Command::parse(buf)?.into())
         }
     }
 }
