@@ -225,7 +225,12 @@ impl Message {
                     if rest.len() < forward_length {
                         Err(WouldBlock)
                     } else if rest.len() == forward_length {
-                        Ok(SecondaryCommand(Command::parse(rest)?).into())
+                        match Command::parse(rest) {
+                            Ok(command) => Ok(SecondaryCommand(command).into()),
+                            // This will happen if the forward_length byte is corrupt.
+                            Err(WouldBlock) => Err(Other(ParseError)),
+                            Err(e) => Err(e),
+                        }
                     } else {
                         Err(Other(ParseError))
                     }
@@ -284,8 +289,8 @@ mod tests {
 
             let mut buf = vec![];
             message.write_to_std(&mut buf).unwrap();
-            for remove_count in 1..=buf.len() {
-                let round_tripped_message = Message::parse(&buf[..buf.len() - remove_count]);
+            for prefix_length in 0..buf.len() {
+                let round_tripped_message = Message::parse(&buf[..prefix_length]);
                 assert_eq!(round_tripped_message, Err(WouldBlock))
             }
         }
@@ -297,6 +302,19 @@ mod tests {
             let mut buf = vec![];
             message.write_to_std(&mut buf).unwrap();
             buf.push(42);
+            let round_tripped_message = Message::parse(&buf);
+
+            assert_eq!(round_tripped_message, Err(Other(ParseError)))
+        }
+
+        #[test]
+        fn parse_error_if_length_wrong() {
+            let message = Message::from(SecondaryCommand(Command::PowerOff));
+
+            let mut buf = vec![];
+            message.write_to_std(&mut buf).unwrap();
+            buf[1] -= 1;
+            buf.pop();
             let round_tripped_message = Message::parse(&buf);
 
             assert_eq!(round_tripped_message, Err(Other(ParseError)))
@@ -350,8 +368,8 @@ mod tests {
         fn would_block_if_missing_byte(command: Command) {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
-            for remove_count in 1..=buf.len() {
-                let round_tripped_command = Command::parse(&buf[..buf.len() - remove_count]);
+            for prefix_length in 0..buf.len() {
+                let round_tripped_command = Command::parse(&buf[..prefix_length]);
                 assert_eq!(round_tripped_command, Err(WouldBlock))
             }
         }
