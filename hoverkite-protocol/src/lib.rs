@@ -343,11 +343,12 @@ mod tests {
         #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
         fn round_trip_equality(command: Command) {
+            let message = Message::from(command);
             let mut buf = vec![];
-            command.write_to_std(&mut buf).unwrap();
-            let round_tripped_command = Command::parse(&buf).unwrap();
+            message.write_to_std(&mut buf).unwrap();
+            let round_tripped_message = Message::parse(&buf).unwrap();
 
-            assert_eq!(round_tripped_command, command)
+            assert_eq!(round_tripped_message, message)
         }
 
         #[test_case(SetSideLed(true))]
