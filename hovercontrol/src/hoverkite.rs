@@ -159,6 +159,18 @@ fn print_response(response: &Option<Response>) {
             "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
             side, battery_voltage, backup_battery_voltage, motor_current
         ),
+        Some(Response {
+            side,
+            response: SideResponse::ChargeState { charger_connected },
+        }) => println!(
+            "{:?} {}",
+            side,
+            if *charger_connected {
+                "charger connected"
+            } else {
+                "charger not connected"
+            }
+        ),
         None => {}
     }
 }
@@ -238,6 +250,30 @@ fn parse_response(buffer: &mut VecDeque<u8>, side: Side) -> Option<Response> {
                 None
             }
         }
+        Some(b'C') | Some(b'c') => {
+            if buffer.len() >= 2 {
+                let side = if buffer.pop_front().unwrap() == b'C' {
+                    side
+                } else {
+                    side.opposite()
+                };
+                let byte = buffer.pop_front().unwrap();
+                let charger_connected = match byte {
+                    b'0' => false,
+                    b'1' => true,
+                    _ => {
+                        error!("Invalid charge state {}", byte);
+                        return None;
+                    }
+                };
+                Some(Response {
+                    side,
+                    response: SideResponse::ChargeState { charger_connected },
+                })
+            } else {
+                None
+            }
+        }
         Some(r) => {
             error!("Unexpected response {:?}", r);
             buffer.pop_front();
@@ -261,5 +297,8 @@ pub enum SideResponse {
         battery_voltage: u16,
         backup_battery_voltage: u16,
         motor_current: u16,
+    },
+    ChargeState {
+        charger_connected: bool,
     },
 }

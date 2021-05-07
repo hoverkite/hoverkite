@@ -35,4 +35,6 @@ followed by some number of bytes of parameters.
 | i        | i64              | Current position update forwarded from secondary                                |
 | B        | u16, u16, u16    | Battery voltage, backup battery voltage, motor current                          |
 | b        | u16, u16, u16    | Battery voltage, backup battery voltage, motor current forwarded from secondary |
+| C        | '0' or '1'       | Charger connected                                                               |
+| c        | '0' or '1'       | Charger connected to secondary                                                  |
 | p        | none             | Power off.                                                                      |

@@ -54,6 +54,18 @@ fn send_battery_readings<W: Write<u8>>(
     serial.bwrite_all(&motor_current.to_le_bytes()).unwrap();
 }
 
+fn send_charge_state<W: Write<u8>>(serial: &mut W, charger_connected: bool, from_other_side: bool)
+where
+    W::Error: Debug,
+{
+    serial
+        .bwrite_all(if from_other_side { b"c" } else { b"C" })
+        .unwrap();
+    serial
+        .bwrite_all(if charger_connected { b"1" } else { b"0" })
+        .unwrap();
+}
+
 pub fn send_secondary_log<W: Write<u8>>(serial: &mut W, log: &[u8])
 where
     W::Error: Debug,
@@ -99,6 +111,20 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
                 motor_current,
                 true,
             );
+        }
+        b'C' => {
+            if response.len() < 2 {
+                return false;
+            }
+            let charger_connected = match response[1] {
+                b'0' => false,
+                b'1' => true,
+                r => {
+                    log!(hoverboard.response_tx(), "Invalid charge state {}", r);
+                    return true;
+                }
+            };
+            send_charge_state(hoverboard.response_tx(), charger_connected, true);
         }
         b'p' => {
             poweroff(hoverboard);
@@ -199,11 +225,8 @@ pub fn process_command(
                 );
             }
             Command::ReportCharger => {
-                if hoverboard.charge_state.is_low().unwrap() {
-                    log!(hoverboard.response_tx(), "Charger connected");
-                } else {
-                    log!(hoverboard.response_tx(), "Charger not connected");
-                }
+                let charger_connected = hoverboard.charge_state.is_low().unwrap();
+                send_charge_state(hoverboard.response_tx(), charger_connected, false);
             }
             Command::SetMaxSpeed(limits) => {
                 log!(hoverboard.response_tx(), "max speed {:?}", limits);
