@@ -318,6 +318,11 @@ mod tests {
 
             assert_eq!(round_tripped_message, Err(Other(ParseError)))
         }
+
+        #[test]
+        fn parse_error_if_bogus_payload() {
+            assert_eq!(Message::parse(&[b'F', 1, b'!']), Err(Other(ParseError)))
+        }
     }
 
     // TODO: see if it's possible to verify this round-trip property
