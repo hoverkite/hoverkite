@@ -2,8 +2,9 @@
 
 use core::mem::size_of;
 use core::{convert::TryInto, ops::RangeInclusive};
-
 use nb::Error::{Other, WouldBlock};
+#[cfg(test)]
+use proptest_derive::Arbitrary;
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:
@@ -42,6 +43,7 @@ impl Side {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Command {
     SetSideLed(bool),
     SetOrangeLed(bool),
@@ -330,76 +332,40 @@ mod tests {
     // have to maintain this test as we add/remove variants.
     mod round_trip {
         use super::*;
-        use test_case::test_case;
+        use proptest::prelude::*;
         use Command::*;
 
-        #[test_case(SetSideLed(true))]
-        #[test_case(SetOrangeLed(false))]
-        #[test_case(SetRedLed(true))]
-        #[test_case(SetGreenLed(false))]
-        #[test_case(SetMaxSpeed(-30..=42))]
-        #[test_case(SetSpringConstant(42))]
-        #[test_case(SetTarget(-42))]
-        #[test_case(Recenter)]
-        #[test_case(ReportBattery)]
-        #[test_case(ReportCharger)]
-        #[test_case(RemoveTarget)]
-        #[test_case(IncrementTarget)]
-        #[test_case(DecrementTarget)]
-        #[test_case(PowerOff)]
-        fn round_trip_equality(command: Command) {
-            let message = Message::from(command);
-            let mut buf = vec![];
-            message.write_to_std(&mut buf).unwrap();
-            let round_tripped_message = Message::parse(&buf).unwrap();
+        proptest! {
+            fn round_trip_equality(command: Command) {
+                let message = Message::from(command);
+                let mut buf = vec![];
+                message.write_to_std(&mut buf).unwrap();
+                let round_tripped_message = Message::parse(&buf).unwrap();
 
-            assert_eq!(round_tripped_message, message)
-        }
-
-        #[test_case(SetSideLed(true))]
-        #[test_case(SetOrangeLed(false))]
-        #[test_case(SetRedLed(true))]
-        #[test_case(SetGreenLed(false))]
-        #[test_case(SetMaxSpeed(-30..=42))]
-        #[test_case(SetSpringConstant(42))]
-        #[test_case(SetTarget(-42))]
-        #[test_case(Recenter)]
-        #[test_case(ReportBattery)]
-        #[test_case(ReportCharger)]
-        #[test_case(RemoveTarget)]
-        #[test_case(IncrementTarget)]
-        #[test_case(DecrementTarget)]
-        #[test_case(PowerOff)]
-        fn would_block_if_missing_byte(command: Command) {
-            let mut buf = vec![];
-            command.write_to_std(&mut buf).unwrap();
-            for prefix_length in 0..buf.len() {
-                let round_tripped_command = Command::parse(&buf[..prefix_length]);
-                assert_eq!(round_tripped_command, Err(WouldBlock))
+                assert_eq!(round_tripped_message, message)
             }
         }
 
-        #[test_case(SetSideLed(true))]
-        #[test_case(SetOrangeLed(false))]
-        #[test_case(SetRedLed(true))]
-        #[test_case(SetGreenLed(false))]
-        #[test_case(SetMaxSpeed(-30..=42))]
-        #[test_case(SetSpringConstant(42))]
-        #[test_case(SetTarget(-42))]
-        #[test_case(Recenter)]
-        #[test_case(ReportBattery)]
-        #[test_case(ReportCharger)]
-        #[test_case(RemoveTarget)]
-        #[test_case(IncrementTarget)]
-        #[test_case(DecrementTarget)]
-        #[test_case(PowerOff)]
-        fn parse_error_if_extra_byte(command: Command) {
-            let mut buf = vec![];
-            command.write_to_std(&mut buf).unwrap();
-            buf.push(42);
-            let round_tripped_command = Command::parse(&buf);
+        proptest! {
+            fn would_block_if_missing_byte(command: Command) {
+                let mut buf = vec![];
+                command.write_to_std(&mut buf).unwrap();
+                for prefix_length in 0..buf.len() {
+                    let round_tripped_command = Command::parse(&buf[..prefix_length]);
+                    assert_eq!(round_tripped_command, Err(WouldBlock))
+                }
+            }
+        }
 
-            assert_eq!(round_tripped_command, Err(Other(ParseError)))
+        proptest! {
+            fn parse_error_if_extra_byte(command: Command) {
+                let mut buf = vec![];
+                command.write_to_std(&mut buf).unwrap();
+                buf.push(42);
+                let round_tripped_command = Command::parse(&buf);
+
+                assert_eq!(round_tripped_command, Err(Other(ParseError)))
+            }
         }
     }
 }
