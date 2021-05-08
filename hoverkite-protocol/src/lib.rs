@@ -6,7 +6,7 @@ mod response;
 
 use nb::Error::{Other, WouldBlock};
 
-pub use command::{Command, SecondaryCommand};
+pub use command::{Command, SecondaryCommand, SideCommand};
 #[cfg(feature = "std")]
 pub use response::{Response, SideResponse, UnexpectedResponse};
 
@@ -42,6 +42,21 @@ impl Side {
         match self {
             Self::Left => Self::Right,
             Self::Right => Self::Left,
+        }
+    }
+
+    pub fn parse(byte: u8) -> Result<Self, ParseError> {
+        match byte {
+            b'L' => Ok(Self::Left),
+            b'R' => Ok(Self::Right),
+            _ => Err(ParseError),
+        }
+    }
+
+    pub fn to_byte(self) -> u8 {
+        match self {
+            Self::Left => b'L',
+            Self::Right => b'R',
         }
     }
 }

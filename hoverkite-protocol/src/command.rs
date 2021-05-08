@@ -1,6 +1,6 @@
-use crate::ParseError;
 #[cfg(feature = "std")]
 use crate::WriteCompat;
+use crate::{ParseError, Side};
 use core::mem::size_of;
 use core::{convert::TryInto, ops::RangeInclusive};
 use nb::Error::{Other, WouldBlock};
@@ -124,6 +124,40 @@ impl Command {
             _ => return Err(Other(ParseError)),
         };
         Ok(command)
+    }
+}
+
+/// A command for a particular side.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SideCommand {
+    pub side: Side,
+    pub command: Command,
+}
+
+impl SideCommand {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        if let [side, ref rest @ ..] = *buf {
+            Ok(SideCommand {
+                side: Side::parse(side)?,
+                command: Command::parse(rest)?,
+            })
+        } else {
+            Err(WouldBlock)
+        }
+    }
+
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
+        writer.bwrite_all(&[self.side.to_byte()])?;
+        self.command.write_to(writer)
+    }
+
+    // FIXME: This goes away once the blanket impl exists.
+    #[cfg(feature = "std")]
+    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        self.write_to(&mut WriteCompat(writer))
     }
 }
 
