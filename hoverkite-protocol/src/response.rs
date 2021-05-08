@@ -1,16 +1,23 @@
 use crate::Side;
-use std::collections::VecDeque;
-use std::convert::TryInto;
+#[cfg(feature = "std")]
+use std::{collections::VecDeque, convert::TryInto};
 
+#[cfg(feature = "std")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Response {
     pub side: Side,
     pub response: SideResponse,
 }
 
+#[cfg(feature = "std")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SideResponse {
     Log(String),
+    Report(SideReport),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SideReport {
     Position(i64),
     BatteryReadings {
         battery_voltage: u16,
@@ -25,11 +32,12 @@ pub enum SideResponse {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct UnexpectedResponse(pub u8);
 
+#[cfg(feature = "std")]
 impl Response {
     pub fn parse(
         buffer: &mut VecDeque<u8>,
         side: Side,
-    ) -> Result<Option<Response>, UnexpectedResponse> {
+    ) -> Result<Option<Self>, UnexpectedResponse> {
         match buffer.front().copied() {
             Some(b'"') | Some(b'\'') => {
                 Ok(
@@ -43,7 +51,7 @@ impl Response {
                         // Drop '\n'
                         buffer.pop_front();
                         let string = String::from_utf8_lossy(&log);
-                        Some(Response {
+                        Some(Self {
                             side,
                             response: SideResponse::Log(string.into_owned()),
                         })
@@ -60,9 +68,9 @@ impl Response {
                 };
                 let bytes: Vec<u8> = buffer.drain(0..8).collect();
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
-                Some(Response {
+                Some(Self {
                     side,
-                    response: SideResponse::Position(position),
+                    response: SideResponse::Report(SideReport::Position(position)),
                 })
             } else {
                 None
@@ -77,13 +85,13 @@ impl Response {
                 let battery_voltage = u16::from_le_bytes(bytes[0..2].try_into().unwrap());
                 let backup_battery_voltage = u16::from_le_bytes(bytes[2..4].try_into().unwrap());
                 let motor_current = u16::from_le_bytes(bytes[4..6].try_into().unwrap());
-                Some(Response {
+                Some(Self {
                     side,
-                    response: SideResponse::BatteryReadings {
+                    response: SideResponse::Report(SideReport::BatteryReadings {
                         battery_voltage,
                         backup_battery_voltage,
                         motor_current,
-                    },
+                    }),
                 })
             } else {
                 None
@@ -100,9 +108,9 @@ impl Response {
                     b'1' => true,
                     _ => return Err(UnexpectedResponse(byte)),
                 };
-                Some(Response {
+                Some(Self {
                     side,
-                    response: SideResponse::ChargeState { charger_connected },
+                    response: SideResponse::Report(SideReport::ChargeState { charger_connected }),
                 })
             } else {
                 None
@@ -169,22 +177,22 @@ mod tests {
         assert_eq!(buffer.len(), 0);
     }
 
-    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::Position(0x1122334455667788))]
-    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::BatteryReadings {
+    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideReport::Position(0x1122334455667788))]
+    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideReport::BatteryReadings {
         battery_voltage: 0x5566,
         backup_battery_voltage: 0x3344,
         motor_current: 0x1122,
     })]
-    #[test_case(b"C0", SideResponse::ChargeState { charger_connected: false })]
-    #[test_case(b"C1", SideResponse::ChargeState { charger_connected: true })]
-    fn parse_valid(bytes: &[u8], response: SideResponse) {
+    #[test_case(b"C0", SideReport::ChargeState { charger_connected: false })]
+    #[test_case(b"C1", SideReport::ChargeState { charger_connected: true })]
+    fn parse_valid(bytes: &[u8], report: SideReport) {
         let mut buffer = VecDeque::new();
         buffer.extend(bytes);
         assert_eq!(
             Response::parse(&mut buffer, Side::Right),
             Ok(Some(Response {
                 side: Side::Right,
-                response
+                response: SideResponse::Report(report)
             }))
         );
         assert_eq!(buffer.len(), 0);

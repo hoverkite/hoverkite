@@ -1,6 +1,6 @@
 use eyre::Report;
 use hoverkite_protocol::{
-    Command, DirectedCommand, Response, Side, SideResponse, UnexpectedResponse,
+    Command, DirectedCommand, Response, Side, SideReport, SideResponse, UnexpectedResponse,
 };
 use log::{error, trace};
 use serialport::SerialPort;
@@ -151,23 +151,23 @@ fn print_response(response: &Option<Response>) {
         }) => println!("{:?}: '{}'", side, log),
         Some(Response {
             side,
-            response: SideResponse::Position(position),
+            response: SideResponse::Report(SideReport::Position(position)),
         }) => println!("{:?} at {}", side, position),
         Some(Response {
             side,
             response:
-                SideResponse::BatteryReadings {
+                SideResponse::Report(SideReport::BatteryReadings {
                     battery_voltage,
                     backup_battery_voltage,
                     motor_current,
-                },
+                }),
         }) => println!(
             "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
             side, battery_voltage, backup_battery_voltage, motor_current
         ),
         Some(Response {
             side,
-            response: SideResponse::ChargeState { charger_connected },
+            response: SideResponse::Report(SideReport::ChargeState { charger_connected }),
         }) => println!(
             "{:?} {}",
             side,
