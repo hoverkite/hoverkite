@@ -323,11 +323,14 @@ mod tests {
         assert_eq!(buffer.len(), 0);
     }
 
-    // TODO: test_case doesn't allow test cases which differ only in case.
-    #[test_case(b"I")]
-    #[test_case(b"B12345")]
-    #[test_case(b"C")]
-    #[test_case(b"\"blah")]
+    #[test_case(b"I" ; "position")]
+    #[test_case(b"i" ; "other side position")]
+    #[test_case(b"B12345" ; "battery readings")]
+    #[test_case(b"b12345" ; "other side battery readings")]
+    #[test_case(b"C" ; "charge state")]
+    #[test_case(b"c" ; "other side charge state")]
+    #[test_case(b"\"blah" ; "log")]
+    #[test_case(b"'blah" ; "other side log")]
     fn parse_partial(partial_response: &[u8]) {
         for length in 1..=partial_response.len() {
             let mut buffer = VecDeque::new();
@@ -346,11 +349,11 @@ mod tests {
         assert_eq!(buffer.len(), 0);
     }
 
-    #[test_case(b"I12345678", SideResponse::Position(4050765991979987505))]
-    #[test_case(b"B123456", SideResponse::BatteryReadings {
-        battery_voltage: 12849,
-        backup_battery_voltage: 13363,
-        motor_current: 13877,
+    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::Position(0x1122334455667788))]
+    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::BatteryReadings {
+        battery_voltage: 0x5566,
+        backup_battery_voltage: 0x3344,
+        motor_current: 0x1122,
     })]
     #[test_case(b"C0", SideResponse::ChargeState { charger_connected: false })]
     #[test_case(b"C1", SideResponse::ChargeState { charger_connected: true })]
