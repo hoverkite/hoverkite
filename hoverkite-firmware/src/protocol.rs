@@ -177,94 +177,107 @@ pub fn process_command(
         Message::SecondaryCommand(sc) => {
             forward_command(hoverboard, &sc.0);
         }
-        Message::Command(c) => match c {
-            Command::SetSideLed(on) => {
-                if on {
-                    log!(hoverboard.response_tx(), "side LED on");
-                    hoverboard.leds.side.set_high().unwrap()
-                } else {
-                    log!(hoverboard.response_tx(), "side LED off");
-                    hoverboard.leds.side.set_low().unwrap()
-                }
-            }
-            Command::SetOrangeLed(on) => {
-                if on {
-                    log!(hoverboard.response_tx(), "orange on");
-                    hoverboard.leds.orange.set_high().unwrap()
-                } else {
-                    log!(hoverboard.response_tx(), "orange off");
-                    hoverboard.leds.orange.set_low().unwrap()
-                }
-            }
-            Command::SetRedLed(on) => {
-                if on {
-                    log!(hoverboard.response_tx(), "green on");
-                    hoverboard.leds.red.set_high().unwrap()
-                } else {
-                    log!(hoverboard.response_tx(), "green off");
-                    hoverboard.leds.red.set_low().unwrap()
-                }
-            }
-            Command::SetGreenLed(on) => {
-                if on {
-                    log!(hoverboard.response_tx(), "green on");
-                    hoverboard.leds.green.set_high().unwrap()
-                } else {
-                    log!(hoverboard.response_tx(), "green off");
-                    hoverboard.leds.green.set_low().unwrap()
-                }
-            }
-            Command::ReportBattery => {
-                let readings = hoverboard.adc_readings();
-                send_battery_readings(
-                    hoverboard.response_tx(),
-                    readings.battery_voltage,
-                    readings.backup_battery_voltage,
-                    readings.motor_current,
-                    false,
-                );
-            }
-            Command::ReportCharger => {
-                let charger_connected = hoverboard.charge_state.is_low().unwrap();
-                send_charge_state(hoverboard.response_tx(), charger_connected, false);
-            }
-            Command::SetMaxSpeed(limits) => {
-                log!(hoverboard.response_tx(), "max speed {:?}", limits);
-                *speed_limits = limits;
-            }
-            Command::SetSpringConstant(spring) => {
-                log!(hoverboard.response_tx(), "Spring constant {}", spring);
-                *spring_constant = spring as i64;
-            }
-            Command::RemoveTarget => {
-                log!(hoverboard.response_tx(), "No target position");
-                *target_position = None;
-            }
-            Command::SetTarget(target) => {
-                if command.len() < 9 {
-                    return false;
-                }
-                *target_position = Some(target);
-            }
-            Command::Recenter => {
-                log!(hoverboard.response_tx(), "Recenter");
-                hoverboard.recenter_motor();
-                *target_position = Some(0);
-            }
-            Command::IncrementTarget => {
-                let target = target_position.unwrap_or(0) + 10;
-                log!(hoverboard.response_tx(), "Target position {}", target);
-                *target_position = Some(target);
-            }
-            Command::DecrementTarget => {
-                let target = target_position.unwrap_or(0) - 10;
-                log!(hoverboard.response_tx(), "Target position {}", target);
-                *target_position = Some(target);
-            }
-            Command::PowerOff => poweroff(hoverboard),
-        },
+        Message::Command(c) => handle_command(
+            c,
+            hoverboard,
+            speed_limits,
+            target_position,
+            spring_constant,
+        ),
     }
     true
+}
+
+pub fn handle_command(
+    command: Command,
+    hoverboard: &mut Hoverboard,
+    speed_limits: &mut RangeInclusive<i16>,
+    target_position: &mut Option<i64>,
+    spring_constant: &mut i64,
+) {
+    match command {
+        Command::SetSideLed(on) => {
+            if on {
+                log!(hoverboard.response_tx(), "side LED on");
+                hoverboard.leds.side.set_high().unwrap()
+            } else {
+                log!(hoverboard.response_tx(), "side LED off");
+                hoverboard.leds.side.set_low().unwrap()
+            }
+        }
+        Command::SetOrangeLed(on) => {
+            if on {
+                log!(hoverboard.response_tx(), "orange on");
+                hoverboard.leds.orange.set_high().unwrap()
+            } else {
+                log!(hoverboard.response_tx(), "orange off");
+                hoverboard.leds.orange.set_low().unwrap()
+            }
+        }
+        Command::SetRedLed(on) => {
+            if on {
+                log!(hoverboard.response_tx(), "green on");
+                hoverboard.leds.red.set_high().unwrap()
+            } else {
+                log!(hoverboard.response_tx(), "green off");
+                hoverboard.leds.red.set_low().unwrap()
+            }
+        }
+        Command::SetGreenLed(on) => {
+            if on {
+                log!(hoverboard.response_tx(), "green on");
+                hoverboard.leds.green.set_high().unwrap()
+            } else {
+                log!(hoverboard.response_tx(), "green off");
+                hoverboard.leds.green.set_low().unwrap()
+            }
+        }
+        Command::ReportBattery => {
+            let readings = hoverboard.adc_readings();
+            send_battery_readings(
+                hoverboard.response_tx(),
+                readings.battery_voltage,
+                readings.backup_battery_voltage,
+                readings.motor_current,
+                false,
+            );
+        }
+        Command::ReportCharger => {
+            let charger_connected = hoverboard.charge_state.is_low().unwrap();
+            send_charge_state(hoverboard.response_tx(), charger_connected, false);
+        }
+        Command::SetMaxSpeed(limits) => {
+            log!(hoverboard.response_tx(), "max speed {:?}", limits);
+            *speed_limits = limits;
+        }
+        Command::SetSpringConstant(spring) => {
+            log!(hoverboard.response_tx(), "Spring constant {}", spring);
+            *spring_constant = spring as i64;
+        }
+        Command::RemoveTarget => {
+            log!(hoverboard.response_tx(), "No target position");
+            *target_position = None;
+        }
+        Command::SetTarget(target) => {
+            *target_position = Some(target);
+        }
+        Command::Recenter => {
+            log!(hoverboard.response_tx(), "Recenter");
+            hoverboard.recenter_motor();
+            *target_position = Some(0);
+        }
+        Command::IncrementTarget => {
+            let target = target_position.unwrap_or(0) + 10;
+            log!(hoverboard.response_tx(), "Target position {}", target);
+            *target_position = Some(target);
+        }
+        Command::DecrementTarget => {
+            let target = target_position.unwrap_or(0) - 10;
+            log!(hoverboard.response_tx(), "Target position {}", target);
+            *target_position = Some(target);
+        }
+        Command::PowerOff => poweroff(hoverboard),
+    }
 }
 
 pub trait HoverboardExt {
