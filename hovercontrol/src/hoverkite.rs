@@ -1,7 +1,5 @@
 use eyre::Report;
-use hoverkite_protocol::{
-    Command, Response, SecondaryCommand, Side, SideResponse, UnexpectedResponse,
-};
+use hoverkite_protocol::{Command, Response, Side, SideCommand, SideResponse, UnexpectedResponse};
 use log::{error, trace};
 use serialport::SerialPort;
 use std::time::{Duration, Instant};
@@ -124,16 +122,21 @@ impl Hoverkite {
                 self.right_last_command_time = Instant::now();
             }
         };
-        match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
-            (Side::Left, Some(port), _) => command.write_to_std(port)?,
-            (Side::Left, None, Some(port)) => SecondaryCommand(command).write_to_std(port)?,
-            (Side::Right, _, Some(port)) => command.write_to_std(port)?,
-            (Side::Right, Some(port), None) => SecondaryCommand(command).write_to_std(port)?,
-            (_, None, None) => error!(
-                "No serial ports available. Can't send command to {:?}: {:?}",
-                side, command
-            ),
-        }
+        let side_command = SideCommand { side, command };
+        let port = match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
+            (Side::Left, Some(port), _) => port,
+            (Side::Left, None, Some(port)) => port,
+            (Side::Right, _, Some(port)) => port,
+            (Side::Right, Some(port), None) => port,
+            (_, None, None) => {
+                error!(
+                    "No serial ports available. Can't send command {:?}",
+                    side_command
+                );
+                return Ok(());
+            }
+        };
+        side_command.write_to_std(port)?;
         Ok(())
     }
 }
