@@ -13,11 +13,11 @@ pub struct SideResponse {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Response {
     Log(String),
-    Report(SideReport),
+    Report(Report),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SideReport {
+pub enum Report {
     Position(i64),
     BatteryReadings {
         battery_voltage: u16,
@@ -70,7 +70,7 @@ impl SideResponse {
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
                 Some(Self {
                     side,
-                    response: Response::Report(SideReport::Position(position)),
+                    response: Response::Report(Report::Position(position)),
                 })
             } else {
                 None
@@ -87,7 +87,7 @@ impl SideResponse {
                 let motor_current = u16::from_le_bytes(bytes[4..6].try_into().unwrap());
                 Some(Self {
                     side,
-                    response: Response::Report(SideReport::BatteryReadings {
+                    response: Response::Report(Report::BatteryReadings {
                         battery_voltage,
                         backup_battery_voltage,
                         motor_current,
@@ -110,7 +110,7 @@ impl SideResponse {
                 };
                 Some(Self {
                     side,
-                    response: Response::Report(SideReport::ChargeState { charger_connected }),
+                    response: Response::Report(Report::ChargeState { charger_connected }),
                 })
             } else {
                 None
@@ -177,15 +177,15 @@ mod tests {
         assert_eq!(buffer.len(), 0);
     }
 
-    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideReport::Position(0x1122334455667788))]
-    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideReport::BatteryReadings {
+    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], Report::Position(0x1122334455667788))]
+    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], Report::BatteryReadings {
         battery_voltage: 0x5566,
         backup_battery_voltage: 0x3344,
         motor_current: 0x1122,
     })]
-    #[test_case(b"C0", SideReport::ChargeState { charger_connected: false })]
-    #[test_case(b"C1", SideReport::ChargeState { charger_connected: true })]
-    fn parse_valid(bytes: &[u8], report: SideReport) {
+    #[test_case(b"C0", Report::ChargeState { charger_connected: false })]
+    #[test_case(b"C1", Report::ChargeState { charger_connected: true })]
+    fn parse_valid(bytes: &[u8], report: Report) {
         let mut buffer = VecDeque::new();
         buffer.extend(bytes);
         assert_eq!(

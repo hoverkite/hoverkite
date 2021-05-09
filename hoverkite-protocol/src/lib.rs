@@ -4,9 +4,9 @@ mod command;
 mod response;
 
 pub use command::{Command, DirectedCommand};
+pub use response::{Report, UnexpectedResponse};
 #[cfg(feature = "std")]
 pub use response::{Response, SideResponse};
-pub use response::{SideReport, UnexpectedResponse};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:

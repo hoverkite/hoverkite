@@ -1,6 +1,5 @@
-use eyre::Report;
 use hoverkite_protocol::{
-    Command, DirectedCommand, Response, Side, SideReport, SideResponse, UnexpectedResponse,
+    Command, DirectedCommand, Report, Response, Side, SideResponse, UnexpectedResponse,
 };
 use log::{error, trace};
 use serialport::SerialPort;
@@ -41,7 +40,7 @@ impl Hoverkite {
         }
     }
 
-    pub fn process(&mut self) -> Result<(), Report> {
+    pub fn process(&mut self) -> Result<(), eyre::Report> {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
@@ -56,7 +55,7 @@ impl Hoverkite {
         Ok(())
     }
 
-    fn send_pending_targets(&mut self) -> Result<(), Report> {
+    fn send_pending_targets(&mut self) -> Result<(), eyre::Report> {
         if let Some(target_pending) = self.left_target_pending {
             // Just retry. If the rate limit is still in effect then this will be a no-op.
             self.set_target(Side::Left, target_pending)?;
@@ -71,14 +70,14 @@ impl Hoverkite {
         &mut self,
         side: Side,
         max_speed: &RangeInclusive<i16>,
-    ) -> Result<(), Report> {
+    ) -> Result<(), eyre::Report> {
         println!("{:?} max speed: {:?}", side, max_speed);
         let command = Command::SetMaxSpeed(max_speed.clone());
         self.send_command(side, command)?;
         Ok(())
     }
 
-    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), Report> {
+    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
         self.send_command(Side::Left, command.clone())?;
@@ -90,7 +89,7 @@ impl Hoverkite {
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive
     /// buffer.
-    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), Report> {
+    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), eyre::Report> {
         let now = Instant::now();
         match side {
             Side::Left => {
@@ -114,7 +113,7 @@ impl Hoverkite {
         self.send_command(side, Command::SetTarget(target))
     }
 
-    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), Report> {
+    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), eyre::Report> {
         trace!("Sending command to {:?}: {:?}", side, command);
         match side {
             Side::Left => {
@@ -151,12 +150,12 @@ fn print_response(response: &Option<SideResponse>) {
         }) => println!("{:?}: '{}'", side, log),
         Some(SideResponse {
             side,
-            response: Response::Report(SideReport::Position(position)),
+            response: Response::Report(Report::Position(position)),
         }) => println!("{:?} at {}", side, position),
         Some(SideResponse {
             side,
             response:
-                Response::Report(SideReport::BatteryReadings {
+                Response::Report(Report::BatteryReadings {
                     battery_voltage,
                     backup_battery_voltage,
                     motor_current,
@@ -167,7 +166,7 @@ fn print_response(response: &Option<SideResponse>) {
         ),
         Some(SideResponse {
             side,
-            response: Response::Report(SideReport::ChargeState { charger_connected }),
+            response: Response::Report(Report::ChargeState { charger_connected }),
         }) => println!(
             "{:?} {}",
             side,
@@ -185,7 +184,7 @@ fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut VecDeque<u8>,
     side: Side,
-) -> Result<Option<SideResponse>, Report> {
+) -> Result<Option<SideResponse>, eyre::Report> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;
