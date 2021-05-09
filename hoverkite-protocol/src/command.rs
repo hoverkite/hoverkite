@@ -129,15 +129,15 @@ impl Command {
 
 /// A command for a particular side.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SideCommand {
+pub struct DirectedCommand {
     pub side: Side,
     pub command: Command,
 }
 
-impl SideCommand {
+impl DirectedCommand {
     pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
         if let [side, ref rest @ ..] = *buf {
-            Ok(SideCommand {
+            Ok(DirectedCommand {
                 side: Side::parse(side)?,
                 command: Command::parse(rest)?,
             })
@@ -191,7 +191,7 @@ mod tests {
 
         #[test]
         fn power_off_left() {
-            let command = SideCommand {
+            let command = DirectedCommand {
                 side: Side::Left,
                 command: Command::PowerOff,
             };
@@ -202,7 +202,7 @@ mod tests {
 
         #[test]
         fn missing_byte_left() {
-            let command = SideCommand {
+            let command = DirectedCommand {
                 side: Side::Left,
                 command: Command::PowerOff,
             };
@@ -210,14 +210,14 @@ mod tests {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
             for prefix_length in 0..buf.len() {
-                let round_tripped_command = SideCommand::parse(&buf[..prefix_length]);
+                let round_tripped_command = DirectedCommand::parse(&buf[..prefix_length]);
                 assert_eq!(round_tripped_command, Err(WouldBlock))
             }
         }
 
         #[test]
         fn parse_error_if_extra_byte() {
-            let command = SideCommand {
+            let command = DirectedCommand {
                 side: Side::Left,
                 command: Command::PowerOff,
             };
@@ -225,14 +225,17 @@ mod tests {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
             buf.push(42);
-            let round_tripped_command = SideCommand::parse(&buf);
+            let round_tripped_command = DirectedCommand::parse(&buf);
 
             assert_eq!(round_tripped_command, Err(Other(ParseError)))
         }
 
         #[test]
         fn parse_error_if_bogus_payload() {
-            assert_eq!(SideCommand::parse(&[b'R', b'!']), Err(Other(ParseError)))
+            assert_eq!(
+                DirectedCommand::parse(&[b'R', b'!']),
+                Err(Other(ParseError))
+            )
         }
     }
 
@@ -305,13 +308,13 @@ mod tests {
         #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
         fn round_trip_equality(command: Command) {
-            let command = SideCommand {
+            let command = DirectedCommand {
                 side: Side::Left,
                 command,
             };
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
-            let round_tripped_command = SideCommand::parse(&buf).unwrap();
+            let round_tripped_command = DirectedCommand::parse(&buf).unwrap();
 
             assert_eq!(round_tripped_command, command)
         }

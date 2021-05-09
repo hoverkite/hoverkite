@@ -1,5 +1,7 @@
 use eyre::Report;
-use hoverkite_protocol::{Command, Response, Side, SideCommand, SideResponse, UnexpectedResponse};
+use hoverkite_protocol::{
+    Command, DirectedCommand, Response, Side, SideResponse, UnexpectedResponse,
+};
 use log::{error, trace};
 use serialport::SerialPort;
 use std::time::{Duration, Instant};
@@ -122,7 +124,7 @@ impl Hoverkite {
                 self.right_last_command_time = Instant::now();
             }
         };
-        let side_command = SideCommand { side, command };
+        let side_command = DirectedCommand { side, command };
         let port = match (side, self.left_port.as_mut(), self.right_port.as_mut()) {
             (Side::Left, Some(port), _) => port,
             (Side::Left, None, Some(port)) => port,

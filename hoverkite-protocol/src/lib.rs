@@ -4,7 +4,7 @@ mod command;
 #[cfg(feature = "std")]
 mod response;
 
-pub use command::{Command, SideCommand};
+pub use command::{Command, DirectedCommand};
 #[cfg(feature = "std")]
 pub use response::{Response, SideResponse, UnexpectedResponse};
 

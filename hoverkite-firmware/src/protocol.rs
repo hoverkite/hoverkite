@@ -12,7 +12,7 @@ use gd32f1x0_hal::{
     prelude::*,
     serial::{Rx, Tx},
 };
-use hoverkite_protocol::{Command, Side, SideCommand};
+use hoverkite_protocol::{Command, DirectedCommand, Side};
 
 #[macro_export]
 macro_rules! log {
@@ -144,12 +144,12 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
 }
 
 #[cfg(feature = "primary")]
-fn forward_command(hoverboard: &mut Hoverboard, command: &SideCommand) {
+fn forward_command(hoverboard: &mut Hoverboard, command: &DirectedCommand) {
     command.write_to(&mut hoverboard.serial_writer).unwrap();
 }
 
 #[cfg(feature = "secondary")]
-fn forward_command(hoverboard: &mut Hoverboard, _command: &SideCommand) {
+fn forward_command(hoverboard: &mut Hoverboard, _command: &DirectedCommand) {
     log!(hoverboard.response_tx(), "Secondary can't forward.");
 }
 
@@ -162,7 +162,7 @@ pub fn process_command(
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
 ) -> bool {
-    let message = match SideCommand::parse(command) {
+    let message = match DirectedCommand::parse(command) {
         Ok(message) => message,
         Err(nb::Error::WouldBlock) => return false,
         Err(err) => {
