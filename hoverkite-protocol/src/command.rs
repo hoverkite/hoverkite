@@ -1,8 +1,10 @@
+use crate::util::{ascii_to_bool, bool_to_ascii};
 #[cfg(feature = "std")]
 use crate::WriteCompat;
 use crate::{ParseError, Side};
+use core::convert::TryInto;
 use core::mem::size_of;
-use core::{convert::TryInto, ops::RangeInclusive};
+use core::ops::RangeInclusive;
 use nb::Error::{Other, WouldBlock};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -22,22 +24,6 @@ pub enum Command {
     IncrementTarget,
     DecrementTarget,
     PowerOff,
-}
-
-fn ascii_to_bool(char: u8) -> Result<bool, ParseError> {
-    match char {
-        b'1' => Ok(true),
-        b'0' => Ok(false),
-        _ => Err(ParseError),
-    }
-}
-
-fn bool_to_ascii(on: bool) -> u8 {
-    if on {
-        b'1'
-    } else {
-        b'0'
-    }
 }
 
 impl Command {

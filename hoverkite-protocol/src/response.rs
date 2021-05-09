@@ -1,6 +1,10 @@
-use crate::Side;
+use crate::util::{ascii_to_bool, bool_to_ascii};
+use crate::{ParseError, Side};
+use core::convert::TryInto;
+use core::mem::size_of;
+use nb::Error::{Other, WouldBlock};
 #[cfg(feature = "std")]
-use std::{collections::VecDeque, convert::TryInto};
+use std::collections::VecDeque;
 
 #[cfg(feature = "std")]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -27,6 +31,68 @@ pub enum Report {
     ChargeState {
         charger_connected: bool,
     },
+}
+
+impl Report {
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
+        match self {
+            Self::Position(position) => {
+                writer.bwrite_all(b"I")?;
+                writer.bwrite_all(&position.to_le_bytes())
+            }
+            Self::BatteryReadings {
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            } => {
+                writer.bwrite_all(b"B")?;
+                writer.bwrite_all(&battery_voltage.to_le_bytes())?;
+                writer.bwrite_all(&backup_battery_voltage.to_le_bytes())?;
+                writer.bwrite_all(&motor_current.to_le_bytes())
+            }
+            Self::ChargeState { charger_connected } => {
+                writer.bwrite_all(&[b'C', bool_to_ascii(*charger_connected)])
+            }
+        }
+    }
+
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+        let report = match *buf {
+            [] => return Err(WouldBlock),
+            [b'I', ref rest @ ..] => {
+                if rest.len() < size_of::<i64>() {
+                    return Err(WouldBlock);
+                }
+                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let position = i64::from_le_bytes(bytes);
+                Self::Position(position)
+            }
+            [b'B', ref rest @ ..] => {
+                if rest.len() < 6 {
+                    return Err(WouldBlock);
+                } else if rest.len() > 6 {
+                    return Err(Other(ParseError));
+                }
+                let battery_voltage = u16::from_le_bytes(rest[..2].try_into().unwrap());
+                let backup_battery_voltage = u16::from_le_bytes(rest[2..4].try_into().unwrap());
+                let motor_current = u16::from_le_bytes(rest[4..6].try_into().unwrap());
+                Self::BatteryReadings {
+                    battery_voltage,
+                    backup_battery_voltage,
+                    motor_current,
+                }
+            }
+            [b'C'] => return Err(WouldBlock),
+            [b'C', charger_connected] => Self::ChargeState {
+                charger_connected: ascii_to_bool(charger_connected)?,
+            },
+            _ => return Err(Other(ParseError)),
+        };
+        Ok(report)
+    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
