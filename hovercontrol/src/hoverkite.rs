@@ -143,20 +143,20 @@ impl Hoverkite {
     }
 }
 
-fn print_response(response: &Option<Response>) {
+fn print_response(response: &Option<SideResponse>) {
     match response {
-        Some(Response {
+        Some(SideResponse {
             side,
-            response: SideResponse::Log(log),
+            response: Response::Log(log),
         }) => println!("{:?}: '{}'", side, log),
-        Some(Response {
+        Some(SideResponse {
             side,
-            response: SideResponse::Report(SideReport::Position(position)),
+            response: Response::Report(SideReport::Position(position)),
         }) => println!("{:?} at {}", side, position),
-        Some(Response {
+        Some(SideResponse {
             side,
             response:
-                SideResponse::Report(SideReport::BatteryReadings {
+                Response::Report(SideReport::BatteryReadings {
                     battery_voltage,
                     backup_battery_voltage,
                     motor_current,
@@ -165,9 +165,9 @@ fn print_response(response: &Option<Response>) {
             "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
             side, battery_voltage, backup_battery_voltage, motor_current
         ),
-        Some(Response {
+        Some(SideResponse {
             side,
-            response: SideResponse::Report(SideReport::ChargeState { charger_connected }),
+            response: Response::Report(SideReport::ChargeState { charger_connected }),
         }) => println!(
             "{:?} {}",
             side,
@@ -185,14 +185,14 @@ fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut VecDeque<u8>,
     side: Side,
-) -> Result<Option<Response>, Report> {
+) -> Result<Option<SideResponse>, Report> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;
         buffer.extend(&temp[0..bytes_read]);
     }
 
-    Response::parse(buffer, side).or_else(|UnexpectedResponse(r)| {
+    SideResponse::parse(buffer, side).or_else(|UnexpectedResponse(r)| {
         error!("Unexpected response {:?}", r);
         Ok(None)
     })

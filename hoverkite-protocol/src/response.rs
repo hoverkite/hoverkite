@@ -4,14 +4,14 @@ use std::{collections::VecDeque, convert::TryInto};
 
 #[cfg(feature = "std")]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Response {
+pub struct SideResponse {
     pub side: Side,
-    pub response: SideResponse,
+    pub response: Response,
 }
 
 #[cfg(feature = "std")]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SideResponse {
+pub enum Response {
     Log(String),
     Report(SideReport),
 }
@@ -33,7 +33,7 @@ pub enum SideReport {
 pub struct UnexpectedResponse(pub u8);
 
 #[cfg(feature = "std")]
-impl Response {
+impl SideResponse {
     pub fn parse(
         buffer: &mut VecDeque<u8>,
         side: Side,
@@ -53,7 +53,7 @@ impl Response {
                         let string = String::from_utf8_lossy(&log);
                         Some(Self {
                             side,
-                            response: SideResponse::Log(string.into_owned()),
+                            response: Response::Log(string.into_owned()),
                         })
                     } else {
                         None
@@ -70,7 +70,7 @@ impl Response {
                 let position = i64::from_le_bytes(bytes.try_into().unwrap());
                 Some(Self {
                     side,
-                    response: SideResponse::Report(SideReport::Position(position)),
+                    response: Response::Report(SideReport::Position(position)),
                 })
             } else {
                 None
@@ -87,7 +87,7 @@ impl Response {
                 let motor_current = u16::from_le_bytes(bytes[4..6].try_into().unwrap());
                 Some(Self {
                     side,
-                    response: SideResponse::Report(SideReport::BatteryReadings {
+                    response: Response::Report(SideReport::BatteryReadings {
                         battery_voltage,
                         backup_battery_voltage,
                         motor_current,
@@ -110,7 +110,7 @@ impl Response {
                 };
                 Some(Self {
                     side,
-                    response: SideResponse::Report(SideReport::ChargeState { charger_connected }),
+                    response: Response::Report(SideReport::ChargeState { charger_connected }),
                 })
             } else {
                 None
@@ -135,7 +135,7 @@ mod tests {
         let mut buffer = VecDeque::new();
         buffer.extend(b"x");
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
+            SideResponse::parse(&mut buffer, Side::Right),
             Err(UnexpectedResponse(b'x'))
         );
         assert_eq!(buffer.len(), 0);
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn parse_empty() {
         let mut buffer = VecDeque::new();
-        assert_eq!(Response::parse(&mut buffer, Side::Right), Ok(None));
+        assert_eq!(SideResponse::parse(&mut buffer, Side::Right), Ok(None));
         assert_eq!(buffer.len(), 0);
     }
 
@@ -160,7 +160,7 @@ mod tests {
         for length in 1..=partial_response.len() {
             let mut buffer = VecDeque::new();
             buffer.extend(&partial_response[..length]);
-            assert_eq!(Response::parse(&mut buffer, Side::Right), Ok(None));
+            assert_eq!(SideResponse::parse(&mut buffer, Side::Right), Ok(None));
             // No bytes should be consumed from the buffer.
             assert_eq!(buffer.len(), length);
         }
@@ -171,7 +171,7 @@ mod tests {
         let mut buffer = VecDeque::new();
         buffer.extend(b"Cx");
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
+            SideResponse::parse(&mut buffer, Side::Right),
             Err(UnexpectedResponse(b'x'))
         );
         assert_eq!(buffer.len(), 0);
@@ -189,10 +189,10 @@ mod tests {
         let mut buffer = VecDeque::new();
         buffer.extend(bytes);
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
-            Ok(Some(Response {
+            SideResponse::parse(&mut buffer, Side::Right),
+            Ok(Some(SideResponse {
                 side: Side::Right,
-                response: SideResponse::Report(report)
+                response: Response::Report(report)
             }))
         );
         assert_eq!(buffer.len(), 0);
