@@ -161,22 +161,6 @@ impl SideCommand {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SecondaryCommand(pub Command);
-
-// I'm not expecting to need this anywhere other than on the host.
-// Famous last words.
-#[cfg(feature = "std")]
-impl SecondaryCommand {
-    pub fn write_to_std(&self, mut writer: impl std::io::Write) -> std::io::Result<()> {
-        let mut encoded: std::vec::Vec<u8> = vec![];
-        self.0.write_to_std(&mut encoded)?;
-        writer.write_all(&[b'F', encoded.len() as u8])?;
-        writer.write_all(&encoded)?;
-        Ok(())
-    }
-}
-
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {

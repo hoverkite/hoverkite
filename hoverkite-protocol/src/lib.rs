@@ -4,9 +4,7 @@ mod command;
 #[cfg(feature = "std")]
 mod response;
 
-use nb::Error::{Other, WouldBlock};
-
-pub use command::{Command, SecondaryCommand, SideCommand};
+pub use command::{Command, SideCommand};
 #[cfg(feature = "std")]
 pub use response::{Response, SideResponse, UnexpectedResponse};
 
@@ -63,63 +61,3 @@ impl Side {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ParseError;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Message {
-    Command(Command),
-    SecondaryCommand(SecondaryCommand),
-    // TODO: add variants for the other things, or create a second enum that contains them.
-    // Something like:
-    //     LogMessage(LogMessage),
-    //     SecondaryLogMessage(SecondaryLogMessage),
-    //     CurrentPosition(CurrentPosition),
-    //     SecondaryCurrentPosition(SecondaryCurrentPosition),
-}
-
-#[cfg(feature = "std")]
-impl Message {
-    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
-        match self {
-            Self::Command(c) => c.write_to_std(writer),
-            Self::SecondaryCommand(sc) => sc.write_to_std(writer),
-        }
-    }
-}
-
-impl From<SecondaryCommand> for Message {
-    fn from(val: SecondaryCommand) -> Self {
-        Message::SecondaryCommand(val)
-    }
-}
-
-impl From<Command> for Message {
-    fn from(val: Command) -> Self {
-        Message::Command(val)
-    }
-}
-
-impl Message {
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
-        if let [b'F', ref rest @ ..] = *buf {
-            if let [forward_length, ref rest @ ..] = *rest {
-                let forward_length = forward_length as usize;
-                if rest.len() < forward_length {
-                    Err(WouldBlock)
-                } else if rest.len() == forward_length {
-                    match Command::parse(rest) {
-                        Ok(command) => Ok(SecondaryCommand(command).into()),
-                        // This will happen if the forward_length byte is corrupt.
-                        Err(WouldBlock) => Err(Other(ParseError)),
-                        Err(e) => Err(e),
-                    }
-                } else {
-                    Err(Other(ParseError))
-                }
-            } else {
-                Err(WouldBlock)
-            }
-        } else {
-            Ok(Command::parse(buf)?.into())
-        }
-    }
-}
