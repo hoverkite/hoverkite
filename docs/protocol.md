@@ -2,9 +2,10 @@
 
 ## Commands
 
-Each command sent from the controller to the hoverboard consists of a single ASCII character
-defining the command, followed by some number of bytes of parameters. The number of parameter bytes
-depends on the command.
+Each command sent from the controller to the hoverboard consists of the ASCII character 'R' or 'L'
+to indicate whether it is for the left or right side, followed by a single ASCII character defining
+the command, followed by some number of bytes of parameters. The number of parameter bytes depends
+on the command.
 
 | Command | Parameters | Meaning                                                 |
 | ------- | ---------- | ------------------------------------------------------- |
@@ -20,7 +21,6 @@ depends on the command.
 | T       | i64        | Set target position.                                    |
 | e       | none       | Set current position as 0 position and target position. |
 | p       | none       | Power off.                                              |
-| F       | u8, \*     | Forward the following N bytes to the other side.        |
 
 ## Responses
 
