@@ -202,15 +202,53 @@ mod tests {
         }
     }
 
-    mod secondary_command {
+    mod side_command {
         use super::*;
 
         #[test]
-        fn power_off_secondary() {
-            let command = SecondaryCommand(Command::PowerOff);
+        fn power_off_left() {
+            let command = SideCommand {
+                side: Side::Left,
+                command: Command::PowerOff,
+            };
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
-            assert_eq!(buf, [b'F', 1, b'p']);
+            assert_eq!(buf, b"Lp");
+        }
+
+        #[test]
+        fn missing_byte_left() {
+            let command = SideCommand {
+                side: Side::Left,
+                command: Command::PowerOff,
+            };
+
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            for prefix_length in 0..buf.len() {
+                let round_tripped_command = SideCommand::parse(&buf[..prefix_length]);
+                assert_eq!(round_tripped_command, Err(WouldBlock))
+            }
+        }
+
+        #[test]
+        fn parse_error_if_extra_byte() {
+            let command = SideCommand {
+                side: Side::Left,
+                command: Command::PowerOff,
+            };
+
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            buf.push(42);
+            let round_tripped_command = SideCommand::parse(&buf);
+
+            assert_eq!(round_tripped_command, Err(Other(ParseError)))
+        }
+
+        #[test]
+        fn parse_error_if_bogus_payload() {
+            assert_eq!(SideCommand::parse(&[b'R', b'!']), Err(Other(ParseError)))
         }
     }
 
@@ -266,6 +304,32 @@ mod tests {
             let round_tripped_command = Command::parse(&buf);
 
             assert_eq!(round_tripped_command, Err(Other(ParseError)))
+        }
+
+        #[test_case(SetSideLed(true))]
+        #[test_case(SetOrangeLed(false))]
+        #[test_case(SetRedLed(true))]
+        #[test_case(SetGreenLed(false))]
+        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetSpringConstant(42))]
+        #[test_case(SetTarget(-42))]
+        #[test_case(Recenter)]
+        #[test_case(ReportBattery)]
+        #[test_case(ReportCharger)]
+        #[test_case(RemoveTarget)]
+        #[test_case(IncrementTarget)]
+        #[test_case(DecrementTarget)]
+        #[test_case(PowerOff)]
+        fn round_trip_equality(command: Command) {
+            let command = SideCommand {
+                side: Side::Left,
+                command,
+            };
+            let mut buf = vec![];
+            command.write_to_std(&mut buf).unwrap();
+            let round_tripped_command = SideCommand::parse(&buf).unwrap();
+
+            assert_eq!(round_tripped_command, command)
         }
     }
 }
