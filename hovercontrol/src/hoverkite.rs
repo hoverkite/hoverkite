@@ -193,12 +193,12 @@ fn read_port(
     for len in 1..=buffer.len() {
         match SideResponse::parse(&buffer[..len]) {
             Ok(response) => {
-                buffer.truncate_front(len);
+                buffer.drain(..len);
                 return Ok(Some(response));
             }
             Err(nb::Error::Other(e)) => {
-                error!("Unexpected response {:?}", e);
-                buffer.truncate_front(len);
+                error!("Unexpected response {:?} from {:?}", e, &buffer[..len]);
+                buffer.drain(..len);
                 return Ok(None);
             }
             Err(nb::Error::WouldBlock) => (),
