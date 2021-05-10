@@ -1,4 +1,7 @@
-use crate::util::{ascii_to_bool, bool_to_ascii};
+use crate::{
+    util::{ascii_to_bool, bool_to_ascii},
+    WriteCompat,
+};
 use crate::{ParseError, Side};
 use arrayvec::ArrayString;
 use core::convert::TryInto;
@@ -105,6 +108,19 @@ pub struct SideResponse {
 }
 
 impl SideResponse {
+    #[cfg(feature = "std")]
+    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        self.write_to(&mut WriteCompat(writer))
+    }
+
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
+        writer.bwrite_all(&[self.side.to_byte()])?;
+        self.response.write_to(writer)
+    }
+
     pub fn parse(buffer: &[u8]) -> nb::Result<Self, ParseError> {
         match buffer {
             [] => Err(WouldBlock),
@@ -181,5 +197,26 @@ mod tests {
                 response: response,
             })
         );
+    }
+
+    #[test_case(Response::Position(0x1122334455667788))]
+    #[test_case(Response::BatteryReadings {
+        battery_voltage: 0x5566,
+        backup_battery_voltage: 0x3344,
+        motor_current: 0x1122,
+    })]
+    #[test_case(Response::ChargeState { charger_connected: false })]
+    #[test_case(Response::ChargeState { charger_connected: true })]
+    #[test_case(Response::Log(ArrayString::from("hello").unwrap()))]
+    #[test_case(Response::Log(ArrayString::from("emoji 👨‍👨‍👦").unwrap()))]
+    fn round_trip(response: Response) {
+        let side_response = SideResponse {
+            side: Side::Right,
+            response,
+        };
+        let mut buffer = Vec::new();
+        side_response.write_to_std(&mut buffer).unwrap();
+
+        assert_eq!(SideResponse::parse(&mut buffer), Ok(side_response));
     }
 }
