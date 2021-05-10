@@ -1,10 +1,9 @@
-use hoverkite_protocol::{
-    Command, DirectedCommand, Report, Response, Side, SideResponse, UnexpectedResponse,
-};
+use hoverkite_protocol::{Command, DirectedCommand, Response, Side, SideResponse};
 use log::{error, trace};
 use serialport::SerialPort;
+use slice_deque::SliceDeque;
+use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
-use std::{collections::VecDeque, ops::RangeInclusive};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
@@ -19,8 +18,8 @@ pub struct Hoverkite {
     /// between updates.
     right_target_pending: Option<i64>,
     left_target_pending: Option<i64>,
-    right_buffer: VecDeque<u8>,
-    left_buffer: VecDeque<u8>,
+    right_buffer: SliceDeque<u8>,
+    left_buffer: SliceDeque<u8>,
 }
 
 impl Hoverkite {
@@ -35,8 +34,8 @@ impl Hoverkite {
             left_last_command_time: Instant::now(),
             right_target_pending: None,
             left_target_pending: None,
-            right_buffer: VecDeque::new(),
-            left_buffer: VecDeque::new(),
+            right_buffer: SliceDeque::new(),
+            left_buffer: SliceDeque::new(),
         }
     }
 
@@ -44,11 +43,11 @@ impl Hoverkite {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
-            let response = read_port(port, &mut self.left_buffer, Side::Left)?;
+            let response = read_port(port, &mut self.left_buffer)?;
             print_response(&response);
         }
         if let Some(port) = &mut self.right_port {
-            let response = read_port(port, &mut self.right_buffer, Side::Right)?;
+            let response = read_port(port, &mut self.right_buffer)?;
             print_response(&response);
         }
 
@@ -150,23 +149,23 @@ fn print_response(response: &Option<SideResponse>) {
         }) => println!("{:?}: '{}'", side, log),
         Some(SideResponse {
             side,
-            response: Response::Report(Report::Position(position)),
+            response: Response::Position(position),
         }) => println!("{:?} at {}", side, position),
         Some(SideResponse {
             side,
             response:
-                Response::Report(Report::BatteryReadings {
+                Response::BatteryReadings {
                     battery_voltage,
                     backup_battery_voltage,
                     motor_current,
-                }),
+                },
         }) => println!(
             "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
             side, battery_voltage, backup_battery_voltage, motor_current
         ),
         Some(SideResponse {
             side,
-            response: Response::Report(Report::ChargeState { charger_connected }),
+            response: Response::ChargeState { charger_connected },
         }) => println!(
             "{:?} {}",
             side,
@@ -182,17 +181,29 @@ fn print_response(response: &Option<SideResponse>) {
 
 fn read_port(
     port: &mut Box<dyn SerialPort>,
-    buffer: &mut VecDeque<u8>,
-    side: Side,
+    buffer: &mut SliceDeque<u8>,
 ) -> Result<Option<SideResponse>, eyre::Report> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;
         buffer.extend(&temp[0..bytes_read]);
     }
+    // I guess we could make parse() return Result<(response, len), ...>
+    // to avoid this byte-at-a-time nonsense.
+    for len in 1..=buffer.len() {
+        match SideResponse::parse(&buffer[..len]) {
+            Ok(response) => {
+                buffer.truncate_front(len);
+                return Ok(Some(response));
+            }
+            Err(nb::Error::Other(e)) => {
+                error!("Unexpected response {:?}", e);
+                buffer.truncate_front(len);
+                return Ok(None);
+            }
+            Err(nb::Error::WouldBlock) => (),
+        }
+    }
 
-    SideResponse::parse(buffer, side).or_else(|UnexpectedResponse(r)| {
-        error!("Unexpected response {:?}", r);
-        Ok(None)
-    })
+    Ok(None)
 }

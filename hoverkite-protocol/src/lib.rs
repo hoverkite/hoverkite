@@ -5,7 +5,7 @@ mod response;
 mod util;
 
 pub use command::{Command, DirectedCommand};
-pub use response::{Report, UnexpectedResponse};
+pub use response::UnexpectedResponse;
 #[cfg(feature = "std")]
 pub use response::{Response, SideResponse};
 
