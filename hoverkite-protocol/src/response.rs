@@ -1,7 +1,6 @@
-use crate::{
-    util::{ascii_to_bool, bool_to_ascii},
-    WriteCompat,
-};
+use crate::util::{ascii_to_bool, bool_to_ascii};
+#[cfg(feature = "std")]
+use crate::WriteCompat;
 use crate::{ParseError, Side};
 use arrayvec::ArrayString;
 use core::convert::TryInto;

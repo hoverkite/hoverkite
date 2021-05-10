@@ -6,7 +6,6 @@ mod util;
 
 pub use command::{Command, DirectedCommand};
 pub use response::UnexpectedResponse;
-#[cfg(feature = "std")]
 pub use response::{Response, SideResponse};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
@@ -56,6 +55,13 @@ impl Side {
         match self {
             Self::Left => b'L',
             Self::Right => b'R',
+        }
+    }
+
+    pub fn to_char(self) -> char {
+        match self {
+            Self::Left => 'L',
+            Self::Right => 'R',
         }
     }
 }
