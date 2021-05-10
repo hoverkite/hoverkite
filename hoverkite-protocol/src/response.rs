@@ -170,6 +170,7 @@ mod tests {
     })]
     #[test_case(b"RC0", Response::ChargeState { charger_connected: false })]
     #[test_case(b"RC1", Response::ChargeState { charger_connected: true })]
+    #[test_case(b"R\"hello\n", Response::Log(ArrayString::from("hello").unwrap()))]
     fn parse_valid(bytes: &[u8], response: Response) {
         let mut buffer = Vec::new();
         buffer.extend(bytes);
