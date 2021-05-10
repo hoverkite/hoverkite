@@ -1,3 +1,4 @@
+use influx_db_client::{Point, UdpClient, Value};
 use log::{error, trace};
 use messages::{Command, DirectedCommand, Response, Side, SideResponse};
 use serialport::SerialPort;
@@ -18,6 +19,8 @@ pub struct Hoverkite {
     /// between updates.
     right_target_pending: Option<i64>,
     left_target_pending: Option<i64>,
+    last_heartbeat_time: Instant,
+    influx_client: UdpClient,
     right_buffer: SliceDeque<u8>,
     left_buffer: SliceDeque<u8>,
 }
@@ -34,6 +37,8 @@ impl Hoverkite {
             left_last_command_time: Instant::now(),
             right_target_pending: None,
             left_target_pending: None,
+            last_heartbeat_time: Instant::now(),
+            influx_client: UdpClient::new("127.0.0.1:8089".parse().unwrap()),
             right_buffer: SliceDeque::new(),
             left_buffer: SliceDeque::new(),
         }
@@ -41,16 +46,27 @@ impl Hoverkite {
 
     pub fn process(&mut self) -> Result<(), eyre::Report> {
         self.send_pending_targets()?;
+        self.send_heartbeat()?;
 
         if let Some(port) = &mut self.left_port {
             let response = read_port(port, &mut self.left_buffer)?;
-            print_response(&response);
+            response.map(|r| self.print_response(&r));
         }
         if let Some(port) = &mut self.right_port {
             let response = read_port(port, &mut self.right_buffer)?;
-            print_response(&response);
+            response.map(|r| self.print_response(&r));
         }
 
+        Ok(())
+    }
+
+    fn send_heartbeat(&mut self) -> Result<(), eyre::Report> {
+        let now = Instant::now();
+        if now > self.last_heartbeat_time + MIN_TIME_BETWEEN_TARGET_UPDATES {
+            self.send_command(Side::Left, Command::ReportBattery)?;
+            self.send_command(Side::Right, Command::ReportBattery)?;
+            self.last_heartbeat_time = now;
+        }
         Ok(())
     }
 
@@ -109,6 +125,11 @@ impl Hoverkite {
             }
         };
         println!("Target {:?} {}", side, target);
+
+        let point = Point::new("position")
+            .add_field("target", target)
+            .add_tag("side", Value::String(side.to_char().to_string()));
+        self.influx_client.write_point(point).unwrap();
         self.send_command(side, Command::SetTarget(target))
     }
 
@@ -139,21 +160,37 @@ impl Hoverkite {
         side_command.write_to_std(port)?;
         Ok(())
     }
-}
 
-fn print_response(side_response: &Option<SideResponse>) {
-    if let Some(SideResponse { side, response }) = side_response {
+    fn print_response(&self, side_response: &SideResponse) {
+        let SideResponse { side, response } = side_response;
         match response {
             Response::Log(log) => println!("{:?}: '{}'", side, log),
-            Response::Position(position) => println!("{:?} at {}", side, position),
+            Response::Position(position) => {
+                println!("{:?} at {}", side, position);
+                let point = Point::new("position")
+                    .add_field("position", *position)
+                    .add_tag("side", Value::String(side.to_char().to_string()));
+                self.influx_client.write_point(point).unwrap();
+            }
             Response::BatteryReadings {
                 battery_voltage,
                 backup_battery_voltage,
                 motor_current,
-            } => println!(
-                "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
-                side, battery_voltage, backup_battery_voltage, motor_current
-            ),
+            } => {
+                trace!(
+                    "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
+                    side,
+                    battery_voltage,
+                    backup_battery_voltage,
+                    motor_current
+                );
+                let point = Point::new("battery_readings")
+                    .add_field("battery_voltage", *battery_voltage as i64)
+                    .add_field("backup_battery_voltage", *backup_battery_voltage as i64)
+                    .add_field("motor_current", *motor_current as i64)
+                    .add_tag("side", Value::String(side.to_char().to_string()));
+                self.influx_client.write_point(point).unwrap();
+            }
             Response::ChargeState { charger_connected } => println!(
                 "{:?} {}",
                 side,
@@ -163,6 +200,7 @@ fn print_response(side_response: &Option<SideResponse>) {
                     "charger not connected"
                 }
             ),
+
             Response::PowerOff => println!("{:?} powering off", side),
         }
     }
