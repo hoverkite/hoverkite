@@ -2,5 +2,5 @@
 
 members = [
     "hovercontrol",
-    "hoverkite-protocol",
+    "messages",
 ]

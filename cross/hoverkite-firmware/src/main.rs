@@ -8,10 +8,10 @@ mod protocol;
 mod util;
 
 #[cfg(feature = "primary")]
-use hoverkite_protocol::Command;
+use messages::Command;
 #[cfg(feature = "secondary")]
-use hoverkite_protocol::Response;
-use hoverkite_protocol::SideResponse;
+use messages::Response;
+use messages::SideResponse;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly

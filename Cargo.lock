@@ -256,24 +256,13 @@ dependencies = [
  "color-backtrace",
  "eyre",
  "gilrs",
- "hoverkite-protocol",
  "log",
+ "messages",
  "nb 1.0.0",
  "pretty_env_logger",
  "serialport",
  "slice-deque",
  "stable-eyre",
-]
-
-[[package]]
-name = "hoverkite-protocol"
-version = "0.1.0"
-dependencies = [
- "arrayvec",
- "displaydoc",
- "embedded-hal",
- "nb 1.0.0",
- "test-case",
 ]
 
 [[package]]
@@ -380,6 +369,17 @@ name = "memchr"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b16bd47d9e329435e309c58469fe0791c2d0d1ba96ec0954152a5ae2b04387dc"
+
+[[package]]
+name = "messages"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "displaydoc",
+ "embedded-hal",
+ "nb 1.0.0",
+ "test-case",
+]
 
 [[package]]
 name = "miniz_oxide"

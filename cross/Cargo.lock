@@ -257,13 +257,13 @@ dependencies = [
  "cortex-m-semihosting",
  "embedded-hal",
  "gd32f1x0-hal",
- "hoverkite-protocol",
+ "messages",
  "nb 1.0.0",
  "panic-halt",
 ]
 
 [[package]]
-name = "hoverkite-protocol"
+name = "messages"
 version = "0.1.0"
 dependencies = [
  "arrayvec",

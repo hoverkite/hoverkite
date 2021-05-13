@@ -3,7 +3,7 @@ mod hoverkite;
 use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use hoverkite::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
-use hoverkite_protocol::{Command, Side};
+use messages::{Command, Side};
 use log::error;
 use std::env;
 use std::ops::RangeInclusive;

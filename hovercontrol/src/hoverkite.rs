@@ -1,4 +1,4 @@
-use hoverkite_protocol::{Command, DirectedCommand, Response, Side, SideResponse};
+use messages::{Command, DirectedCommand, Response, Side, SideResponse};
 use log::{error, trace};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
