@@ -8,6 +8,7 @@ edition = "2018"
 embedded-hal = "0.2.4"
 nb = "1.0.0"
 arrayvec = { version = "0.7.0", default-features = false }
+displaydoc = { version = "0.2.1", default-features = false }
 
 [dev-dependencies]
 test-case = "1.1.0"

@@ -12,7 +12,7 @@ use gd32f1x0_hal::{
     serial::{Rx, Tx},
 };
 #[allow(unused_imports)]
-use hoverkite_protocol::{Command, DirectedCommand, ParseError, Response, Side, SideResponse};
+use hoverkite_protocol::{Command, DirectedCommand, ProtocolError, Response, Side, SideResponse};
 #[allow(unused_imports)]
 use nb::Error::{Other, WouldBlock};
 
@@ -89,11 +89,11 @@ pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
             true
         }
         Err(WouldBlock) => false,
-        Err(Other(ParseError)) => {
+        Err(Other(protocol_error)) => {
             log!(
                 hoverboard.response_tx(),
                 "Unrecognised response {}",
-                response[0]
+                protocol_error
             );
             true
         }

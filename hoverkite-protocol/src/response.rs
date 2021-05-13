@@ -1,7 +1,7 @@
 use crate::util::{ascii_to_bool, bool_to_ascii};
 #[cfg(feature = "std")]
 use crate::WriteCompat;
-use crate::{ParseError, Side};
+use crate::{ProtocolError, Side};
 use arrayvec::ArrayString;
 use core::convert::TryInto;
 use core::mem::size_of;
@@ -54,13 +54,14 @@ impl Response {
         }
     }
 
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
         let report = match *buf {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
                 if let [ref rest @ .., b'\n'] = *rest {
-                    let utf8 = core::str::from_utf8(rest).map_err(|_| ParseError)?;
-                    let message = ArrayString::from(utf8).map_err(|_| ParseError)?;
+                    let utf8 = core::str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
+                    let message =
+                        ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
                     Self::Log(message)
                 } else {
                     return Err(WouldBlock);
@@ -70,7 +71,9 @@ impl Response {
                 if rest.len() < size_of::<i64>() {
                     return Err(WouldBlock);
                 }
-                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
                 let position = i64::from_le_bytes(bytes);
                 Self::Position(position)
             }
@@ -78,7 +81,7 @@ impl Response {
                 if rest.len() < 6 {
                     return Err(WouldBlock);
                 } else if rest.len() > 6 {
-                    return Err(Other(ParseError));
+                    return Err(Other(ProtocolError::MessageTooLong));
                 }
                 let battery_voltage = u16::from_le_bytes(rest[..2].try_into().unwrap());
                 let backup_battery_voltage = u16::from_le_bytes(rest[2..4].try_into().unwrap());
@@ -94,14 +97,11 @@ impl Response {
                 charger_connected: ascii_to_bool(charger_connected)?,
             },
             [b'p'] => Self::PowerOff,
-            _ => return Err(Other(ParseError)),
+            [c, ..] => return Err(Other(ProtocolError::InvalidCommand(c))),
         };
         Ok(report)
     }
 }
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct UnexpectedResponse(pub u8);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SideResponse {
@@ -123,7 +123,7 @@ impl SideResponse {
         self.response.write_to(writer)
     }
 
-    pub fn parse(buffer: &[u8]) -> nb::Result<Self, ParseError> {
+    pub fn parse(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
         if let [side, ref rest @ ..] = *buffer {
             Ok(SideResponse {
                 side: Side::parse(side)?,
@@ -144,7 +144,10 @@ mod tests {
     fn parse_invalid() {
         let mut buffer = Vec::new();
         buffer.extend(b"x");
-        assert_eq!(SideResponse::parse(&mut buffer), Err(Other(ParseError)));
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Err(Other(ProtocolError::InvalidSide(b'x')))
+        );
     }
 
     #[test]
@@ -172,8 +175,11 @@ mod tests {
     #[test]
     fn parse_invalid_charge_state() {
         let mut buffer = Vec::new();
-        buffer.extend(b"Cx");
-        assert_eq!(SideResponse::parse(&mut buffer), Err(Other(ParseError)));
+        buffer.extend(b"RCx");
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Err(Other(ProtocolError::InvalidByte(b'x')))
+        );
     }
 
     #[test_case(&[b'R', b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], Response::Position(0x1122334455667788))]

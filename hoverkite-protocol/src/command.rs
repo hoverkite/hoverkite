@@ -1,7 +1,7 @@
 use crate::util::{ascii_to_bool, bool_to_ascii};
 #[cfg(feature = "std")]
 use crate::WriteCompat;
-use crate::{ParseError, Side};
+use crate::{ProtocolError, Side};
 use core::convert::TryInto;
 use core::mem::size_of;
 use core::ops::RangeInclusive;
@@ -66,7 +66,7 @@ impl Command {
         Ok(())
     }
 
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
         let command = match *buf {
             [] | [b'l'] | [b'o'] | [b'r'] | [b'g'] => return Err(WouldBlock),
             [b'l', on] => Self::SetSideLed(ascii_to_bool(on)?),
@@ -80,7 +80,7 @@ impl Command {
                     return Err(WouldBlock);
                 }
                 if rest.len() > 4 {
-                    return Err(Other(ParseError));
+                    return Err(Other(ProtocolError::MessageTooLong));
                 }
                 let min_power = i16::from_le_bytes(rest[..2].try_into().unwrap());
                 let max_power = i16::from_le_bytes(rest[2..4].try_into().unwrap());
@@ -90,7 +90,9 @@ impl Command {
                 if rest.len() < size_of::<u16>() {
                     return Err(WouldBlock);
                 }
-                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
                 let spring = u16::from_le_bytes(bytes);
                 Self::SetSpringConstant(spring)
             }
@@ -99,7 +101,9 @@ impl Command {
                 if rest.len() < size_of::<i64>() {
                     return Err(WouldBlock);
                 }
-                let bytes = rest.try_into().map_err(|_| Other(ParseError))?;
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
                 let target = i64::from_le_bytes(bytes);
                 Self::SetTarget(target)
             }
@@ -107,7 +111,8 @@ impl Command {
             [b'+'] => Self::IncrementTarget,
             [b'-'] => Self::DecrementTarget,
             [b'p'] => Self::PowerOff,
-            _ => return Err(Other(ParseError)),
+            [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
+            [..] => return Err(Other(ProtocolError::MessageTooLong)),
         };
         Ok(command)
     }
@@ -121,7 +126,7 @@ pub struct DirectedCommand {
 }
 
 impl DirectedCommand {
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ParseError> {
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
         if let [side, ref rest @ ..] = *buf {
             Ok(DirectedCommand {
                 side: Side::parse(side)?,
@@ -213,14 +218,17 @@ mod tests {
             buf.push(42);
             let round_tripped_command = DirectedCommand::parse(&buf);
 
-            assert_eq!(round_tripped_command, Err(Other(ParseError)))
+            assert_eq!(
+                round_tripped_command,
+                Err(Other(ProtocolError::MessageTooLong))
+            )
         }
 
         #[test]
         fn parse_error_if_bogus_payload() {
             assert_eq!(
                 DirectedCommand::parse(&[b'R', b'!']),
-                Err(Other(ParseError))
+                Err(Other(ProtocolError::InvalidCommand(b'!')))
             )
         }
     }
@@ -276,7 +284,10 @@ mod tests {
             buf.push(42);
             let round_tripped_command = Command::parse(&buf);
 
-            assert_eq!(round_tripped_command, Err(Other(ParseError)))
+            assert_eq!(
+                round_tripped_command,
+                Err(Other(ProtocolError::MessageTooLong))
+            )
         }
 
         #[test_case(SetSideLed(true))]

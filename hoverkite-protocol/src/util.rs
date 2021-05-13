@@ -1,10 +1,10 @@
-use crate::ParseError;
+use crate::ProtocolError;
 
-pub fn ascii_to_bool(char: u8) -> Result<bool, ParseError> {
+pub fn ascii_to_bool(char: u8) -> Result<bool, ProtocolError> {
     match char {
         b'1' => Ok(true),
         b'0' => Ok(false),
-        _ => Err(ParseError),
+        b => Err(ProtocolError::InvalidByte(b)),
     }
 }
 

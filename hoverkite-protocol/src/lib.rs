@@ -1,11 +1,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod command;
+mod error;
 mod response;
 mod util;
 
 pub use command::{Command, DirectedCommand};
-pub use response::UnexpectedResponse;
+pub use error::ProtocolError;
 pub use response::{Response, SideResponse};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
@@ -43,11 +44,11 @@ impl Side {
         }
     }
 
-    pub fn parse(byte: u8) -> Result<Self, ParseError> {
+    pub fn parse(byte: u8) -> Result<Self, ProtocolError> {
         match byte {
             b'L' => Ok(Self::Left),
             b'R' => Ok(Self::Right),
-            _ => Err(ParseError),
+            _ => Err(ProtocolError::InvalidSide(byte)),
         }
     }
 
@@ -65,6 +66,3 @@ impl Side {
         }
     }
 }
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct ParseError;
