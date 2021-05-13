@@ -1,0 +1,19 @@
+name: Auto Assign to Project(s)
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  assign_one_project:
+    runs-on: ubuntu-latest
+    name: Add to Kanban Board
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - name: Add new issues and pull requests to kanban board
+      uses: srggrs/assign-one-project-github-action@1.2.1
+      with:
+        project: 'https://github.com/hoverkite/hoverkite/projects/2'
