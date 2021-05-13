@@ -141,45 +141,30 @@ impl Hoverkite {
     }
 }
 
-fn print_response(response: &Option<SideResponse>) {
-    match response {
-        Some(SideResponse {
-            side,
-            response: Response::Log(log),
-        }) => println!("{:?}: '{}'", side, log),
-        Some(SideResponse {
-            side,
-            response: Response::Position(position),
-        }) => println!("{:?} at {}", side, position),
-        Some(SideResponse {
-            side,
-            response:
-                Response::BatteryReadings {
-                    battery_voltage,
-                    backup_battery_voltage,
-                    motor_current,
-                },
-        }) => println!(
-            "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
-            side, battery_voltage, backup_battery_voltage, motor_current
-        ),
-        Some(SideResponse {
-            side,
-            response: Response::ChargeState { charger_connected },
-        }) => println!(
-            "{:?} {}",
-            side,
-            if *charger_connected {
-                "charger connected"
-            } else {
-                "charger not connected"
-            }
-        ),
-        Some(SideResponse {
-            side,
-            response: Response::PowerOff,
-        }) => println!("{:?} powering off", side),
-        None => {}
+fn print_response(side_response: &Option<SideResponse>) {
+    if let Some(SideResponse { side, response }) = side_response {
+        match response {
+            Response::Log(log) => println!("{:?}: '{}'", side, log),
+            Response::Position(position) => println!("{:?} at {}", side, position),
+            Response::BatteryReadings {
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            } => println!(
+                "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
+                side, battery_voltage, backup_battery_voltage, motor_current
+            ),
+            Response::ChargeState { charger_connected } => println!(
+                "{:?} {}",
+                side,
+                if *charger_connected {
+                    "charger connected"
+                } else {
+                    "charger not connected"
+                }
+            ),
+            Response::PowerOff => println!("{:?} powering off", side),
+        }
     }
 }
 
