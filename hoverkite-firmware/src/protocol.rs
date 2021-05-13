@@ -20,10 +20,10 @@ use nb::Error::{Other, WouldBlock};
 macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
-			core::fmt::Write::write_char(&mut $dst, crate::protocol::THIS_SIDE.to_char()).unwrap();
-			core::fmt::Write::write_char(&mut $dst, '"').unwrap();
-			core::fmt::Write::write_fmt(&mut $dst, format_args!($($arg)*)).unwrap();
-			core::fmt::Write::write_char(&mut $dst,'\n').unwrap();
+            SideResponse {
+                side: crate::protocol::THIS_SIDE,
+                response: ::hoverkite_protocol::Response::log_from_fmt(format_args!($($arg)*))
+            }.write_to($dst).unwrap()
 		}
     );
 }

@@ -6,10 +6,21 @@ use arrayvec::ArrayString;
 use core::convert::TryInto;
 use core::mem::size_of;
 use nb::Error::{Other, WouldBlock};
+const BUF_SIZE: usize = 256;
+
+struct TruncatingWriter(ArrayString<BUF_SIZE>);
+
+impl core::fmt::Write for TruncatingWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        s.chars()
+            .try_for_each(|c| self.0.write_char(c))
+            .map_err(|_| core::fmt::Error)
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Response {
-    Log(ArrayString<256>),
+    Log(ArrayString<BUF_SIZE>),
     Position(i64),
     BatteryReadings {
         battery_voltage: u16,
@@ -23,6 +34,27 @@ pub enum Response {
 }
 
 impl Response {
+    pub fn log_from_fmt(args: core::fmt::Arguments<'_>) -> Self {
+        let mut writer = TruncatingWriter(ArrayString::new());
+
+        match core::fmt::Write::write_fmt(&mut writer, args) {
+            Ok(()) => (),
+            Err(_) => {
+                // `core::fmt::Error` doesn't have a payload, so we just have to guess.
+                if writer.0.len() + size_of::<char>() >= BUF_SIZE {
+                    // If we think we ran out of bytes while writing then truncate with ...
+                    writer.0.pop();
+                    writer.0.pop();
+                    writer.0.pop();
+                    writer.0.try_push_str("...").unwrap();
+                } else {
+                    panic!("unexpected core::fmt::Error when writing log")
+                }
+            }
+        }
+        Self::Log(writer.0)
+    }
+
     pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
         W: embedded_hal::blocking::serial::Write<u8>,
@@ -139,6 +171,24 @@ impl SideResponse {
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    mod log {
+        use super::super::*;
+        use test_case::test_case;
+
+        #[test_case("$" ; "width 1")]
+        #[test_case("¢" ; "width 2")]
+        #[test_case("€" ; "width 3")]
+        #[test_case("𐍈" ; "width 4")]
+        fn too_long_with_unicode_widths(c: &str) {
+            let response = Response::log_from_fmt(format_args!("{}", c.repeat(500)));
+            let log = match response {
+                Response::Log(log) => log,
+                _ => panic!(),
+            };
+            assert!(&log[..].ends_with("..."))
+        }
+    }
 
     #[test]
     fn parse_invalid() {
