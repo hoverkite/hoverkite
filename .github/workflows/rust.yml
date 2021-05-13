@@ -69,7 +69,7 @@ jobs:
       matrix:
         directory: ${{ fromJSON(needs.find-crates.outputs.crates) }}
         exclude:
-          - directory: hoverkite-firmware
+          - directory: cross
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
