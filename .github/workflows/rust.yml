@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Find crates
         id: find
-        run: echo "::set-output name=crates::$(find -name Cargo.toml -printf '%h\n' | sed 's:./::' | jq -R | jq -sc)"
+        run: echo "::set-output name=crates::$(git grep --name-only -F [workspace] | sed -n 's:/*Cargo.toml::p' | sed s/^$/./ | jq -R | jq -sc)"
 
   format:
     name: Format
