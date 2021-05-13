@@ -124,17 +124,13 @@ impl SideResponse {
     }
 
     pub fn parse(buffer: &[u8]) -> nb::Result<Self, ParseError> {
-        match buffer {
-            [] => Err(WouldBlock),
-            [b'L', ref rest @ ..] => Ok(SideResponse {
-                side: Side::Left,
+        if let [side, ref rest @ ..] = *buffer {
+            Ok(SideResponse {
+                side: Side::parse(side)?,
                 response: Response::parse(rest)?,
-            }),
-            [b'R', ref rest @ ..] => Ok(SideResponse {
-                side: Side::Right,
-                response: Response::parse(rest)?,
-            }),
-            _ => Err(Other(ParseError)),
+            })
+        } else {
+            Err(WouldBlock)
         }
     }
 }
