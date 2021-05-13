@@ -9,7 +9,9 @@ mod util;
 
 #[cfg(feature = "primary")]
 use hoverkite_protocol::Command;
-use hoverkite_protocol::{Response, SideResponse};
+#[cfg(feature = "secondary")]
+use hoverkite_protocol::Response;
+use hoverkite_protocol::SideResponse;
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -25,6 +27,7 @@ use protocol::process_response;
 use protocol::{process_command, send_position, HoverboardExt};
 use util::clamp;
 
+#[cfg(feature = "secondary")]
 use crate::protocol::THIS_SIDE;
 
 const WATCHDOG_MILLIS: u32 = 1000;

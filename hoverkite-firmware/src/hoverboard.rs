@@ -29,6 +29,7 @@ use gd32f1x0_hal::{
 
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
+#[allow(dead_code)]
 const CURRENT_OFFSET_DC: u16 = 1073;
 
 struct Shared {
