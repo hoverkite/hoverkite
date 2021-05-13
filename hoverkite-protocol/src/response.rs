@@ -95,6 +95,8 @@ impl Response {
                     let message =
                         ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
                     Self::Log(message)
+                } else if rest.len() > BUF_SIZE {
+                    return Err(Other(ProtocolError::MessageTooLong));
                 } else {
                     return Err(WouldBlock);
                 }
@@ -187,6 +189,13 @@ mod tests {
                 _ => panic!(),
             };
             assert!(&log[..].ends_with("..."))
+        }
+
+        #[test]
+        fn parse_too_long() {
+            let buf = format!("\"{}\n", "n".repeat(500));
+            let response = Response::parse(buf.as_bytes());
+            assert_eq!(response, Err(Other(ProtocolError::MessageTooLong)));
         }
     }
 
