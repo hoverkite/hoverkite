@@ -81,8 +81,11 @@ where
 #[cfg(feature = "primary")]
 pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
     match SideResponse::parse(response) {
-        Ok(response) => {
-            response.write_to(hoverboard.response_tx()).unwrap();
+        Ok(side_response) => {
+            side_response.write_to(hoverboard.response_tx()).unwrap();
+            if side_response.response == Response::PowerOff {
+                poweroff(hoverboard);
+            }
             true
         }
         Err(WouldBlock) => false,

@@ -175,6 +175,10 @@ fn print_response(response: &Option<SideResponse>) {
                 "charger not connected"
             }
         ),
+        Some(SideResponse {
+            side,
+            response: Response::PowerOff,
+        }) => println!("{:?} powering off", side),
         None => {}
     }
 }

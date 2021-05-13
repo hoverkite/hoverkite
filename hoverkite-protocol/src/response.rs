@@ -19,6 +19,7 @@ pub enum Response {
     ChargeState {
         charger_connected: bool,
     },
+    PowerOff,
 }
 
 impl Response {
@@ -49,6 +50,7 @@ impl Response {
             Self::ChargeState { charger_connected } => {
                 writer.bwrite_all(&[b'C', bool_to_ascii(*charger_connected)])
             }
+            Self::PowerOff => writer.bwrite_all(b"p"),
         }
     }
 
@@ -91,6 +93,7 @@ impl Response {
             [b'C', charger_connected] => Self::ChargeState {
                 charger_connected: ascii_to_bool(charger_connected)?,
             },
+            [b'p'] => Self::PowerOff,
             _ => return Err(Other(ParseError)),
         };
         Ok(report)
@@ -208,6 +211,7 @@ mod tests {
     #[test_case(Response::ChargeState { charger_connected: true })]
     #[test_case(Response::Log(ArrayString::from("hello").unwrap()))]
     #[test_case(Response::Log(ArrayString::from("emoji 👨‍👨‍👦").unwrap()))]
+    #[test_case(Response::PowerOff)]
     fn round_trip(response: Response) {
         let side_response = SideResponse {
             side: Side::Right,
