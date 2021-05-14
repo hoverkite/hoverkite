@@ -20,7 +20,7 @@ use nb::Error::{Other, WouldBlock};
 macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
-            SideResponse {
+            ::hoverkite_protocol::SideResponse {
                 side: crate::protocol::THIS_SIDE,
                 response: ::hoverkite_protocol::Response::log_from_fmt(format_args!($($arg)*))
             }.write_to($dst).unwrap()
