@@ -4,7 +4,7 @@ use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use arrayvec::ArrayString;
 use core::mem::size_of;
-use core::{convert::TryInto, fmt::Write};
+use core::{convert::TryInto, fmt::Write, str};
 use nb::Error::{Other, WouldBlock};
 const MAX_LOG_SIZE: usize = 256;
 
@@ -88,7 +88,7 @@ impl Response {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
                 if let [ref rest @ .., b'\n'] = *rest {
-                    let utf8 = core::str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
+                    let utf8 = str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
                     let message =
                         ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
                     Self::Log(message)
