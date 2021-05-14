@@ -6,9 +6,9 @@ use arrayvec::ArrayString;
 use core::convert::TryInto;
 use core::mem::size_of;
 use nb::Error::{Other, WouldBlock};
-const BUF_SIZE: usize = 256;
+const MAX_LOG_SIZE: usize = 256;
 
-struct TruncatingWriter(ArrayString<BUF_SIZE>);
+struct TruncatingWriter(ArrayString<MAX_LOG_SIZE>);
 
 impl core::fmt::Write for TruncatingWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
@@ -20,7 +20,7 @@ impl core::fmt::Write for TruncatingWriter {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Response {
-    Log(ArrayString<BUF_SIZE>),
+    Log(ArrayString<MAX_LOG_SIZE>),
     Position(i64),
     BatteryReadings {
         battery_voltage: u16,
@@ -41,7 +41,7 @@ impl Response {
             Ok(()) => (),
             Err(_) => {
                 // `core::fmt::Error` doesn't have a payload, so we just have to guess.
-                if writer.0.len() + size_of::<char>() >= BUF_SIZE {
+                if writer.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
                     // If we think we ran out of bytes while writing then truncate with ...
                     writer.0.pop();
                     writer.0.pop();
@@ -95,7 +95,7 @@ impl Response {
                     let message =
                         ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
                     Self::Log(message)
-                } else if rest.len() > BUF_SIZE {
+                } else if rest.len() > MAX_LOG_SIZE {
                     return Err(Other(ProtocolError::MessageTooLong));
                 } else {
                     return Err(WouldBlock);
