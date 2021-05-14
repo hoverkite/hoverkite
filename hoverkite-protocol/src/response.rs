@@ -37,19 +37,16 @@ impl Response {
     pub fn log_from_fmt(args: core::fmt::Arguments<'_>) -> Self {
         let mut writer = TruncatingWriter(ArrayString::new());
 
-        match core::fmt::Write::write_fmt(&mut writer, args) {
-            Ok(()) => (),
-            Err(_) => {
-                // `core::fmt::Error` doesn't have a payload, so we just have to guess.
-                if writer.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
-                    // If we think we ran out of bytes while writing then truncate with ...
-                    writer.0.pop();
-                    writer.0.pop();
-                    writer.0.pop();
-                    writer.0.try_push_str("...").unwrap();
-                } else {
-                    panic!("unexpected core::fmt::Error when writing log")
-                }
+        if core::fmt::Write::write_fmt(&mut writer, args).is_err() {
+            // `core::fmt::Error` doesn't have a payload, so we just have to guess.
+            if writer.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
+                // If we think we ran out of bytes while writing then truncate with ...
+                writer.0.pop();
+                writer.0.pop();
+                writer.0.pop();
+                writer.0.try_push_str("...").unwrap();
+            } else {
+                panic!("unexpected core::fmt::Error when writing log")
             }
         }
         Self::Log(writer.0)
