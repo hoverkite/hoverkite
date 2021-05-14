@@ -6,6 +6,7 @@ use arrayvec::ArrayString;
 use core::mem::size_of;
 use core::{convert::TryInto, fmt::Write, str};
 use nb::Error::{Other, WouldBlock};
+
 const MAX_LOG_SIZE: usize = 256;
 
 struct TruncatingWriter(ArrayString<MAX_LOG_SIZE>);
