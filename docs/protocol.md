@@ -24,8 +24,9 @@ on the command.
 
 ## Responses
 
-A response from the hoverboard to the controller similarly consists of a single ASCII character
-followed by some number of bytes of parameters.
+A response from the hoverboard to the controller similarly consists of the ASCII character 'R' or
+'L' to indicate whether it is from the left or right side, followed by a single ASCII character
+defining the command, followed by some number of bytes of parameters.
 
 | Response | Parameters       | Meaning                                                |
 | -------- | ---------------- | ------------------------------------------------------ |
