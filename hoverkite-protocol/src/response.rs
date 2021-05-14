@@ -112,6 +112,7 @@ impl Response {
                 Self::Position(position)
             }
             [b'B', ref rest @ ..] => {
+                #[allow(clippy::comparison_chain)]
                 if rest.len() < 6 {
                     return Err(WouldBlock);
                 } else if rest.len() > 6 {
