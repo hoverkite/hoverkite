@@ -2,7 +2,6 @@ use crate::buffered_tx::BufferedSerialWriter;
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
 use core::{
-    convert::TryInto,
     fmt::Debug,
     ops::{Deref, RangeInclusive},
 };
@@ -12,32 +11,38 @@ use gd32f1x0_hal::{
     prelude::*,
     serial::{Rx, Tx},
 };
-use hoverkite_protocol::{Command, DirectedCommand, Side};
+#[allow(unused_imports)]
+use hoverkite_protocol::{Command, DirectedCommand, ProtocolError, Response, Side, SideResponse};
+#[allow(unused_imports)]
+use nb::Error::{Other, WouldBlock};
 
 #[macro_export]
 macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
-			core::fmt::Write::write_char(&mut $dst, '"').unwrap();
-			core::fmt::Write::write_fmt(&mut $dst, format_args!($($arg)*)).unwrap();
-			core::fmt::Write::write_char(&mut $dst,'\n').unwrap();
+            ::hoverkite_protocol::SideResponse {
+                side: crate::protocol::THIS_SIDE,
+                response: ::hoverkite_protocol::Response::log_from_fmt(format_args!($($arg)*))
+            }.write_to($dst).unwrap()
 		}
     );
 }
 
 #[cfg(feature = "primary")]
-const THIS_SIDE: Side = Side::Right;
+pub const THIS_SIDE: Side = Side::Right;
 #[cfg(feature = "secondary")]
-const THIS_SIDE: Side = Side::Left;
+pub const THIS_SIDE: Side = Side::Left;
 
-pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64, from_other_side: bool)
+pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64)
 where
     W::Error: Debug,
 {
-    serial
-        .bwrite_all(if from_other_side { b"i" } else { b"I" })
-        .unwrap();
-    serial.bwrite_all(&position.to_le_bytes()).unwrap();
+    SideResponse {
+        side: THIS_SIDE,
+        response: Response::Position(position),
+    }
+    .write_to(serial)
+    .unwrap();
 }
 
 fn send_battery_readings<W: Write<u8>>(
@@ -45,102 +50,54 @@ fn send_battery_readings<W: Write<u8>>(
     battery_voltage: u16,
     backup_battery_voltage: u16,
     motor_current: u16,
-    from_other_side: bool,
 ) where
     W::Error: Debug,
 {
-    serial
-        .bwrite_all(if from_other_side { b"b" } else { b"B" })
-        .unwrap();
-    serial.bwrite_all(&battery_voltage.to_le_bytes()).unwrap();
-    serial
-        .bwrite_all(&backup_battery_voltage.to_le_bytes())
-        .unwrap();
-    serial.bwrite_all(&motor_current.to_le_bytes()).unwrap();
+    SideResponse {
+        side: THIS_SIDE,
+        response: Response::BatteryReadings {
+            battery_voltage,
+            backup_battery_voltage,
+            motor_current,
+        },
+    }
+    .write_to(serial)
+    .unwrap();
 }
 
-fn send_charge_state<W: Write<u8>>(serial: &mut W, charger_connected: bool, from_other_side: bool)
+fn send_charge_state<W: Write<u8>>(serial: &mut W, charger_connected: bool)
 where
     W::Error: Debug,
 {
-    serial
-        .bwrite_all(if from_other_side { b"c" } else { b"C" })
-        .unwrap();
-    serial
-        .bwrite_all(if charger_connected { b"1" } else { b"0" })
-        .unwrap();
-}
-
-pub fn send_secondary_log<W: Write<u8>>(serial: &mut W, log: &[u8])
-where
-    W::Error: Debug,
-{
-    serial.bwrite_all(b"'").unwrap();
-    serial.bwrite_all(log).unwrap();
-    serial.bwrite_all(b"\n").unwrap();
+    SideResponse {
+        side: THIS_SIDE,
+        response: Response::ChargeState { charger_connected },
+    }
+    .write_to(serial)
+    .unwrap();
 }
 
 /// Process the given response from the secondary board.
 #[cfg(feature = "primary")]
 pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
-    if response.len() < 1 {
-        return false;
-    }
-
-    match response[0] {
-        b'"' => {
-            if response.last() != Some(&b'\n') {
-                return false;
+    match SideResponse::parse(response) {
+        Ok(side_response) => {
+            side_response.write_to(hoverboard.response_tx()).unwrap();
+            if side_response.response == Response::PowerOff {
+                poweroff(hoverboard);
             }
-            let log = &response[1..response.len() - 1];
-            send_secondary_log(hoverboard.response_tx(), log);
+            true
         }
-        b'I' => {
-            if response.len() < 9 {
-                return false;
-            }
-            let position = i64::from_le_bytes(response[1..9].try_into().unwrap());
-            send_position(hoverboard.response_tx(), position, true);
-        }
-        b'B' => {
-            if response.len() < 7 {
-                return false;
-            }
-            let battery_voltage = u16::from_le_bytes(response[1..3].try_into().unwrap());
-            let backup_battery_voltage = u16::from_le_bytes(response[3..5].try_into().unwrap());
-            let motor_current = u16::from_le_bytes(response[5..7].try_into().unwrap());
-            send_battery_readings(
+        Err(WouldBlock) => false,
+        Err(Other(protocol_error)) => {
+            log!(
                 hoverboard.response_tx(),
-                battery_voltage,
-                backup_battery_voltage,
-                motor_current,
-                true,
+                "Unrecognised response {}",
+                protocol_error
             );
+            true
         }
-        b'C' => {
-            if response.len() < 2 {
-                return false;
-            }
-            let charger_connected = match response[1] {
-                b'0' => false,
-                b'1' => true,
-                r => {
-                    log!(hoverboard.response_tx(), "Invalid charge state {}", r);
-                    return true;
-                }
-            };
-            send_charge_state(hoverboard.response_tx(), charger_connected, true);
-        }
-        b'p' => {
-            poweroff(hoverboard);
-        }
-        _ => log!(
-            hoverboard.response_tx(),
-            "Unrecognised response {}",
-            response[0]
-        ),
     }
-    true
 }
 
 #[cfg(feature = "primary")]
@@ -243,12 +200,11 @@ pub fn handle_command(
                 readings.battery_voltage,
                 readings.backup_battery_voltage,
                 readings.motor_current,
-                false,
             );
         }
         Command::ReportCharger => {
             let charger_connected = hoverboard.charge_state.is_low().unwrap();
-            send_charge_state(hoverboard.response_tx(), charger_connected, false);
+            send_charge_state(hoverboard.response_tx(), charger_connected);
         }
         Command::SetMaxSpeed(limits) => {
             log!(hoverboard.response_tx(), "max speed {:?}", limits);

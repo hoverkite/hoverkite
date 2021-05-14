@@ -1,12 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod command;
-#[cfg(feature = "std")]
+mod error;
 mod response;
+mod util;
 
 pub use command::{Command, DirectedCommand};
-#[cfg(feature = "std")]
-pub use response::{Response, SideResponse, UnexpectedResponse};
+pub use error::ProtocolError;
+pub use response::{Response, SideResponse};
 
 /// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
 // TODO: propose the following impl to embedded_hal crate:
@@ -43,11 +44,11 @@ impl Side {
         }
     }
 
-    pub fn parse(byte: u8) -> Result<Self, ParseError> {
+    pub fn parse(byte: u8) -> Result<Self, ProtocolError> {
         match byte {
             b'L' => Ok(Self::Left),
             b'R' => Ok(Self::Right),
-            _ => Err(ParseError),
+            _ => Err(ProtocolError::InvalidSide(byte)),
         }
     }
 
@@ -57,7 +58,11 @@ impl Side {
             Self::Right => b'R',
         }
     }
-}
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct ParseError;
+    pub fn to_char(self) -> char {
+        match self {
+            Self::Left => 'L',
+            Self::Right => 'R',
+        }
+    }
+}

@@ -9,6 +9,7 @@ mod util;
 
 #[cfg(feature = "primary")]
 use hoverkite_protocol::Command;
+use hoverkite_protocol::{Response, SideResponse};
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -23,6 +24,8 @@ use hoverboard::Hoverboard;
 use protocol::process_response;
 use protocol::{process_command, send_position, HoverboardExt};
 use util::clamp;
+
+use crate::protocol::THIS_SIDE;
 
 const WATCHDOG_MILLIS: u32 = 1000;
 
@@ -155,7 +158,7 @@ fn main() -> ! {
         // Log if the position has changed.
         let position = hoverboard.motor_position();
         if position != last_position {
-            send_position(hoverboard.response_tx(), position, false);
+            send_position(hoverboard.response_tx(), position);
             last_position = position;
         }
 
@@ -205,8 +208,12 @@ fn main() -> ! {
             {
                 log!(hoverboard.response_tx(), "Telling primary to power off");
                 // Tell primary to power off, but only here in response to the power button press.
-                hoverboard.serial_writer.bwrite_all(b"p").unwrap();
-                hoverboard.serial_writer.bflush().unwrap();
+                SideResponse {
+                    side: THIS_SIDE,
+                    response: Response::PowerOff,
+                }
+                .write_to(&mut hoverboard.serial_writer)
+                .unwrap()
             }
             poweroff(&mut hoverboard);
         }

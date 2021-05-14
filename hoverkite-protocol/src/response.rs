@@ -1,16 +1,48 @@
-use crate::Side;
-use std::collections::VecDeque;
-use std::convert::TryInto;
+use crate::util::{ascii_to_bool, bool_to_ascii};
+#[cfg(feature = "std")]
+use crate::WriteCompat;
+use crate::{ProtocolError, Side};
+use arrayvec::ArrayString;
+use core::mem::size_of;
+use core::{convert::TryInto, fmt::Write, str};
+use nb::Error::{Other, WouldBlock};
+const MAX_LOG_SIZE: usize = 256;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Response {
-    pub side: Side,
-    pub response: SideResponse,
+struct TruncatingWriter(ArrayString<MAX_LOG_SIZE>);
+
+impl Write for TruncatingWriter {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        if self.0.write_str(s).is_err() {
+            // ArrayString::write_str() is atomic - it will refuse to write
+            // anything at all, if it finds that the string is too long.
+            // If it fails, we unpack into chars and write as many as we can.
+            s.chars().try_for_each(|c| self.0.write_char(c))?
+        }
+
+        Ok(())
+    }
+
+    fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> core::fmt::Result {
+        if core::fmt::write(self, fmt).is_ok() {
+            return Ok(());
+        }
+
+        // `core::fmt::Error` doesn't have a payload, so we just have to guess.
+        if self.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
+            // If we think we ran out of bytes while writing, truncate with ...
+            self.0.pop();
+            self.0.pop();
+            self.0.pop();
+            self.0.write_str("...")
+        } else {
+            Err(core::fmt::Error)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SideResponse {
-    Log(String),
+pub enum Response {
+    Log(ArrayString<MAX_LOG_SIZE>),
     Position(i64),
     BatteryReadings {
         battery_voltage: u16,
@@ -20,173 +52,266 @@ pub enum SideResponse {
     ChargeState {
         charger_connected: bool,
     },
+    PowerOff,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct UnexpectedResponse(pub u8);
-
 impl Response {
-    pub fn parse(
-        buffer: &mut VecDeque<u8>,
-        side: Side,
-    ) -> Result<Option<Response>, UnexpectedResponse> {
-        match buffer.front().copied() {
-            Some(b'"') | Some(b'\'') => {
-                Ok(
-                    if let Some(end_of_line) = buffer.iter().position(|&c| c == b'\n') {
-                        let side = if buffer.pop_front().unwrap() == b'"' {
-                            side
-                        } else {
-                            side.opposite()
-                        };
-                        let log: Vec<u8> = buffer.drain(0..end_of_line - 1).collect();
-                        // Drop '\n'
-                        buffer.pop_front();
-                        let string = String::from_utf8_lossy(&log);
-                        Some(Response {
-                            side,
-                            response: SideResponse::Log(string.into_owned()),
-                        })
-                    } else {
-                        None
-                    },
-                )
+    pub fn log_from_fmt(args: core::fmt::Arguments<'_>) -> Self {
+        let mut writer = TruncatingWriter(ArrayString::new());
+        writer.write_fmt(args).unwrap();
+
+        Self::Log(writer.0)
+    }
+
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
+        match self {
+            Self::Log(message) => {
+                writer.bwrite_all(b"\"")?;
+                writer.bwrite_all(message.as_bytes())?;
+                writer.bwrite_all(b"\n")
             }
-            Some(b'I') | Some(b'i') => Ok(if buffer.len() >= 9 {
-                let side = if buffer.pop_front().unwrap() == b'I' {
-                    side
-                } else {
-                    side.opposite()
-                };
-                let bytes: Vec<u8> = buffer.drain(0..8).collect();
-                let position = i64::from_le_bytes(bytes.try_into().unwrap());
-                Some(Response {
-                    side,
-                    response: SideResponse::Position(position),
-                })
-            } else {
-                None
-            }),
-            Some(b'B') | Some(b'b') => Ok(if buffer.len() >= 7 {
-                let side = if buffer.pop_front().unwrap() == b'B' {
-                    side
-                } else {
-                    side.opposite()
-                };
-                let bytes: Vec<u8> = buffer.drain(0..6).collect();
-                let battery_voltage = u16::from_le_bytes(bytes[0..2].try_into().unwrap());
-                let backup_battery_voltage = u16::from_le_bytes(bytes[2..4].try_into().unwrap());
-                let motor_current = u16::from_le_bytes(bytes[4..6].try_into().unwrap());
-                Some(Response {
-                    side,
-                    response: SideResponse::BatteryReadings {
-                        battery_voltage,
-                        backup_battery_voltage,
-                        motor_current,
-                    },
-                })
-            } else {
-                None
-            }),
-            Some(b'C') | Some(b'c') => Ok(if buffer.len() >= 2 {
-                let side = if buffer.pop_front().unwrap() == b'C' {
-                    side
-                } else {
-                    side.opposite()
-                };
-                let byte = buffer.pop_front().unwrap();
-                let charger_connected = match byte {
-                    b'0' => false,
-                    b'1' => true,
-                    _ => return Err(UnexpectedResponse(byte)),
-                };
-                Some(Response {
-                    side,
-                    response: SideResponse::ChargeState { charger_connected },
-                })
-            } else {
-                None
-            }),
-            Some(r) => {
-                buffer.pop_front();
-                Err(UnexpectedResponse(r))
+            Self::Position(position) => {
+                writer.bwrite_all(b"I")?;
+                writer.bwrite_all(&position.to_le_bytes())
             }
-            None => Ok(None),
+            Self::BatteryReadings {
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            } => {
+                writer.bwrite_all(b"B")?;
+                writer.bwrite_all(&battery_voltage.to_le_bytes())?;
+                writer.bwrite_all(&backup_battery_voltage.to_le_bytes())?;
+                writer.bwrite_all(&motor_current.to_le_bytes())
+            }
+            Self::ChargeState { charger_connected } => {
+                writer.bwrite_all(&[b'C', bool_to_ascii(*charger_connected)])
+            }
+            Self::PowerOff => writer.bwrite_all(b"p"),
+        }
+    }
+
+    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
+        let report = match *buf {
+            [] => return Err(WouldBlock),
+            [b'"', ref rest @ ..] => {
+                if let [ref rest @ .., b'\n'] = *rest {
+                    let utf8 = str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
+                    let message =
+                        ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
+                    Self::Log(message)
+                } else if rest.len() > MAX_LOG_SIZE {
+                    return Err(Other(ProtocolError::MessageTooLong));
+                } else {
+                    return Err(WouldBlock);
+                }
+            }
+            [b'I', ref rest @ ..] => {
+                if rest.len() < size_of::<i64>() {
+                    return Err(WouldBlock);
+                }
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
+                let position = i64::from_le_bytes(bytes);
+                Self::Position(position)
+            }
+            [b'B', ref rest @ ..] => {
+                #[allow(clippy::comparison_chain)]
+                if rest.len() < 6 {
+                    return Err(WouldBlock);
+                } else if rest.len() > 6 {
+                    return Err(Other(ProtocolError::MessageTooLong));
+                }
+                let battery_voltage = u16::from_le_bytes(rest[..2].try_into().unwrap());
+                let backup_battery_voltage = u16::from_le_bytes(rest[2..4].try_into().unwrap());
+                let motor_current = u16::from_le_bytes(rest[4..6].try_into().unwrap());
+                Self::BatteryReadings {
+                    battery_voltage,
+                    backup_battery_voltage,
+                    motor_current,
+                }
+            }
+            [b'C'] => return Err(WouldBlock),
+            [b'C', charger_connected] => Self::ChargeState {
+                charger_connected: ascii_to_bool(charger_connected)?,
+            },
+            [b'p'] => Self::PowerOff,
+            [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
+            [..] => return Err(Other(ProtocolError::MessageTooLong)),
+        };
+        Ok(report)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SideResponse {
+    pub side: Side,
+    pub response: Response,
+}
+
+impl SideResponse {
+    #[cfg(feature = "std")]
+    pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        self.write_to(&mut WriteCompat(writer))
+    }
+
+    pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
+    where
+        W: embedded_hal::blocking::serial::Write<u8>,
+    {
+        writer.bwrite_all(&[self.side.to_byte()])?;
+        self.response.write_to(writer)
+    }
+
+    pub fn parse(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
+        if let [side, ref rest @ ..] = *buffer {
+            Ok(SideResponse {
+                side: Side::parse(side)?,
+                response: Response::parse(rest)?,
+            })
+        } else {
+            Err(WouldBlock)
         }
     }
 }
 
-#[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
     use super::*;
     use test_case::test_case;
 
+    mod log {
+        use super::super::*;
+        use test_case::test_case;
+
+        #[test_case("$" ; "width 1")]
+        #[test_case("¢" ; "width 2")]
+        #[test_case("€" ; "width 3")]
+        #[test_case("𐍈" ; "width 4")]
+        fn too_long_with_unicode_widths(c: &str) {
+            let response = Response::log_from_fmt(format_args!("{}", c.repeat(500)));
+            let log = match response {
+                Response::Log(log) => log,
+                _ => panic!(),
+            };
+            assert!(&log[..].ends_with("..."))
+        }
+
+        #[test]
+        fn parse_too_long() {
+            let buf = format!("\"{}\n", "n".repeat(500));
+            let response = Response::parse(buf.as_bytes());
+            assert_eq!(response, Err(Other(ProtocolError::MessageTooLong)));
+        }
+    }
+
     #[test]
     fn parse_invalid() {
-        let mut buffer = VecDeque::new();
-        buffer.extend(b"x");
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
-            Err(UnexpectedResponse(b'x'))
+            SideResponse::parse(b"x"),
+            Err(Other(ProtocolError::InvalidSide(b'x')))
         );
-        assert_eq!(buffer.len(), 0);
     }
 
     #[test]
     fn parse_empty() {
-        let mut buffer = VecDeque::new();
-        assert_eq!(Response::parse(&mut buffer, Side::Right), Ok(None));
-        assert_eq!(buffer.len(), 0);
+        assert_eq!(SideResponse::parse(b""), Err(WouldBlock));
     }
 
-    #[test_case(b"I" ; "position")]
-    #[test_case(b"i" ; "other side position")]
-    #[test_case(b"B12345" ; "battery readings")]
-    #[test_case(b"b12345" ; "other side battery readings")]
-    #[test_case(b"C" ; "charge state")]
-    #[test_case(b"c" ; "other side charge state")]
-    #[test_case(b"\"blah" ; "log")]
-    #[test_case(b"'blah" ; "other side log")]
+    #[test_case(b"RI" ; "position")]
+    #[test_case(b"LI" ; "other side position")]
+    #[test_case(b"RB12345" ; "battery readings")]
+    #[test_case(b"LB12345" ; "other side battery readings")]
+    #[test_case(b"RC" ; "charge state")]
+    #[test_case(b"LC" ; "other side charge state")]
+    #[test_case(b"R\"blah" ; "log")]
+    #[test_case(b"L\"blah" ; "other side log")]
     fn parse_partial(partial_response: &[u8]) {
         for length in 1..=partial_response.len() {
-            let mut buffer = VecDeque::new();
-            buffer.extend(&partial_response[..length]);
-            assert_eq!(Response::parse(&mut buffer, Side::Right), Ok(None));
-            // No bytes should be consumed from the buffer.
-            assert_eq!(buffer.len(), length);
+            assert_eq!(
+                SideResponse::parse(&partial_response[..length]),
+                Err(WouldBlock)
+            );
         }
     }
 
     #[test]
     fn parse_invalid_charge_state() {
-        let mut buffer = VecDeque::new();
-        buffer.extend(b"Cx");
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
-            Err(UnexpectedResponse(b'x'))
+            SideResponse::parse(b"RCx"),
+            Err(Other(ProtocolError::InvalidByte(b'x')))
         );
-        assert_eq!(buffer.len(), 0);
     }
 
-    #[test_case(&[b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::Position(0x1122334455667788))]
-    #[test_case(&[b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], SideResponse::BatteryReadings {
+    #[test_case(&[b'R', b'I', 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], Response::Position(0x1122334455667788))]
+    #[test_case(&[b'R', b'B', 0x66, 0x55, 0x44, 0x33, 0x22, 0x11], Response::BatteryReadings {
         battery_voltage: 0x5566,
         backup_battery_voltage: 0x3344,
         motor_current: 0x1122,
     })]
-    #[test_case(b"C0", SideResponse::ChargeState { charger_connected: false })]
-    #[test_case(b"C1", SideResponse::ChargeState { charger_connected: true })]
-    fn parse_valid(bytes: &[u8], response: SideResponse) {
-        let mut buffer = VecDeque::new();
-        buffer.extend(bytes);
+    #[test_case(b"RC0", Response::ChargeState { charger_connected: false })]
+    #[test_case(b"RC1", Response::ChargeState { charger_connected: true })]
+    #[test_case(b"R\"hello\n", Response::Log(ArrayString::from("hello").unwrap()))]
+    fn parse_valid(bytes: &[u8], response: Response) {
         assert_eq!(
-            Response::parse(&mut buffer, Side::Right),
-            Ok(Some(Response {
+            SideResponse::parse(bytes),
+            Ok(SideResponse {
                 side: Side::Right,
-                response
-            }))
+                response: response,
+            })
         );
-        assert_eq!(buffer.len(), 0);
+    }
+
+    #[test_case(Response::Position(0x1122334455667788))]
+    #[test_case(Response::BatteryReadings {
+        battery_voltage: 0x5566,
+        backup_battery_voltage: 0x3344,
+        motor_current: 0x1122,
+    })]
+    #[test_case(Response::ChargeState { charger_connected: false })]
+    #[test_case(Response::ChargeState { charger_connected: true })]
+    #[test_case(Response::Log(ArrayString::from("hello").unwrap()))]
+    #[test_case(Response::Log(ArrayString::from("emoji 👨‍👨‍👦").unwrap()))]
+    #[test_case(Response::PowerOff)]
+    fn round_trip(response: Response) {
+        let side_response = SideResponse {
+            side: Side::Right,
+            response,
+        };
+        let mut buffer = Vec::new();
+        side_response.write_to_std(&mut buffer).unwrap();
+
+        assert_eq!(SideResponse::parse(&mut buffer), Ok(side_response));
+    }
+
+    // Note that Log only currently looks at the last byte for `\n`,
+    // to avoid quadratic performance when parsing a byte at a time,
+    // so it won't detect MessageTooLong until the length exceeds MAX_LOG_SIZE.
+    #[test_case(Response::Position(0x1122334455667788))]
+    #[test_case(Response::BatteryReadings {
+        battery_voltage: 0x5566,
+        backup_battery_voltage: 0x3344,
+        motor_current: 0x1122,
+    })]
+    #[test_case(Response::ChargeState { charger_connected: false })]
+    #[test_case(Response::ChargeState { charger_connected: true })]
+    #[test_case(Response::PowerOff)]
+    fn parse_error_if_extra_byte(response: Response) {
+        let side_response = SideResponse {
+            side: Side::Right,
+            response,
+        };
+        let mut buffer = Vec::new();
+        side_response.write_to_std(&mut buffer).unwrap();
+        buffer.push(42);
+
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Err(Other(ProtocolError::MessageTooLong))
+        )
     }
 }

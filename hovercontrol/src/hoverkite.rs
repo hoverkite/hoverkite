@@ -1,11 +1,9 @@
-use eyre::Report;
-use hoverkite_protocol::{
-    Command, DirectedCommand, Response, Side, SideResponse, UnexpectedResponse,
-};
+use hoverkite_protocol::{Command, DirectedCommand, Response, Side, SideResponse};
 use log::{error, trace};
 use serialport::SerialPort;
+use slice_deque::SliceDeque;
+use std::ops::RangeInclusive;
 use std::time::{Duration, Instant};
-use std::{collections::VecDeque, ops::RangeInclusive};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
@@ -20,8 +18,8 @@ pub struct Hoverkite {
     /// between updates.
     right_target_pending: Option<i64>,
     left_target_pending: Option<i64>,
-    right_buffer: VecDeque<u8>,
-    left_buffer: VecDeque<u8>,
+    right_buffer: SliceDeque<u8>,
+    left_buffer: SliceDeque<u8>,
 }
 
 impl Hoverkite {
@@ -36,27 +34,27 @@ impl Hoverkite {
             left_last_command_time: Instant::now(),
             right_target_pending: None,
             left_target_pending: None,
-            right_buffer: VecDeque::new(),
-            left_buffer: VecDeque::new(),
+            right_buffer: SliceDeque::new(),
+            left_buffer: SliceDeque::new(),
         }
     }
 
-    pub fn process(&mut self) -> Result<(), Report> {
+    pub fn process(&mut self) -> Result<(), eyre::Report> {
         self.send_pending_targets()?;
 
         if let Some(port) = &mut self.left_port {
-            let response = read_port(port, &mut self.left_buffer, Side::Left)?;
+            let response = read_port(port, &mut self.left_buffer)?;
             print_response(&response);
         }
         if let Some(port) = &mut self.right_port {
-            let response = read_port(port, &mut self.right_buffer, Side::Right)?;
+            let response = read_port(port, &mut self.right_buffer)?;
             print_response(&response);
         }
 
         Ok(())
     }
 
-    fn send_pending_targets(&mut self) -> Result<(), Report> {
+    fn send_pending_targets(&mut self) -> Result<(), eyre::Report> {
         if let Some(target_pending) = self.left_target_pending {
             // Just retry. If the rate limit is still in effect then this will be a no-op.
             self.set_target(Side::Left, target_pending)?;
@@ -71,14 +69,14 @@ impl Hoverkite {
         &mut self,
         side: Side,
         max_speed: &RangeInclusive<i16>,
-    ) -> Result<(), Report> {
+    ) -> Result<(), eyre::Report> {
         println!("{:?} max speed: {:?}", side, max_speed);
         let command = Command::SetMaxSpeed(max_speed.clone());
         self.send_command(side, command)?;
         Ok(())
     }
 
-    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), Report> {
+    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
         self.send_command(Side::Left, command.clone())?;
@@ -90,7 +88,7 @@ impl Hoverkite {
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive
     /// buffer.
-    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), Report> {
+    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), eyre::Report> {
         let now = Instant::now();
         match side {
             Side::Left => {
@@ -114,7 +112,7 @@ impl Hoverkite {
         self.send_command(side, Command::SetTarget(target))
     }
 
-    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), Report> {
+    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), eyre::Report> {
         trace!("Sending command to {:?}: {:?}", side, command);
         match side {
             Side::Left => {
@@ -143,57 +141,58 @@ impl Hoverkite {
     }
 }
 
-fn print_response(response: &Option<Response>) {
-    match response {
-        Some(Response {
-            side,
-            response: SideResponse::Log(log),
-        }) => println!("{:?}: '{}'", side, log),
-        Some(Response {
-            side,
-            response: SideResponse::Position(position),
-        }) => println!("{:?} at {}", side, position),
-        Some(Response {
-            side,
-            response:
-                SideResponse::BatteryReadings {
-                    battery_voltage,
-                    backup_battery_voltage,
-                    motor_current,
-                },
-        }) => println!(
-            "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
-            side, battery_voltage, backup_battery_voltage, motor_current
-        ),
-        Some(Response {
-            side,
-            response: SideResponse::ChargeState { charger_connected },
-        }) => println!(
-            "{:?} {}",
-            side,
-            if *charger_connected {
-                "charger connected"
-            } else {
-                "charger not connected"
-            }
-        ),
-        None => {}
+fn print_response(side_response: &Option<SideResponse>) {
+    if let Some(SideResponse { side, response }) = side_response {
+        match response {
+            Response::Log(log) => println!("{:?}: '{}'", side, log),
+            Response::Position(position) => println!("{:?} at {}", side, position),
+            Response::BatteryReadings {
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            } => println!(
+                "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
+                side, battery_voltage, backup_battery_voltage, motor_current
+            ),
+            Response::ChargeState { charger_connected } => println!(
+                "{:?} {}",
+                side,
+                if *charger_connected {
+                    "charger connected"
+                } else {
+                    "charger not connected"
+                }
+            ),
+            Response::PowerOff => println!("{:?} powering off", side),
+        }
     }
 }
 
 fn read_port(
     port: &mut Box<dyn SerialPort>,
-    buffer: &mut VecDeque<u8>,
-    side: Side,
-) -> Result<Option<Response>, Report> {
+    buffer: &mut SliceDeque<u8>,
+) -> Result<Option<SideResponse>, eyre::Report> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;
         buffer.extend(&temp[0..bytes_read]);
     }
+    // I guess we could make parse() return Result<(response, len), ...>
+    // to avoid this byte-at-a-time nonsense.
+    for len in 1..=buffer.len() {
+        match SideResponse::parse(&buffer[..len]) {
+            Ok(response) => {
+                buffer.drain(..len);
+                return Ok(Some(response));
+            }
+            Err(nb::Error::Other(e)) => {
+                error!("Unexpected response {:?} from {:?}", e, &buffer[..len]);
+                buffer.drain(..len);
+                return Ok(None);
+            }
+            Err(nb::Error::WouldBlock) => (),
+        }
+    }
 
-    Response::parse(buffer, side).or_else(|UnexpectedResponse(r)| {
-        error!("Unexpected response {:?}", r);
-        Ok(None)
-    })
+    Ok(None)
 }
