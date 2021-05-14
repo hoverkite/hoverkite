@@ -21,6 +21,23 @@ impl Write for TruncatingWriter {
 
         Ok(())
     }
+
+    fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> core::fmt::Result {
+        if core::fmt::write(self, fmt).is_err() {
+            // `core::fmt::Error` doesn't have a payload, so we just have to guess.
+            if self.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
+                // If we think we ran out of bytes while writing then truncate with ...
+                self.0.pop();
+                self.0.pop();
+                self.0.pop();
+                self.0.write_str("...")
+            } else {
+                Err(core::fmt::Error)
+            }
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -41,19 +58,8 @@ pub enum Response {
 impl Response {
     pub fn log_from_fmt(args: core::fmt::Arguments<'_>) -> Self {
         let mut writer = TruncatingWriter(ArrayString::new());
+        writer.write_fmt(args).unwrap();
 
-        if writer.write_fmt(args).is_err() {
-            // `core::fmt::Error` doesn't have a payload, so we just have to guess.
-            if writer.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
-                // If we think we ran out of bytes while writing then truncate with ...
-                writer.0.pop();
-                writer.0.pop();
-                writer.0.pop();
-                writer.0.try_push_str("...").unwrap();
-            } else {
-                panic!("unexpected core::fmt::Error when writing log")
-            }
-        }
         Self::Log(writer.0)
     }
 
