@@ -129,7 +129,8 @@ impl Response {
                 charger_connected: ascii_to_bool(charger_connected)?,
             },
             [b'p'] => Self::PowerOff,
-            [c, ..] => return Err(Other(ProtocolError::InvalidCommand(c))),
+            [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
+            [..] => return Err(Other(ProtocolError::MessageTooLong)),
         };
         Ok(report)
     }
@@ -280,5 +281,32 @@ mod tests {
         side_response.write_to_std(&mut buffer).unwrap();
 
         assert_eq!(SideResponse::parse(&mut buffer), Ok(side_response));
+    }
+
+    // Note that Log only currently looks at the last byte for `\n`,
+    // to avoid quadratic performance when parsing a byte at a time,
+    // so it won't detect MessageTooLong until the length exceeds MAX_LOG_SIZE.
+    #[test_case(Response::Position(0x1122334455667788))]
+    #[test_case(Response::BatteryReadings {
+        battery_voltage: 0x5566,
+        backup_battery_voltage: 0x3344,
+        motor_current: 0x1122,
+    })]
+    #[test_case(Response::ChargeState { charger_connected: false })]
+    #[test_case(Response::ChargeState { charger_connected: true })]
+    #[test_case(Response::PowerOff)]
+    fn parse_error_if_extra_byte(response: Response) {
+        let side_response = SideResponse {
+            side: Side::Right,
+            response,
+        };
+        let mut buffer = Vec::new();
+        side_response.write_to_std(&mut buffer).unwrap();
+        buffer.push(42);
+
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Err(Other(ProtocolError::MessageTooLong))
+        )
     }
 }
