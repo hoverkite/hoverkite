@@ -61,12 +61,19 @@ impl HallSensors {
 }
 
 pub struct Motor {
+    #[allow(dead_code)]
     green_high: PA10<Alternate<AF2>>,
+    #[allow(dead_code)]
     blue_high: PA9<Alternate<AF2>>,
+    #[allow(dead_code)]
     yellow_high: PA8<Alternate<AF2>>,
+    #[allow(dead_code)]
     green_low: PB15<Alternate<AF2>>,
+    #[allow(dead_code)]
     blue_low: PB14<Alternate<AF2>>,
+    #[allow(dead_code)]
     yellow_low: PB13<Alternate<AF2>>,
+    #[allow(dead_code)]
     emergency_off: PB12<Alternate<AF2>>,
     pub pwm: Pwm,
     hall_sensors: HallSensors,
@@ -330,10 +337,12 @@ impl Pwm {
         }
     }
 
+    #[allow(dead_code)]
     pub fn automatic_output_disable(&mut self) {
         self.timer.cchp.modify(|_, w| w.oaen().manual());
     }
 
+    #[allow(dead_code)]
     pub fn automatic_output_enable(&mut self) {
         self.timer.cchp.modify(|_, w| w.oaen().automatic());
     }
