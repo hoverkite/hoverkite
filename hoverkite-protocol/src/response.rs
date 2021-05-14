@@ -3,14 +3,14 @@ use crate::util::{ascii_to_bool, bool_to_ascii};
 use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use arrayvec::ArrayString;
-use core::convert::TryInto;
 use core::mem::size_of;
+use core::{convert::TryInto, fmt::Write};
 use nb::Error::{Other, WouldBlock};
 const MAX_LOG_SIZE: usize = 256;
 
 struct TruncatingWriter(ArrayString<MAX_LOG_SIZE>);
 
-impl core::fmt::Write for TruncatingWriter {
+impl Write for TruncatingWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         s.chars()
             .try_for_each(|c| self.0.write_char(c))
@@ -37,7 +37,7 @@ impl Response {
     pub fn log_from_fmt(args: core::fmt::Arguments<'_>) -> Self {
         let mut writer = TruncatingWriter(ArrayString::new());
 
-        if core::fmt::Write::write_fmt(&mut writer, args).is_err() {
+        if writer.write_fmt(args).is_err() {
             // `core::fmt::Error` doesn't have a payload, so we just have to guess.
             if writer.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
                 // If we think we ran out of bytes while writing then truncate with ...
