@@ -200,18 +200,15 @@ mod tests {
 
     #[test]
     fn parse_invalid() {
-        let mut buffer = Vec::new();
-        buffer.extend(b"x");
         assert_eq!(
-            SideResponse::parse(&mut buffer),
+            SideResponse::parse(b"x"),
             Err(Other(ProtocolError::InvalidSide(b'x')))
         );
     }
 
     #[test]
     fn parse_empty() {
-        let mut buffer = Vec::new();
-        assert_eq!(SideResponse::parse(&mut buffer), Err(WouldBlock));
+        assert_eq!(SideResponse::parse(b""), Err(WouldBlock));
     }
 
     #[test_case(b"RI" ; "position")]
@@ -224,18 +221,17 @@ mod tests {
     #[test_case(b"L\"blah" ; "other side log")]
     fn parse_partial(partial_response: &[u8]) {
         for length in 1..=partial_response.len() {
-            let mut buffer = Vec::new();
-            buffer.extend(&partial_response[..length]);
-            assert_eq!(SideResponse::parse(&mut buffer), Err(WouldBlock));
+            assert_eq!(
+                SideResponse::parse(&partial_response[..length]),
+                Err(WouldBlock)
+            );
         }
     }
 
     #[test]
     fn parse_invalid_charge_state() {
-        let mut buffer = Vec::new();
-        buffer.extend(b"RCx");
         assert_eq!(
-            SideResponse::parse(&mut buffer),
+            SideResponse::parse(b"RCx"),
             Err(Other(ProtocolError::InvalidByte(b'x')))
         );
     }
@@ -250,10 +246,8 @@ mod tests {
     #[test_case(b"RC1", Response::ChargeState { charger_connected: true })]
     #[test_case(b"R\"hello\n", Response::Log(ArrayString::from("hello").unwrap()))]
     fn parse_valid(bytes: &[u8], response: Response) {
-        let mut buffer = Vec::new();
-        buffer.extend(bytes);
         assert_eq!(
-            SideResponse::parse(&mut buffer),
+            SideResponse::parse(bytes),
             Ok(SideResponse {
                 side: Side::Right,
                 response: response,
