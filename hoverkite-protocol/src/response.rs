@@ -12,9 +12,14 @@ struct TruncatingWriter(ArrayString<MAX_LOG_SIZE>);
 
 impl Write for TruncatingWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        s.chars()
-            .try_for_each(|c| self.0.write_char(c))
-            .map_err(|_| core::fmt::Error)
+        if self.0.write_str(s).is_err() {
+            // ArrayString::write_str() is atomic - it will refuse to write
+            // anything at all, if it finds that the string is too long.
+            // If it fails, we unpack into chars and write as many as we can.
+            s.chars().try_for_each(|c| self.0.write_char(c))?
+        }
+
+        Ok(())
     }
 }
 
