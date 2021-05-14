@@ -23,19 +23,19 @@ impl Write for TruncatingWriter {
     }
 
     fn write_fmt(&mut self, fmt: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        if core::fmt::write(self, fmt).is_err() {
-            // `core::fmt::Error` doesn't have a payload, so we just have to guess.
-            if self.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
-                // If we think we ran out of bytes while writing then truncate with ...
-                self.0.pop();
-                self.0.pop();
-                self.0.pop();
-                self.0.write_str("...")
-            } else {
-                Err(core::fmt::Error)
-            }
+        if core::fmt::write(self, fmt).is_ok() {
+            return Ok(());
+        }
+
+        // `core::fmt::Error` doesn't have a payload, so we just have to guess.
+        if self.0.len() + size_of::<char>() >= MAX_LOG_SIZE {
+            // If we think we ran out of bytes while writing, truncate with ...
+            self.0.pop();
+            self.0.pop();
+            self.0.pop();
+            self.0.write_str("...")
         } else {
-            Ok(())
+            Err(core::fmt::Error)
         }
     }
 }
