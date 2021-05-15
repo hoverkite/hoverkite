@@ -50,6 +50,15 @@ jobs:
       - name: Run tests
         run: cargo test
       - name: Run clippy
+        # clippy-check only works in the top-level directory.
+        if: ${{ matrix.directory == '.' }}
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+      - name: Run clippy
+        # Fall back to running clippy manually.
+        if: ${{ matrix.directory != '.' }}
         run: cargo clippy # -- -D warnings
 
   coverage:
