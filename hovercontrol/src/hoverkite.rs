@@ -1,5 +1,5 @@
-use hoverkite_protocol::{Command, DirectedCommand, Response, Side, SideResponse};
 use log::{error, trace};
+use messages::{Command, DirectedCommand, Response, Side, SideResponse};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
 use std::ops::RangeInclusive;

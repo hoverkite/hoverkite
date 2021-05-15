@@ -13,5 +13,5 @@ nb = "1.0.0"
 pretty_env_logger = "0.4.0"
 serialport = "4.0.0"
 stable-eyre = "0.2.2"
-hoverkite-protocol = { path = "../hoverkite-protocol" }
+messages = { path = "../messages" }
 slice-deque = "0.3.0"

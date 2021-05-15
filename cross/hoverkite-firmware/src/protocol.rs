@@ -12,7 +12,7 @@ use gd32f1x0_hal::{
     serial::{Rx, Tx},
 };
 #[allow(unused_imports)]
-use hoverkite_protocol::{Command, DirectedCommand, ProtocolError, Response, Side, SideResponse};
+use messages::{Command, DirectedCommand, ProtocolError, Response, Side, SideResponse};
 #[allow(unused_imports)]
 use nb::Error::{Other, WouldBlock};
 
@@ -20,9 +20,9 @@ use nb::Error::{Other, WouldBlock};
 macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
-            ::hoverkite_protocol::SideResponse {
+            ::messages::SideResponse {
                 side: crate::protocol::THIS_SIDE,
-                response: ::hoverkite_protocol::Response::log_from_fmt(format_args!($($arg)*))
+                response: ::messages::Response::log_from_fmt(format_args!($($arg)*))
             }.write_to($dst).unwrap()
 		}
     );
