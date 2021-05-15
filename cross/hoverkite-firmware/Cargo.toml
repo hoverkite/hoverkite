@@ -6,13 +6,13 @@ readme = "README.md"
 version = "0.1.0"
 
 [dependencies]
-cortex-m = "0.6.0"
-cortex-m-rt = "0.6.10"
-cortex-m-semihosting = "0.3.3"
-embedded-hal = "0.2.4"
+cortex-m = "0.7.2"
+cortex-m-rt = "0.6.13"
+cortex-m-semihosting = "0.3.7"
+embedded-hal = "0.2.5"
 nb = "1.0.0"
 panic-halt = "0.2.0"
-gd32f1x0-hal = { version = "0.1.0", features = ["rt", "gd32f130x8"], git = "https://github.com/qwandor/gd32f1x0-hal", branch = "main" }
+gd32f1x0-hal = { version = "0.2.0", features = ["rt", "gd32f130x8"] }
 messages = { path = "../../messages", default-features = false }
 
 [features]
