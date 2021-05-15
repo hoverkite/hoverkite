@@ -63,16 +63,7 @@ jobs:
 
   coverage:
     name: Coverage
-    needs: find-crates
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        directory: ${{ fromJSON(needs.find-crates.outputs.crates) }}
-        exclude:
-          - directory: cross
-    defaults:
-      run:
-        working-directory: ${{ matrix.directory }}
     env:
       RUSTC_BOOTSTRAP: 1
     steps:
@@ -102,5 +93,5 @@ jobs:
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v1
         with:
-          directory: ${{ matrix.directory }}/target/debug
+          directory: target/debug
           fail_ci_if_error: true
