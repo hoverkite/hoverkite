@@ -72,25 +72,30 @@ impl Pwm {
                 Channel::C3 => timer.ch3cv.write(|w| w.ch3val().bits(0)),
             }
         }
-        // Deactivate fastmode for all channels.
-        timer
-            .chctl0_output()
-            .modify(|_, w| w.ch0comfen().slow().ch1comfen().slow());
-        timer.chctl1_output().modify(|_, w| w.ch2comfen().slow());
-        // Deactivate output shadow function for all channels.
-        timer
-            .chctl0_output()
-            .modify(|_, w| w.ch0comsen().disabled().ch1comsen().disabled());
-        timer
-            .chctl1_output()
-            .modify(|_, w| w.ch2comsen().disabled());
-        // Set all output channel PWM types to PWM1
-        timer
-            .chctl0_output()
-            .modify(|_, w| w.ch0comctl().pwm_mode1().ch1comctl().pwm_mode1());
-        timer
-            .chctl1_output()
-            .modify(|_, w| w.ch2comctl().pwm_mode1());
+        // Deactivate fastmode, deactivate output shadow function, and set output channel PWM type
+        // to PWM1 for all channels.
+        timer.chctl0_output().modify(|_, w| {
+            w.ch0comfen()
+                .slow()
+                .ch1comfen()
+                .slow()
+                .ch0comsen()
+                .disabled()
+                .ch1comsen()
+                .disabled()
+                .ch0comctl()
+                .pwm_mode1()
+                .ch1comctl()
+                .pwm_mode1()
+        });
+        timer.chctl1_output().modify(|_, w| {
+            w.ch2comfen()
+                .slow()
+                .ch2comsen()
+                .disabled()
+                .ch2comctl()
+                .pwm_mode1()
+        });
 
         // Configure output channels
         timer.chctl2.modify(|_, w| {
