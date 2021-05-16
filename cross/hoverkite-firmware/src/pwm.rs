@@ -1,4 +1,9 @@
 use gd32f1x0_hal::{
+    gpio::{
+        gpioa::{PA10, PA8, PA9},
+        gpiob::{PB12, PB13, PB14, PB15},
+        Alternate, AF2,
+    },
     pac::TIMER0,
     pwm::Channel,
     rcu::{Clocks, Enable, Reset, APB2},
@@ -8,10 +13,25 @@ use gd32f1x0_hal::{
 pub struct Pwm {
     pub timer: TIMER0,
     auto_reload_value: u16,
+    _pins: Pins,
+    _emergency_off: PB12<Alternate<AF2>>,
 }
 
+pub type Pins = (
+    (PA8<Alternate<AF2>>, PB13<Alternate<AF2>>),
+    (PA9<Alternate<AF2>>, PB14<Alternate<AF2>>),
+    (PA10<Alternate<AF2>>, PB15<Alternate<AF2>>),
+);
+
 impl Pwm {
-    pub fn new(timer: TIMER0, frequency: Hertz, clocks: Clocks, apb: &mut APB2) -> Self {
+    pub fn new(
+        timer: TIMER0,
+        frequency: Hertz,
+        clocks: Clocks,
+        pins: Pins,
+        emergency_off: PB12<Alternate<AF2>>,
+        apb: &mut APB2,
+    ) -> Self {
         // Enable clock
         TIMER0::enable(apb);
 
@@ -150,6 +170,8 @@ impl Pwm {
         Pwm {
             timer,
             auto_reload_value,
+            _pins: pins,
+            _emergency_off: emergency_off,
         }
     }
 

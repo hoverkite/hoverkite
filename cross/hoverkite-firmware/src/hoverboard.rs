@@ -256,7 +256,49 @@ impl Hoverboard {
         let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
         let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
 
-        let pwm = Pwm::new(timer0, MOTOR_PWM_FREQ_HERTZ.hz(), clocks, apb2);
+        // Output speed defaults to 2MHz
+        let green_high =
+            gpioa
+                .pa10
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+        let blue_high =
+            gpioa
+                .pa9
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+        let yellow_high =
+            gpioa
+                .pa8
+                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
+        let green_low =
+            gpiob
+                .pb15
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let blue_low =
+            gpiob
+                .pb14
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let yellow_low =
+            gpiob
+                .pb13
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let emergency_off =
+            gpiob
+                .pb12
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+
+        let motor_pins = (
+            (yellow_high, yellow_low),
+            (blue_high, blue_low),
+            (green_high, green_low),
+        );
+        let pwm = Pwm::new(
+            timer0,
+            MOTOR_PWM_FREQ_HERTZ.hz(),
+            clocks,
+            motor_pins,
+            emergency_off,
+            apb2,
+        );
 
         let hall_sensors = HallSensors::new(
             gpiob.pb11.into_floating_input(&mut gpiob.config),
@@ -264,32 +306,7 @@ impl Hoverboard {
             gpioc.pc14.into_floating_input(&mut gpioc.config),
         );
 
-        let motor = Motor::new(
-            // Output speed defaults to 2MHz
-            gpioa
-                .pa10
-                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
-            gpioa
-                .pa9
-                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
-            gpioa
-                .pa8
-                .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull),
-            gpiob
-                .pb15
-                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
-            gpiob
-                .pb14
-                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
-            gpiob
-                .pb13
-                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
-            gpiob
-                .pb12
-                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull),
-            pwm,
-            hall_sensors,
-        );
+        let motor = Motor::new(pwm, hall_sensors);
 
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {

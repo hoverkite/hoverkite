@@ -1,13 +1,7 @@
 use crate::pwm::Pwm;
 use crate::util::clamp;
 use gd32f1x0_hal::{
-    gpio::{
-        gpioa::{PA10, PA8, PA9},
-        gpiob::{PB11, PB12, PB13, PB14, PB15},
-        gpioc::PC14,
-        gpiof::PF1,
-        Alternate, Floating, Input, AF2,
-    },
+    gpio::{gpiob::PB11, gpioc::PC14, gpiof::PF1, Floating, Input},
     prelude::*,
 };
 
@@ -58,20 +52,6 @@ impl HallSensors {
 }
 
 pub struct Motor {
-    #[allow(dead_code)]
-    green_high: PA10<Alternate<AF2>>,
-    #[allow(dead_code)]
-    blue_high: PA9<Alternate<AF2>>,
-    #[allow(dead_code)]
-    yellow_high: PA8<Alternate<AF2>>,
-    #[allow(dead_code)]
-    green_low: PB15<Alternate<AF2>>,
-    #[allow(dead_code)]
-    blue_low: PB14<Alternate<AF2>>,
-    #[allow(dead_code)]
-    yellow_low: PB13<Alternate<AF2>>,
-    #[allow(dead_code)]
-    emergency_off: PB12<Alternate<AF2>>,
     pub pwm: Pwm,
     hall_sensors: HallSensors,
     /// The absolute position of the motor.
@@ -87,25 +67,8 @@ pub struct Motor {
 }
 
 impl Motor {
-    pub fn new(
-        green_high: PA10<Alternate<AF2>>,
-        blue_high: PA9<Alternate<AF2>>,
-        yellow_high: PA8<Alternate<AF2>>,
-        green_low: PB15<Alternate<AF2>>,
-        blue_low: PB14<Alternate<AF2>>,
-        yellow_low: PB13<Alternate<AF2>>,
-        emergency_off: PB12<Alternate<AF2>>,
-        pwm: Pwm,
-        hall_sensors: HallSensors,
-    ) -> Self {
+    pub fn new(pwm: Pwm, hall_sensors: HallSensors) -> Self {
         Self {
-            green_high,
-            blue_high,
-            yellow_high,
-            green_low,
-            blue_low,
-            yellow_low,
-            emergency_off,
             pwm,
             hall_sensors,
             position: 0,
