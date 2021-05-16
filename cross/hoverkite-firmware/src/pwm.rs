@@ -54,8 +54,7 @@ impl Pwm {
         // If pclk is prescaled from hclk, the frequency fed into the timers is doubled
         let tclk = clocks.pclk2_tim().0;
         let period = tclk / frequency.0;
-        // TODO: Can this just be a bit shift? Why the '- 1'?
-        let prescaler = ((period - 1) / (1 << 16)) as u16;
+        let prescaler = ((period - 1) >> 16) as u16;
         let auto_reload_value = (period / (prescaler + 1) as u32) as u16;
         timer.psc.write(|w| w.psc().bits(prescaler));
         timer.car.write(|w| w.car().bits(auto_reload_value));
