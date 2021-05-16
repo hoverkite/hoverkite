@@ -17,7 +17,7 @@ const SLEEP_DURATION: Duration = Duration::from_millis(2);
 const DEFAULT_SCALE: f32 = 50.0;
 const MAX_SCALE: f32 = 100.0;
 
-const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=30;
+const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=40;
 const MAX_MAX_SPEED: i16 = 300;
 const MAX_SPEED_STEP: i16 = 10;
 
