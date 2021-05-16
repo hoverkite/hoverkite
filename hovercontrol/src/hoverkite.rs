@@ -87,16 +87,27 @@ impl Hoverkite {
         max_speed: &RangeInclusive<i16>,
     ) -> Result<(), eyre::Report> {
         println!("{:?} max speed: {:?}", side, max_speed);
+
         let command = Command::SetMaxSpeed(max_speed.clone());
         self.send_command(side, command)?;
+
+        let point = Point::new("max_speed")
+            .add_field("max_speed_backwards", *max_speed.start() as i64)
+            .add_field("max_speed_forwards", *max_speed.end() as i64);
+        self.influx_client.write_point(point).unwrap();
         Ok(())
     }
 
     pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
         println!("Spring constant: {}", spring_constant);
+
         let command = Command::SetSpringConstant(spring_constant);
         self.send_command(Side::Left, command.clone())?;
         self.send_command(Side::Right, command)?;
+
+        let point =
+            Point::new("spring_constant").add_field("spring_constant", spring_constant as i64);
+        self.influx_client.write_point(point).unwrap();
         Ok(())
     }
 
