@@ -45,9 +45,9 @@ impl Pwm {
                 .cam()
                 .center_aligned_counting_up()
                 .ckdiv()
-                .div1()
+                .div1() // default
                 .arse()
-                .disabled()
+                .disabled() // default
         });
 
         // Configure prescaler and auto-reload value to give desired period.
@@ -60,7 +60,7 @@ impl Pwm {
         timer.car.write(|w| w.car().bits(auto_reload_value));
 
         // Configure repetition counter.
-        timer.crep.write(|w| w.crep().bits(0));
+        timer.crep.write(|w| w.crep().bits(0)); // default
 
         let channels = [Channel::C0, Channel::C1, Channel::C2];
         for channel in &channels {
@@ -130,13 +130,13 @@ impl Pwm {
         // Configure break parameters
         timer.cchp.write(|w| {
             w.ros()
-                .enabled()
+                .enabled() // Run mode off-state
                 .ios()
-                .disabled()
+                .disabled() // Idle mode off-state
                 .prot()
-                .disabled()
+                .disabled() // Write protect
                 .dtcfg()
-                .bits(60)
+                .bits(60) // Dead time
                 .brken()
                 .enabled()
                 .brkp()
