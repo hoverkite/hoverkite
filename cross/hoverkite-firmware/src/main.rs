@@ -5,6 +5,7 @@ mod buffered_tx;
 mod hoverboard;
 mod motor;
 mod protocol;
+mod pwm;
 mod util;
 
 #[cfg(feature = "primary")]

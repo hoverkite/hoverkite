@@ -1,6 +1,7 @@
 use crate::{
     buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
-    motor::{HallSensors, Motor, Pwm},
+    motor::{HallSensors, Motor},
+    pwm::Pwm,
 };
 use core::{cell::RefCell, mem, ops::Deref};
 use cortex_m::{
