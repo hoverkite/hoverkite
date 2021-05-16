@@ -225,7 +225,7 @@ impl Pwm {
         timer.car.write(|w| w.car().bits(auto_reload_value));
 
         // Configure repetition counter.
-        timer.crep.write(|w| unsafe { w.crep().bits(0) });
+        timer.crep.write(|w| w.crep().bits(0));
 
         let channels = [Channel::C0, Channel::C1, Channel::C2];
         for channel in &channels {
@@ -252,10 +252,10 @@ impl Pwm {
         // Set all output channel PWM types to PWM1
         timer
             .chctl0_output()
-            .modify(|_, w| w.ch0comctl().pwm_mode2().ch1comctl().pwm_mode2());
+            .modify(|_, w| w.ch0comctl().pwm_mode1().ch1comctl().pwm_mode1());
         timer
             .chctl1_output()
-            .modify(|_, w| w.ch2comctl().pwm_mode2());
+            .modify(|_, w| w.ch2comctl().pwm_mode1());
 
         // Configure output channels
         timer.chctl2.modify(|_, w| {
