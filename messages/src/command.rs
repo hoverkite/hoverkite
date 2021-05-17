@@ -43,25 +43,25 @@ impl Command {
             Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
             Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
             Self::SetMaxSpeed(max_speed) => {
-                writer.bwrite_all(&[b'S'])?;
+                writer.bwrite_all(b"S")?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
                 writer.bwrite_all(&max_speed.end().to_le_bytes())?;
             }
             Self::SetSpringConstant(spring_constant) => {
-                writer.bwrite_all(&[b'K'])?;
+                writer.bwrite_all(b"K")?;
                 writer.bwrite_all(&spring_constant.to_le_bytes())?;
             }
             Self::SetTarget(target) => {
-                writer.bwrite_all(&[b'T'])?;
+                writer.bwrite_all(b"T")?;
                 writer.bwrite_all(&target.to_le_bytes())?;
             }
-            Self::Recenter => writer.bwrite_all(&[b'e'])?,
-            Self::ReportBattery => writer.bwrite_all(&[b'b'])?,
-            Self::ReportCharger => writer.bwrite_all(&[b'c'])?,
-            Self::RemoveTarget => writer.bwrite_all(&[b'n'])?,
-            Self::IncrementTarget => writer.bwrite_all(&[b'+'])?,
-            Self::DecrementTarget => writer.bwrite_all(&[b'-'])?,
-            Self::PowerOff => writer.bwrite_all(&[b'p'])?,
+            Self::Recenter => writer.bwrite_all(b"e")?,
+            Self::ReportBattery => writer.bwrite_all(b"b")?,
+            Self::ReportCharger => writer.bwrite_all(b"c")?,
+            Self::RemoveTarget => writer.bwrite_all(b"n")?,
+            Self::IncrementTarget => writer.bwrite_all(b"+")?,
+            Self::DecrementTarget => writer.bwrite_all(b"-")?,
+            Self::PowerOff => writer.bwrite_all(b"p")?,
         };
         Ok(())
     }
