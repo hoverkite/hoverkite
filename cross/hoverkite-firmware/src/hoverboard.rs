@@ -256,6 +256,7 @@ impl Hoverboard {
         let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
         let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
 
+        // Motor
         // Output speed defaults to 2MHz
         let green_high =
             gpioa
@@ -285,7 +286,6 @@ impl Hoverboard {
             gpiob
                 .pb12
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
-
         let motor_pins = (
             (yellow_high, yellow_low),
             (blue_high, blue_low),
@@ -299,13 +299,11 @@ impl Hoverboard {
             emergency_off,
             apb2,
         );
-
         let hall_sensors = HallSensors::new(
             gpiob.pb11.into_floating_input(&mut gpiob.config),
             gpiof.pf1.into_floating_input(&mut gpiof.config),
             gpioc.pc14.into_floating_input(&mut gpioc.config),
         );
-
         let motor = Motor::new(pwm, hall_sensors);
 
         free(move |cs| {
