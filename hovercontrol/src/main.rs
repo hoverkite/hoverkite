@@ -5,7 +5,7 @@ use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use messages::{Command, Response, Side, SideResponse, SpeedLimits};
 use std::env;
 use std::process::exit;
-use std::thread;
+use std::thread::{self, sleep};
 use std::time::Duration;
 
 const BAUD_RATE: u32 = 115_200;
@@ -62,7 +62,20 @@ fn main() -> Result<(), Report> {
 
     let gilrs = Gilrs::new().unwrap();
 
-    let hoverkite = Hoverkite::new(right_port, left_port);
+    let mut hoverkite = Hoverkite::new(right_port, left_port);
+
+    let mut frequency = 100;
+    while frequency < 5000 {
+        println!("Frequency {}", frequency);
+        hoverkite.set_buzzer_frequency(Some(frequency))?;
+        sleep(Duration::from_millis(100));
+        hoverkite.set_buzzer_frequency(None)?;
+        sleep(Duration::from_millis(50));
+        frequency += 20;
+    }
+    println!("Stop");
+    hoverkite.set_buzzer_frequency(None)?;
+
     let mut controller = Controller::new(hoverkite, gilrs);
     controller.run()
 }
