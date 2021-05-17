@@ -84,6 +84,11 @@ impl Hoverkite {
         Ok(())
     }
 
+    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), eyre::Report> {
+        let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
+        self.send_command(Side::Left, command)
+    }
+
     /// Set the given target position.
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive

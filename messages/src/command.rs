@@ -13,6 +13,7 @@ pub enum Command {
     SetOrangeLed(bool),
     SetRedLed(bool),
     SetGreenLed(bool),
+    SetBuzzerFrequency(u32),
     ReportBattery,
     ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
@@ -42,6 +43,10 @@ impl Command {
             Self::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
             Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
             Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
+            Self::SetBuzzerFrequency(frequency) => {
+                writer.bwrite_all(b"f")?;
+                writer.bwrite_all(&frequency.to_le_bytes())?;
+            }
             Self::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(b"S")?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
@@ -75,6 +80,16 @@ impl Command {
             [b'g', on] => Self::SetGreenLed(ascii_to_bool(on)?),
             [b'b'] => Self::ReportBattery,
             [b'c'] => Self::ReportCharger,
+            [b'f', ref rest @ ..] => {
+                if rest.len() < size_of::<u32>() {
+                    return Err(WouldBlock);
+                }
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
+                let frequency = u32::from_le_bytes(bytes);
+                Self::SetBuzzerFrequency(frequency)
+            }
             [b'S', ref rest @ ..] => {
                 if rest.len() < 4 {
                     return Err(WouldBlock);
@@ -245,6 +260,7 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -268,6 +284,7 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -294,6 +311,7 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]

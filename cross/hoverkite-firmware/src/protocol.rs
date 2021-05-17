@@ -193,6 +193,14 @@ pub fn handle_command(
                 hoverboard.leds.green.set_low().unwrap()
             }
         }
+        Command::SetBuzzerFrequency(frequency) => {
+            log!(hoverboard.response_tx(), "Buzzer {} Hz", frequency);
+            hoverboard.buzzer.set_frequency(if frequency == 0 {
+                None
+            } else {
+                Some(frequency.hz())
+            })
+        }
         Command::ReportBattery => {
             let readings = hoverboard.adc_readings();
             send_battery_readings(
