@@ -184,8 +184,9 @@ impl Buzzer {
         if let Some(frequency) = frequency {
             self.pwm.set_period(frequency.into());
             self.pwm.set_duty(Channel::C2, self.pwm.get_max_duty() / 2);
+            self.pwm.enable(Channel::C2);
         } else {
-            self.pwm.set_duty(Channel::C2, 0);
+            self.pwm.disable(Channel::C2);
         }
     }
 }
