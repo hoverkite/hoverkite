@@ -1,5 +1,7 @@
 # Protocol
 
+All numeric values are sent in little-endian order.
+
 ## Commands
 
 Each command sent from the controller to the hoverboard consists of the ASCII character 'R' or 'L'
