@@ -2,6 +2,7 @@
 #![no_main]
 
 mod buffered_tx;
+mod circular_buffer;
 mod hoverboard;
 mod motor;
 mod protocol;
