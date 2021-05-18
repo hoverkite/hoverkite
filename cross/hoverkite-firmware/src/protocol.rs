@@ -1,4 +1,5 @@
 use crate::buffered_tx::BufferedSerialWriter;
+use crate::circular_buffer::CircularBuffer;
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
 use core::{
@@ -12,7 +13,7 @@ use gd32f1x0_hal::{
     serial::{Rx, Tx},
 };
 #[allow(unused_imports)]
-use messages::{Command, DirectedCommand, ProtocolError, Response, Side, SideResponse};
+use messages::{Command, DirectedCommand, Note, ProtocolError, Response, Side, SideResponse};
 #[allow(unused_imports)]
 use nb::Error::{Other, WouldBlock};
 
@@ -118,6 +119,7 @@ pub fn process_command(
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
+    note_queue: &mut CircularBuffer<Note, 100>,
 ) -> bool {
     let message = match DirectedCommand::parse(command) {
         Ok(message) => message,
@@ -142,6 +144,7 @@ pub fn process_command(
             speed_limits,
             target_position,
             spring_constant,
+            note_queue,
         );
     } else {
         forward_command(hoverboard, &message);
@@ -155,6 +158,7 @@ pub fn handle_command(
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
+    note_queue: &mut CircularBuffer<Note, 100>,
 ) {
     match command {
         Command::SetSideLed(on) => {
@@ -200,6 +204,12 @@ pub fn handle_command(
             } else {
                 Some(frequency.hz())
             })
+        }
+        Command::AddBuzzerNote(note) => {
+            log!(hoverboard.response_tx(), "Buzzer {}", note);
+            if !note_queue.add(note) {
+                log!(hoverboard.response_tx(), "Note queue full, dropping");
+            }
         }
         Command::ReportBattery => {
             let readings = hoverboard.adc_readings();

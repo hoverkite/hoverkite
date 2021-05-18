@@ -3,9 +3,29 @@ use crate::util::{ascii_to_bool, bool_to_ascii};
 use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use core::convert::TryInto;
+use core::fmt::{self, Display, Formatter};
 use core::mem::size_of;
 use core::ops::RangeInclusive;
 use nb::Error::{Other, WouldBlock};
+
+/// A note to play on the buzzer.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Note {
+    /// The frequency in Hertz, or `None` for silence.
+    pub frequency: Option<u32>,
+    /// The duration in milliseconds.
+    pub duration_ms: u32,
+}
+
+impl Display for Note {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(frequency) = self.frequency {
+            write!(f, "{} Hz for {} ms", frequency, self.duration_ms)
+        } else {
+            write!(f, "silent for {} ms", self.duration_ms)
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -14,6 +34,7 @@ pub enum Command {
     SetRedLed(bool),
     SetGreenLed(bool),
     SetBuzzerFrequency(u32),
+    AddBuzzerNote(Note),
     ReportBattery,
     ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
@@ -46,6 +67,11 @@ impl Command {
             Self::SetBuzzerFrequency(frequency) => {
                 writer.bwrite_all(b"f")?;
                 writer.bwrite_all(&frequency.to_le_bytes())?;
+            }
+            Self::AddBuzzerNote(note) => {
+                writer.bwrite_all(b"d")?;
+                writer.bwrite_all(&note.frequency.unwrap_or(0).to_le_bytes())?;
+                writer.bwrite_all(&note.duration_ms.to_le_bytes())?;
             }
             Self::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(b"S")?;
@@ -89,6 +115,25 @@ impl Command {
                     .map_err(|_| Other(ProtocolError::MessageTooLong))?;
                 let frequency = u32::from_le_bytes(bytes);
                 Self::SetBuzzerFrequency(frequency)
+            }
+            [b'd', ref rest @ ..] => {
+                if rest.len() < 8 {
+                    return Err(WouldBlock);
+                }
+                if rest.len() > 8 {
+                    return Err(Other(ProtocolError::MessageTooLong));
+                }
+                let frequency = u32::from_le_bytes(rest[..4].try_into().unwrap());
+                let duration_ms = u32::from_le_bytes(rest[4..8].try_into().unwrap());
+                let frequency = if frequency == 0 {
+                    None
+                } else {
+                    Some(frequency)
+                };
+                Self::AddBuzzerNote(Note {
+                    frequency,
+                    duration_ms,
+                })
             }
             [b'S', ref rest @ ..] => {
                 if rest.len() < 4 {
@@ -261,6 +306,8 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -285,6 +332,8 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -312,6 +361,8 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
