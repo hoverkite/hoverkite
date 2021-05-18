@@ -1,5 +1,5 @@
 use log::{error, trace};
-use messages::{Command, DirectedCommand, Response, Side, SideResponse};
+use messages::{Command, DirectedCommand, Note, Response, Side, SideResponse};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
 use std::ops::RangeInclusive;
@@ -87,6 +87,15 @@ impl Hoverkite {
     pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), eyre::Report> {
         let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
         self.send_command(Side::Left, command)
+    }
+
+    /// Play the given sequence of notes on the hoverboard.
+    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), eyre::Report> {
+        for note in notes {
+            let command = Command::AddBuzzerNote(*note);
+            self.send_command(Side::Left, command)?;
+        }
+        Ok(())
     }
 
     /// Set the given target position.
