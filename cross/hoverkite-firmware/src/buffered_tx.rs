@@ -7,7 +7,7 @@ use cortex_m::{
 use embedded_hal::{blocking, serial::Write};
 use nb::block;
 
-const SERIAL_BUFFER_SIZE: usize = 100;
+const SERIAL_BUFFER_SIZE: usize = 300;
 
 /// Serial writer for which interrupts can be enabled and disabled.
 pub trait Listenable {
