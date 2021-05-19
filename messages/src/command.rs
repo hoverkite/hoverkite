@@ -5,6 +5,7 @@ use crate::{ProtocolError, Side};
 use core::convert::TryInto;
 use core::fmt::{self, Display, Formatter};
 use core::mem::size_of;
+use core::num::NonZeroU32;
 use core::ops::RangeInclusive;
 use nb::Error::{Other, WouldBlock};
 
@@ -12,7 +13,7 @@ use nb::Error::{Other, WouldBlock};
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Note {
     /// The frequency in Hertz, or `None` for silence.
-    pub frequency: Option<u32>,
+    pub frequency: Option<NonZeroU32>,
     /// The duration in milliseconds.
     pub duration_ms: u32,
 }
@@ -70,7 +71,7 @@ impl Command {
             }
             Self::AddBuzzerNote(note) => {
                 writer.bwrite_all(b"d")?;
-                writer.bwrite_all(&note.frequency.unwrap_or(0).to_le_bytes())?;
+                writer.bwrite_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
                 writer.bwrite_all(&note.duration_ms.to_le_bytes())?;
             }
             Self::SetMaxSpeed(max_speed) => {
@@ -125,13 +126,8 @@ impl Command {
                 }
                 let frequency = u32::from_le_bytes(rest[..4].try_into().unwrap());
                 let duration_ms = u32::from_le_bytes(rest[4..8].try_into().unwrap());
-                let frequency = if frequency == 0 {
-                    None
-                } else {
-                    Some(frequency)
-                };
                 Self::AddBuzzerNote(Note {
-                    frequency,
+                    frequency: NonZeroU32::new(frequency),
                     duration_ms,
                 })
             }
@@ -306,7 +302,7 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
-        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
@@ -332,7 +328,7 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
-        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
@@ -361,7 +357,7 @@ mod tests {
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
         #[test_case(SetBuzzerFrequency(42))]
-        #[test_case(AddBuzzerNote(Note { frequency: Some(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]

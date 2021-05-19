@@ -24,7 +24,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
 use circular_buffer::CircularBuffer;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
-use gd32f1x0_hal::{pac, prelude::*, time::Hertz, watchdog::FreeWatchdog};
+use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
@@ -220,7 +220,9 @@ fn main() -> ! {
             if note.frequency.is_some() {
                 log!(hoverboard.response_tx(), "Playing {}", note);
             }
-            hoverboard.buzzer.set_frequency(note.frequency.map(Hertz));
+            hoverboard
+                .buzzer
+                .set_frequency(note.frequency.map(|frequency| frequency.get().hz()));
             next_note_time = current_time + note.duration_ms;
         }
 
