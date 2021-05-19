@@ -206,9 +206,12 @@ pub fn handle_command(
             })
         }
         Command::AddBuzzerNote(note) => {
-            log!(hoverboard.response_tx(), "Buzzer {}", note);
             if !note_queue.add(note) {
-                log!(hoverboard.response_tx(), "Note queue full, dropping");
+                log!(
+                    hoverboard.response_tx(),
+                    "Note queue full, dropping {}",
+                    note
+                );
             }
         }
         Command::ReportBattery => {
