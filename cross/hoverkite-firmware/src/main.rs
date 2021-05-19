@@ -104,7 +104,7 @@ fn main() -> ! {
     let mut target_position: Option<i64> = None;
     let mut speed_limits = -200..=200;
     let mut spring_constant = 10;
-    let mut note_queue = CircularBuffer::default();
+    let mut note_queue = CircularBuffer::<_, 100>::default();
     // The timestamp at which to start playing the next note.
     let mut next_note_time = 0;
     loop {

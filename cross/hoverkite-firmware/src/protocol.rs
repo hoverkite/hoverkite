@@ -113,13 +113,13 @@ fn forward_command(hoverboard: &mut Hoverboard, _command: &DirectedCommand) {
 
 /// Process the given command, returning true if a command was successfully parsed or false if not
 /// enough was read yet.
-pub fn process_command(
+pub fn process_command<const L: usize>(
     command: &[u8],
     hoverboard: &mut Hoverboard,
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
-    note_queue: &mut CircularBuffer<Note, 100>,
+    note_queue: &mut CircularBuffer<Note, L>,
 ) -> bool {
     let message = match DirectedCommand::parse(command) {
         Ok(message) => message,
@@ -152,13 +152,13 @@ pub fn process_command(
     true
 }
 
-pub fn handle_command(
+pub fn handle_command<const L: usize>(
     command: Command,
     hoverboard: &mut Hoverboard,
     speed_limits: &mut RangeInclusive<i16>,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
-    note_queue: &mut CircularBuffer<Note, 100>,
+    note_queue: &mut CircularBuffer<Note, L>,
 ) {
     match command {
         Command::SetSideLed(on) => {
