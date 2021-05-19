@@ -217,6 +217,9 @@ fn main() -> ! {
         if current_time > next_note_time {
             // Play the next note on the buzzer, or turn it off if there is none.
             let note = note_queue.take().unwrap_or_default();
+            if note.frequency.is_some() {
+                log!(hoverboard.response_tx(), "Playing {}", note);
+            }
             hoverboard.buzzer.set_frequency(note.frequency.map(Hertz));
             next_note_time = current_time + note.duration_ms;
         }
