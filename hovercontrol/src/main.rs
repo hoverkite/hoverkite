@@ -2,10 +2,11 @@ use eyre::{Report, WrapErr};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use log::error;
 use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
-use messages::{Command, Response, Side, SideResponse, SpeedLimits};
+use messages::{Command, Note, Response, Side, SideResponse, SpeedLimits};
 use std::env;
+use std::num::NonZeroU32;
 use std::process::exit;
-use std::thread::{self, sleep};
+use std::thread;
 use std::time::Duration;
 
 const BAUD_RATE: u32 = 115_200;
@@ -64,17 +65,32 @@ fn main() -> Result<(), Report> {
 
     let mut hoverkite = Hoverkite::new(right_port, left_port);
 
-    let mut frequency = 100;
-    while frequency < 5000 {
-        println!("Frequency {}", frequency);
-        hoverkite.set_buzzer_frequency(Some(frequency))?;
-        sleep(Duration::from_millis(100));
-        hoverkite.set_buzzer_frequency(None)?;
-        sleep(Duration::from_millis(50));
-        frequency += 20;
-    }
-    println!("Stop");
-    hoverkite.set_buzzer_frequency(None)?;
+    hoverkite.play_notes(&[
+        Note {
+            frequency: NonZeroU32::new(100),
+            duration_ms: 1000,
+        },
+        Note {
+            frequency: NonZeroU32::new(200),
+            duration_ms: 1000,
+        },
+        Note {
+            frequency: NonZeroU32::new(300),
+            duration_ms: 1000,
+        },
+        Note {
+            frequency: NonZeroU32::new(100),
+            duration_ms: 1000,
+        },
+        Note {
+            frequency: NonZeroU32::new(200),
+            duration_ms: 1000,
+        },
+        Note {
+            frequency: NonZeroU32::new(300),
+            duration_ms: 1000,
+        },
+    ])?;
 
     let mut controller = Controller::new(hoverkite, gilrs);
     controller.run()
