@@ -3,9 +3,30 @@ use crate::util::{ascii_to_bool, bool_to_ascii};
 use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use core::convert::TryInto;
+use core::fmt::{self, Display, Formatter};
 use core::mem::size_of;
+use core::num::NonZeroU32;
 use core::ops::RangeInclusive;
 use nb::Error::{Other, WouldBlock};
+
+/// A note to play on the buzzer.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Note {
+    /// The frequency in Hertz, or `None` for silence.
+    pub frequency: Option<NonZeroU32>,
+    /// The duration in milliseconds.
+    pub duration_ms: u32,
+}
+
+impl Display for Note {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(frequency) = self.frequency {
+            write!(f, "{} Hz for {} ms", frequency, self.duration_ms)
+        } else {
+            write!(f, "silent for {} ms", self.duration_ms)
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -13,6 +34,8 @@ pub enum Command {
     SetOrangeLed(bool),
     SetRedLed(bool),
     SetGreenLed(bool),
+    SetBuzzerFrequency(u32),
+    AddBuzzerNote(Note),
     ReportBattery,
     ReportCharger,
     // FIXME: stop using RangeInclusive, so we can derive Copy
@@ -42,26 +65,35 @@ impl Command {
             Self::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
             Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
             Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
+            Self::SetBuzzerFrequency(frequency) => {
+                writer.bwrite_all(b"f")?;
+                writer.bwrite_all(&frequency.to_le_bytes())?;
+            }
+            Self::AddBuzzerNote(note) => {
+                writer.bwrite_all(b"d")?;
+                writer.bwrite_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
+                writer.bwrite_all(&note.duration_ms.to_le_bytes())?;
+            }
             Self::SetMaxSpeed(max_speed) => {
-                writer.bwrite_all(&[b'S'])?;
+                writer.bwrite_all(b"S")?;
                 writer.bwrite_all(&max_speed.start().to_le_bytes())?;
                 writer.bwrite_all(&max_speed.end().to_le_bytes())?;
             }
             Self::SetSpringConstant(spring_constant) => {
-                writer.bwrite_all(&[b'K'])?;
+                writer.bwrite_all(b"K")?;
                 writer.bwrite_all(&spring_constant.to_le_bytes())?;
             }
             Self::SetTarget(target) => {
-                writer.bwrite_all(&[b'T'])?;
+                writer.bwrite_all(b"T")?;
                 writer.bwrite_all(&target.to_le_bytes())?;
             }
-            Self::Recenter => writer.bwrite_all(&[b'e'])?,
-            Self::ReportBattery => writer.bwrite_all(&[b'b'])?,
-            Self::ReportCharger => writer.bwrite_all(&[b'c'])?,
-            Self::RemoveTarget => writer.bwrite_all(&[b'n'])?,
-            Self::IncrementTarget => writer.bwrite_all(&[b'+'])?,
-            Self::DecrementTarget => writer.bwrite_all(&[b'-'])?,
-            Self::PowerOff => writer.bwrite_all(&[b'p'])?,
+            Self::Recenter => writer.bwrite_all(b"e")?,
+            Self::ReportBattery => writer.bwrite_all(b"b")?,
+            Self::ReportCharger => writer.bwrite_all(b"c")?,
+            Self::RemoveTarget => writer.bwrite_all(b"n")?,
+            Self::IncrementTarget => writer.bwrite_all(b"+")?,
+            Self::DecrementTarget => writer.bwrite_all(b"-")?,
+            Self::PowerOff => writer.bwrite_all(b"p")?,
         };
         Ok(())
     }
@@ -75,6 +107,30 @@ impl Command {
             [b'g', on] => Self::SetGreenLed(ascii_to_bool(on)?),
             [b'b'] => Self::ReportBattery,
             [b'c'] => Self::ReportCharger,
+            [b'f', ref rest @ ..] => {
+                if rest.len() < size_of::<u32>() {
+                    return Err(WouldBlock);
+                }
+                let bytes = rest
+                    .try_into()
+                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
+                let frequency = u32::from_le_bytes(bytes);
+                Self::SetBuzzerFrequency(frequency)
+            }
+            [b'd', ref rest @ ..] => {
+                if rest.len() < 8 {
+                    return Err(WouldBlock);
+                }
+                if rest.len() > 8 {
+                    return Err(Other(ProtocolError::MessageTooLong));
+                }
+                let frequency = u32::from_le_bytes(rest[..4].try_into().unwrap());
+                let duration_ms = u32::from_le_bytes(rest[4..8].try_into().unwrap());
+                Self::AddBuzzerNote(Note {
+                    frequency: NonZeroU32::new(frequency),
+                    duration_ms,
+                })
+            }
             [b'S', ref rest @ ..] => {
                 if rest.len() < 4 {
                     return Err(WouldBlock);
@@ -245,6 +301,9 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -268,6 +327,9 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
@@ -294,6 +356,9 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
+        #[test_case(SetBuzzerFrequency(42))]
+        #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
+        #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(-30..=42))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]

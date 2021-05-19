@@ -2,10 +2,12 @@
 #![no_main]
 
 mod buffered_tx;
+mod circular_buffer;
 mod hoverboard;
 mod motor;
 mod protocol;
 mod pwm;
+mod systick;
 mod util;
 
 #[cfg(feature = "primary")]
@@ -19,6 +21,7 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
+use circular_buffer::CircularBuffer;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
@@ -26,6 +29,7 @@ use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
 use protocol::{process_command, send_position, HoverboardExt};
+use systick::SysTick;
 use util::clamp;
 
 #[cfg(feature = "secondary")]
@@ -35,7 +39,7 @@ const WATCHDOG_MILLIS: u32 = 1000;
 
 #[entry]
 fn main() -> ! {
-    // Get access to the device specific peripherals from the peripheral access crate
+    let cp = cortex_m::Peripherals::take().unwrap();
     let dp = pac::Peripherals::take().unwrap();
 
     let mut rcu = dp.RCU.constrain();
@@ -49,6 +53,8 @@ fn main() -> ! {
     let mut watchdog = FreeWatchdog::new(dp.FWDGT);
     watchdog.start(WATCHDOG_MILLIS.ms());
 
+    let systick = SysTick::start(cp.SYST, &clocks);
+
     let mut hoverboard = Hoverboard::new(
         dp.GPIOA,
         dp.GPIOB,
@@ -57,6 +63,7 @@ fn main() -> ! {
         dp.USART0,
         dp.USART1,
         dp.TIMER0,
+        dp.TIMER1,
         dp.DMA,
         dp.ADC,
         &mut rcu.ahb,
@@ -97,6 +104,9 @@ fn main() -> ! {
     let mut target_position: Option<i64> = None;
     let mut speed_limits = -200..=200;
     let mut spring_constant = 10;
+    let mut note_queue = CircularBuffer::<_, 100>::default();
+    // The timestamp at which to start playing the next note.
+    let mut next_note_time = 0;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -112,6 +122,7 @@ fn main() -> ! {
                     &mut speed_limits,
                     &mut target_position,
                     &mut spring_constant,
+                    &mut note_queue,
                 ) {
                     command_len = 0;
                 } else if command_len >= command_buffer.len() {
@@ -201,6 +212,19 @@ fn main() -> ! {
 
         // Drive the motor.
         hoverboard.set_motor_power(speed);
+
+        let current_time = systick.millis_since_start();
+        if current_time > next_note_time {
+            // Play the next note on the buzzer, or turn it off if there is none.
+            let note = note_queue.take().unwrap_or_default();
+            if note.frequency.is_some() {
+                log!(hoverboard.response_tx(), "Playing {}", note);
+            }
+            hoverboard
+                .buzzer
+                .set_frequency(note.frequency.map(|frequency| frequency.get().hz()));
+            next_note_time = current_time + note.duration_ms;
+        }
 
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {

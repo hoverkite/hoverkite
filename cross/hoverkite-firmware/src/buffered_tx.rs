@@ -1,3 +1,4 @@
+use crate::circular_buffer::CircularBuffer;
 use core::{cell::RefCell, fmt};
 use cortex_m::{
     asm::wfi,
@@ -6,80 +7,7 @@ use cortex_m::{
 use embedded_hal::{blocking, serial::Write};
 use nb::block;
 
-const SERIAL_BUFFER_SIZE: usize = 100;
-
-/// A circular buffer for sending to a serial port.
-struct SerialBuffer {
-    buffer: [u8; SERIAL_BUFFER_SIZE],
-    start: usize,
-    length: usize,
-}
-
-impl SerialBuffer {
-    pub const fn new() -> Self {
-        Self {
-            buffer: [0; SERIAL_BUFFER_SIZE],
-            start: 0,
-            length: 0,
-        }
-    }
-
-    /// Try to add the given byte to the buffer. Returns true on success, or false if the buffer
-    /// was already full.
-    pub fn add(&mut self, byte: u8) -> bool {
-        if self.length == self.buffer.len() {
-            return false;
-        }
-        self.buffer[(self.start + self.length) % self.buffer.len()] = byte;
-        self.length += 1;
-        true
-    }
-
-    /// Add as many bytes as possible from the given slice to the buffer. Returns the number of
-    /// bytes added.
-    pub fn add_all(&mut self, bytes: &[u8]) -> usize {
-        let mut added = 0;
-        for &byte in bytes {
-            if self.add(byte) {
-                added += 1;
-            } else {
-                break;
-            }
-        }
-        added
-    }
-
-    /// Take one byte out of the buffer, if it has any.
-    pub fn take(&mut self) -> Option<u8> {
-        if self.length == 0 {
-            None
-        } else {
-            let byte = self.buffer[self.start];
-            self.start = (self.start + 1) % self.buffer.len();
-            self.length -= 1;
-            Some(byte)
-        }
-    }
-
-    /// Get the next byte from the buffer, but don't remove it.
-    pub fn peek(&self) -> Option<u8> {
-        if self.length == 0 {
-            None
-        } else {
-            Some(self.buffer[self.start])
-        }
-    }
-
-    /// Returns true if there are no bytes waiting to be written.
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
-
-    /// Returns true if there is no space in the buffer for any more data.
-    pub fn is_full(&self) -> bool {
-        self.length == self.buffer.len()
-    }
-}
+const SERIAL_BUFFER_SIZE: usize = 300;
 
 /// Serial writer for which interrupts can be enabled and disabled.
 pub trait Listenable {
@@ -176,14 +104,14 @@ impl<W: Write<u8> + Listenable> fmt::Write for BufferedSerialWriter<W> {
 }
 
 pub struct BufferState<W> {
-    buffer: SerialBuffer,
+    buffer: CircularBuffer<u8, SERIAL_BUFFER_SIZE>,
     writer: Option<W>,
 }
 
 impl<W> BufferState<W> {
     pub const fn new() -> Self {
         Self {
-            buffer: SerialBuffer::new(),
+            buffer: CircularBuffer::new(),
             writer: None,
         }
     }

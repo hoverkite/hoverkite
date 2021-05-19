@@ -13,19 +13,22 @@ use gd32f1x0_hal::{
     adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
     dma::{Event, Transfer, W},
     gpio::{
-        gpioa::{PA0, PA12, PA15},
+        gpioa::{PA0, PA1, PA12, PA15, PA3},
         gpiob::{PB10, PB2, PB3},
         gpioc::PC15,
         gpiof::PF0,
-        Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
+        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF2,
     },
     pac::{
         adc::ctl1::CTN_A, interrupt, usart0, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF,
-        TIMER0, USART0, USART1,
+        TIMER0, TIMER1, USART0, USART1,
     },
     prelude::*,
+    pwm::{self, Channel},
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
+    time::Hertz,
+    timer::Timer,
 };
 
 const USART_BAUD_RATE: u32 = 115200;
@@ -150,12 +153,50 @@ fn DMA_CHANNEL0() {
     });
 }
 
+/// The buzzer on the secondary board. This should not be used on the primary board.
+pub struct Buzzer {
+    pwm: pwm::Pwm<
+        TIMER1,
+        // This type is a bit bogus, PB10 is the only one that matters.
+        (
+            Option<PA0<Alternate<AF2>>>,
+            Option<PA1<Alternate<AF2>>>,
+            Option<PB10<Alternate<AF2>>>,
+            Option<PA3<Alternate<AF2>>>,
+        ),
+    >,
+}
+
+impl Buzzer {
+    fn new(
+        timer1: TIMER1,
+        buzzer_pin: PB10<Alternate<AF2>>,
+        clocks: Clocks,
+        apb1: &mut APB1,
+    ) -> Self {
+        let pins = (None, None, Some(buzzer_pin), None);
+        let pwm = Timer::timer1(timer1, &clocks, apb1).pwm(pins, 1.khz());
+        Self { pwm }
+    }
+
+    /// Set the frequency of the buzzer, or turn it off.
+    pub fn set_frequency(&mut self, frequency: Option<impl Into<Hertz>>) {
+        if let Some(frequency) = frequency {
+            self.pwm.set_period(frequency.into());
+            self.pwm.set_duty(Channel::C2, self.pwm.get_max_duty() / 2);
+            self.pwm.enable(Channel::C2);
+        } else {
+            self.pwm.disable(Channel::C2);
+        }
+    }
+}
+
 pub struct Hoverboard {
     pub serial_remote_rx: Rx<USART0>,
     pub serial_remote_writer: BufferedSerialWriter<Tx<USART0>>,
     pub serial_rx: Rx<USART1>,
     pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
-    pub buzzer: PB10<Output<PushPull>>,
+    pub buzzer: Buzzer,
     pub power_latch: PB2<Output<PushPull>>,
     pub power_button: PC15<Input<Floating>>,
     /// This will be low when the charger is connected.
@@ -172,6 +213,7 @@ impl Hoverboard {
         usart0: USART0,
         usart1: USART1,
         timer0: TIMER0,
+        timer1: TIMER1,
         dma: DMA,
         adc: ADC,
         ahb: &mut AHB,
@@ -256,6 +298,7 @@ impl Hoverboard {
         let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
         let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
 
+        // Motor
         // Output speed defaults to 2MHz
         let green_high =
             gpioa
@@ -285,7 +328,6 @@ impl Hoverboard {
             gpiob
                 .pb12
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
-
         let motor_pins = (
             (yellow_high, yellow_low),
             (blue_high, blue_low),
@@ -299,14 +341,19 @@ impl Hoverboard {
             emergency_off,
             apb2,
         );
-
         let hall_sensors = HallSensors::new(
             gpiob.pb11.into_floating_input(&mut gpiob.config),
             gpiof.pf1.into_floating_input(&mut gpiof.config),
             gpioc.pc14.into_floating_input(&mut gpioc.config),
         );
-
         let motor = Motor::new(pwm, hall_sensors);
+
+        // Buzzer
+        let buzzer_pin =
+            gpiob
+                .pb10
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
+        let buzzer = Buzzer::new(timer1, buzzer_pin, clocks, apb1);
 
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {
@@ -328,7 +375,7 @@ impl Hoverboard {
             serial_remote_writer,
             serial_rx,
             serial_writer,
-            buzzer: gpiob.pb10.into_push_pull_output(&mut gpiob.config),
+            buzzer,
             power_latch: gpiob.pb2.into_push_pull_output(&mut gpiob.config),
             power_button: gpioc.pc15.into_floating_input(&mut gpioc.config),
             charge_state: gpiof.pf0.into_pull_up_input(&mut gpiof.config),

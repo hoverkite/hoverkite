@@ -5,7 +5,7 @@ mod error;
 mod response;
 mod util;
 
-pub use command::{Command, DirectedCommand};
+pub use command::{Command, DirectedCommand, Note};
 pub use error::ProtocolError;
 pub use response::{Response, SideResponse};
 
