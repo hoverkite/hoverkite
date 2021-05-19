@@ -173,9 +173,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c90f7c251afd68be3d5760d37953d843b691bb3d4aca84604b8a36855d4136c"
+checksum = "4b8667ac0a86756411ad6e9e24005965c1cf914550f348db7b93a6e774774cfe"
 dependencies = [
  "bxcan",
  "cast",
