@@ -1,5 +1,5 @@
 /// A circular buffer.
-pub struct CircularBuffer<T: Default, const SIZE: usize> {
+pub struct CircularBuffer<T: Copy + Default, const SIZE: usize> {
     buffer: [T; SIZE],
     start: usize,
     length: usize,
@@ -28,11 +28,12 @@ impl<T: Copy + Default, const SIZE: usize> Default for CircularBuffer<T, SIZE> {
 impl<T: Copy + Default, const SIZE: usize> CircularBuffer<T, SIZE> {
     /// Try to add the given element to the buffer. Returns true on success, or false if the buffer
     /// was already full.
+    #[must_use]
     pub fn add(&mut self, element: T) -> bool {
-        if self.length == self.buffer.len() {
+        if self.length == SIZE {
             return false;
         }
-        self.buffer[(self.start + self.length) % self.buffer.len()] = element;
+        self.buffer[(self.start + self.length) % SIZE] = element;
         self.length += 1;
         true
     }
@@ -57,7 +58,7 @@ impl<T: Copy + Default, const SIZE: usize> CircularBuffer<T, SIZE> {
             None
         } else {
             let element = self.buffer[self.start];
-            self.start = (self.start + 1) % self.buffer.len();
+            self.start = (self.start + 1) % SIZE;
             self.length -= 1;
             Some(element)
         }
@@ -79,6 +80,6 @@ impl<T: Copy + Default, const SIZE: usize> CircularBuffer<T, SIZE> {
 
     /// Returns true if there is no space in the buffer for any more elements.
     pub fn is_full(&self) -> bool {
-        self.length == self.buffer.len()
+        self.length == SIZE
     }
 }
