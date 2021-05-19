@@ -65,32 +65,44 @@ fn main() -> Result<(), Report> {
 
     let mut hoverkite = Hoverkite::new(right_port, left_port);
 
-    hoverkite.play_notes(&[
+    let notes = &[
+        Note {
+            frequency: NonZeroU32::new(1000),
+            duration_ms: 100,
+        },
+        Note {
+            frequency: NonZeroU32::new(2000),
+            duration_ms: 100,
+        },
+        Note {
+            frequency: NonZeroU32::new(3000),
+            duration_ms: 100,
+        },
+        Note {
+            frequency: NonZeroU32::new(4000),
+            duration_ms: 100,
+        },
         Note {
             frequency: NonZeroU32::new(100),
-            duration_ms: 1000,
+            duration_ms: 100,
         },
         Note {
             frequency: NonZeroU32::new(200),
-            duration_ms: 1000,
+            duration_ms: 100,
         },
         Note {
             frequency: NonZeroU32::new(300),
-            duration_ms: 1000,
+            duration_ms: 100,
         },
         Note {
-            frequency: NonZeroU32::new(100),
-            duration_ms: 1000,
+            frequency: NonZeroU32::new(400),
+            duration_ms: 100,
         },
-        Note {
-            frequency: NonZeroU32::new(200),
-            duration_ms: 1000,
-        },
-        Note {
-            frequency: NonZeroU32::new(300),
-            duration_ms: 1000,
-        },
-    ])?;
+    ];
+    hoverkite.play_notes(notes)?;
+    hoverkite.play_notes(notes)?;
+    hoverkite.play_notes(notes)?;
+    hoverkite.play_notes(notes)?;
 
     let mut controller = Controller::new(hoverkite, gilrs);
     controller.run()
