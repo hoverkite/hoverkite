@@ -12,9 +12,9 @@ mod util;
 
 #[cfg(feature = "primary")]
 use messages::Command;
-#[cfg(feature = "secondary")]
-use messages::Response;
 use messages::SideResponse;
+#[cfg(feature = "secondary")]
+use messages::{Note, Response};
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -22,9 +22,11 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
 use circular_buffer::CircularBuffer;
+#[cfg(feature = "secondary")]
+use core::num::NonZeroU32;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
-use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
+use gd32f1x0_hal::{pac, prelude::*, time::Hertz, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
@@ -36,6 +38,27 @@ use util::clamp;
 use crate::protocol::THIS_SIDE;
 
 const WATCHDOG_MILLIS: u32 = 1000;
+
+#[cfg(feature = "secondary")]
+const POWER_ON_TUNE: [Note; 2] = [
+    Note {
+        frequency: NonZeroU32::new(1000),
+        duration_ms: 200,
+    },
+    Note {
+        frequency: NonZeroU32::new(2000),
+        duration_ms: 100,
+    },
+];
+
+/// Frequency of tone to play while powering off. We can't easily play a tune because the main loop
+/// is no longer running by then.
+#[cfg(feature = "secondary")]
+const POWER_OFF_FREQUENCY: Hertz = Hertz(800);
+
+/// If the power button is held for more than this duration then don't play the power on tune.
+#[cfg(feature = "secondary")]
+const POWER_ON_SILENT_MS: u32 = 1000;
 
 #[entry]
 fn main() -> ! {
@@ -91,6 +114,15 @@ fn main() -> ! {
         watchdog.feed();
     }
 
+    let mut note_queue = CircularBuffer::<_, 100>::default();
+    // The timestamp at which to start playing the next note.
+    let mut next_note_time = 0;
+
+    #[cfg(feature = "secondary")]
+    if systick.millis_since_start() < POWER_ON_SILENT_MS {
+        note_queue.add_all(&POWER_ON_TUNE);
+    }
+
     log!(hoverboard.response_tx(), "Ready");
 
     let mut last_position = 0;
@@ -104,9 +136,6 @@ fn main() -> ! {
     let mut target_position: Option<i64> = None;
     let mut speed_limits = -200..=200;
     let mut spring_constant = 10;
-    let mut note_queue = CircularBuffer::<_, 100>::default();
-    // The timestamp at which to start playing the next note.
-    let mut next_note_time = 0;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
         watchdog.feed();
@@ -228,6 +257,8 @@ fn main() -> ! {
 
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {
+            #[cfg(feature = "secondary")]
+            hoverboard.buzzer.set_frequency(Some(POWER_OFF_FREQUENCY));
             // Wait until it is released.
             while hoverboard.power_button.is_high().unwrap() {
                 watchdog.feed();
