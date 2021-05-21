@@ -1,4 +1,4 @@
-use abc_parser::datatypes::{Accidental, MusicSymbol, Note, Tune, TuneHeader};
+use abc_parser::datatypes::{Accidental, Decoration, MusicSymbol, Note, Tune, TuneHeader};
 use eyre::{eyre, Report};
 use log::error;
 use messages::client::Hoverkite;
@@ -88,11 +88,26 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
                     tie,
                 } => {
                     let frequency = get_frequency(*note, *octave, *accidental, key_signature);
-                    println!("note: {:?}{} ({}) {}", note, octave, frequency, length);
-                    notes.push(messages::Note {
-                        frequency: Some(frequency),
-                        duration_ms: (base_duration * length) as u32,
-                    });
+                    println!(
+                        "note: {:?}{} ({}) {}, {:?}",
+                        note, octave, frequency, length, decorations
+                    );
+                    if decorations.contains(&Decoration::Staccato) {
+                        // Staccato means play the note for half the length, followed by a rest.
+                        notes.push(messages::Note {
+                            frequency: Some(frequency),
+                            duration_ms: (base_duration * length / 2.0) as u32,
+                        });
+                        notes.push(messages::Note {
+                            frequency: None,
+                            duration_ms: (base_duration * length / 2.0) as u32,
+                        });
+                    } else {
+                        notes.push(messages::Note {
+                            frequency: Some(frequency),
+                            duration_ms: (base_duration * length) as u32,
+                        });
+                    }
                 }
                 _ => println!("symbol: {:?}", symbol),
             }
