@@ -130,5 +130,5 @@ fn get_frequency(note: Note, octave: i8) -> NonZeroU32 {
         Note::B => 493.88,
     };
     let frequency = frequency * 2.0f32.powi(octave as i32 - 1);
-    NonZeroU32::new(frequency as u32).unwrap()
+    NonZeroU32::new(frequency.round() as u32).unwrap()
 }
