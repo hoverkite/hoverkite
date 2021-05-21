@@ -130,7 +130,6 @@ fn parse_fraction(s: &str) -> Result<f32, Report> {
     Ok(numerator / denominator)
 }
 
-// Middle C is 0
 fn get_semitone(note: Note, accidental: Option<Accidental>, key_signature: i8) -> i32 {
     let accidental = accidental.unwrap_or_else(|| match note {
         Note::B if key_signature >= 7 => Accidental::Sharp,
@@ -149,14 +148,15 @@ fn get_semitone(note: Note, accidental: Option<Accidental>, key_signature: i8) -
         Note::F if key_signature <= -7 => Accidental::Flat,
         _ => Accidental::Natural,
     });
+    // The A above middle C is 0
     let semitone = match note {
-        Note::C => 0,
-        Note::D => 2,
-        Note::E => 4,
-        Note::F => 5,
-        Note::G => 7,
-        Note::A => 9,
-        Note::B => 11,
+        Note::C => -9,
+        Note::D => -7,
+        Note::E => -5,
+        Note::F => -4,
+        Note::G => -2,
+        Note::A => 0,
+        Note::B => 2,
     };
     match accidental {
         Accidental::DoubleFlat => semitone - 2,
@@ -174,8 +174,8 @@ fn get_frequency(
     key_signature: i8,
 ) -> NonZeroU32 {
     let semitone = get_semitone(note, accidental, key_signature);
-    // The A above middle C (tone 9) is 440 Hz.
-    let frequency = 440.0 * 2.0f32.powf(octave as f32 - 1.0 + (semitone - 9) as f32 / 12.0);
+    // The A above middle C (semitone 0) is 440 Hz.
+    let frequency = 440.0 * 2.0f32.powf(octave as f32 - 1.0 + semitone as f32 / 12.0);
     NonZeroU32::new(frequency.round() as u32).unwrap()
 }
 
