@@ -1,4 +1,4 @@
-use abc_parser::datatypes::{MusicSymbol, Note, Tune, TuneHeader};
+use abc_parser::datatypes::{Accidental, MusicSymbol, Note, Tune, TuneHeader};
 use eyre::{eyre, Report};
 use log::error;
 use messages::client::Hoverkite;
@@ -73,6 +73,8 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
         base_duration,
         WHOLE_NOTE_DURATION / 4.0
     );
+    let key_signature = get_key_signature(&tune.header)?;
+    println!("Key signature: {}", key_signature);
     let body = tune.body.ok_or_else(|| eyre!("Tune has no body"))?;
     for line in &body.music {
         for symbol in &line.symbols {
@@ -85,7 +87,7 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
                     length,
                     tie,
                 } => {
-                    let frequency = get_frequency(*note, *octave);
+                    let frequency = get_frequency(*note, *octave, *accidental, key_signature);
                     println!("note: {:?}{} ({}) {}", note, octave, frequency, length);
                     notes.push(messages::Note {
                         frequency: Some(frequency),
@@ -110,6 +112,15 @@ fn get_base_duration(header: &TuneHeader) -> Result<f32, Report> {
     Ok(length * WHOLE_NOTE_DURATION)
 }
 
+fn get_key_signature(header: &TuneHeader) -> Result<i8, Report> {
+    let key_signature_field = header
+        .info
+        .iter()
+        .find(|info| info.0 == 'K')
+        .ok_or_else(|| eyre!("Header field K missing"))?;
+    key_signature(&key_signature_field.1)
+}
+
 fn parse_fraction(s: &str) -> Result<f32, Report> {
     let (numerator, denominator) = s
         .split_once('/')
@@ -119,16 +130,126 @@ fn parse_fraction(s: &str) -> Result<f32, Report> {
     Ok(numerator / denominator)
 }
 
-fn get_frequency(note: Note, octave: i8) -> NonZeroU32 {
-    let frequency = match note {
-        Note::C => 261.63,
-        Note::D => 293.66,
-        Note::E => 329.63,
-        Note::F => 349.23,
-        Note::G => 392.00,
-        Note::A => 440.00,
-        Note::B => 493.88,
+// Middle C is 0
+fn get_semitone(note: Note, accidental: Option<Accidental>, key_signature: i8) -> i32 {
+    let accidental = accidental.unwrap_or_else(|| match note {
+        Note::B if key_signature >= 7 => Accidental::Sharp,
+        Note::E if key_signature >= 6 => Accidental::Sharp,
+        Note::A if key_signature >= 5 => Accidental::Sharp,
+        Note::D if key_signature >= 4 => Accidental::Sharp,
+        Note::G if key_signature >= 3 => Accidental::Sharp,
+        Note::C if key_signature >= 2 => Accidental::Sharp,
+        Note::F if key_signature >= 1 => Accidental::Sharp,
+        Note::B if key_signature <= -1 => Accidental::Flat,
+        Note::E if key_signature <= -2 => Accidental::Flat,
+        Note::A if key_signature <= -3 => Accidental::Flat,
+        Note::D if key_signature <= -4 => Accidental::Flat,
+        Note::G if key_signature <= -5 => Accidental::Flat,
+        Note::C if key_signature <= -6 => Accidental::Flat,
+        Note::F if key_signature <= -7 => Accidental::Flat,
+        _ => Accidental::Natural,
+    });
+    let semitone = match note {
+        Note::C => 0,
+        Note::D => 2,
+        Note::E => 4,
+        Note::F => 5,
+        Note::G => 7,
+        Note::A => 9,
+        Note::B => 11,
     };
-    let frequency = frequency * 2.0f32.powi(octave as i32 - 1);
+    match accidental {
+        Accidental::DoubleFlat => semitone - 2,
+        Accidental::Flat => semitone - 1,
+        Accidental::Natural => semitone,
+        Accidental::Sharp => semitone + 1,
+        Accidental::DoubleSharp => semitone + 2,
+    }
+}
+
+fn get_frequency(
+    note: Note,
+    octave: i8,
+    accidental: Option<Accidental>,
+    key_signature: i8,
+) -> NonZeroU32 {
+    let semitone = get_semitone(note, accidental, key_signature);
+    // The A above middle C (tone 9) is 440 Hz.
+    let frequency = 440.0 * 2.0f32.powf(octave as f32 - 1.0 + (semitone - 9) as f32 / 12.0);
     NonZeroU32::new(frequency.round() as u32).unwrap()
+}
+
+/// Returns a positive number of sharps, or a negative number of flats (or 0 for neither).
+fn key_signature(signature: &str) -> Result<i8, Report> {
+    match signature {
+        "C#" | "A#m" | "G#Mix" | "D#Dor" | "E#Phr" | "F#Lyd" | "B#Loc" => Ok(7),
+        "F#" | "D#m" | "C#Mix" | "G#Dor" | "A#Phr" | "BLyd" | "E#Loc" => Ok(6),
+        "B" | "G#m" | "F#Mix" | "C#Dor" | "D#Phr" | "ELyd" | "A#Loc" => Ok(5),
+        "E" | "C#m" | "BMix" | "F#Dor" | "G#Phr" | "ALyd" | "D#Loc" => Ok(4),
+        "A" | "F#m" | "EMix" | "BDor" | "C#Phr" | "DLyd" | "G#Loc" => Ok(3),
+        "D" | "Bm" | "AMix" | "EDor" | "F#Phr" | "GLyd" | "C#Loc" => Ok(2),
+        "G" | "Em" | "DMix" | "ADor" | "BPhr" | "CLyd" | "F#Loc" => Ok(1),
+        "C" | "Am" | "GMix" | "DDor" | "EPhr" | "FLyd" | "BLoc" => Ok(0),
+        "F" | "Dm" | "CMix" | "GDor" | "APhr" | "BbLyd" | "ELoc" => Ok(-1),
+        "Bb" | "Gm" | "FMix" | "CDor" | "DPhr" | "EbLyd" | "ALoc" => Ok(-2),
+        "Eb" | "Cm" | "BbMix" | "FDor" | "GPhr" | "AbLyd" | "DLoc" => Ok(-3),
+        "Ab" | "Fm" | "EbMix" | "BbDor" | "CPhr" | "DbLyd" | "GLoc" => Ok(-4),
+        "Db" | "Bbm" | "AbMix" | "EbDor" | "FPhr" | "GbLyd" | "CLoc" => Ok(-5),
+        "Gb" | "Ebm" | "DbMix" | "AbDor" | "BbPhr" | "CbLyd" | "FLoc" => Ok(-6),
+        "Cb" | "Abm" | "GbMix" | "DbDor" | "EbPhr" | "FbLyd" | "BbLoc" => Ok(-7),
+        _ => Err(eyre!("Invalid key signature {}", signature)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn c_major_note_frequencies() {
+        assert_eq!(get_frequency(Note::C, 1, None, 0).get(), 262);
+        assert_eq!(get_frequency(Note::A, 1, None, 0).get(), 440);
+        assert_eq!(get_frequency(Note::B, 1, None, 0).get(), 494);
+    }
+
+    #[test]
+    fn f_key_frequencies() {
+        // Check the frequency in C major, with various accidentals.
+        assert_eq!(get_frequency(Note::F, 1, None, 0).get(), 349);
+        assert_eq!(
+            get_frequency(Note::F, 1, Some(Accidental::Natural), 0).get(),
+            349
+        );
+        assert_eq!(
+            get_frequency(Note::F, 1, Some(Accidental::Sharp), 0).get(),
+            370
+        );
+        assert_eq!(
+            get_frequency(Note::F, 1, Some(Accidental::Flat), 0).get(),
+            330
+        );
+
+        // Check the frequencies in various keys with no accidentals.
+        assert_eq!(get_frequency(Note::F, 1, None, 1).get(), 370);
+        assert_eq!(get_frequency(Note::F, 1, None, 7).get(), 370);
+        assert_eq!(get_frequency(Note::F, 1, None, -6).get(), 349);
+        assert_eq!(get_frequency(Note::F, 1, None, -7).get(), 330);
+
+        // A natural accidental should mean that the key is ignored.
+        assert_eq!(
+            get_frequency(Note::F, 1, Some(Accidental::Natural), 7).get(),
+            349
+        );
+        assert_eq!(
+            get_frequency(Note::F, 1, Some(Accidental::Natural), -7).get(),
+            349
+        );
+    }
+
+    #[test]
+    fn get_key_signature_success() {
+        let tune = abc_parser::abc::tune("X:1\nT:blah\nK:Gm\n").unwrap();
+        let key_signature = get_key_signature(&tune.header).unwrap();
+        assert_eq!(key_signature, -2);
+    }
 }
