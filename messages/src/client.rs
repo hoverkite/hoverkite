@@ -99,6 +99,7 @@ impl Hoverkite {
     /// Plays the given sequence of notes on the hoverboard.
     pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
+            trace!("Sending {:?}", note);
             let command = Command::AddBuzzerNote(*note);
             self.send_command(Side::Left, command)?;
             sleep(NOTE_SEND_SLEEP_DURATION);
