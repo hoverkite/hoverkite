@@ -40,7 +40,7 @@ T: The Origin Of The World
 R: mazurka
 M: 3/4
 L: 1/8
-K: Gmin
+K: Gm
 |: de dc AB | G2-GGAB | ce ee dc | d2-dd dc |
 de dc AB | G2-GG AB | EG BE GB | A2 AA BA |
 GE CE GE | F2 FD B,D | GE B,E GE | F2 F2 GA |
@@ -196,6 +196,7 @@ fn get_frequency(
 
 /// Returns a positive number of sharps, or a negative number of flats (or 0 for neither).
 fn key_signature(signature: &str) -> Result<i8, Report> {
+    // TODO: Handle other variants, e.g. Gmin.
     match signature {
         "C#" | "A#m" | "G#Mix" | "D#Dor" | "E#Phr" | "F#Lyd" | "B#Loc" => Ok(7),
         "F#" | "D#m" | "C#Mix" | "G#Dor" | "A#Phr" | "BLyd" | "E#Loc" => Ok(6),
