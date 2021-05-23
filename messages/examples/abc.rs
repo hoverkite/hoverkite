@@ -45,6 +45,10 @@ K: Gm
 de dc AB | G2-GG AB | EG BE GB | A2 AA BA |
 GE CE GE | F2 FD B,D | GE B,E GE | F2 F2 GA |
 B2 Bc-cd | d2-dc Bc | cc cB GF | G2 G4 :|
+|: G2 GD GA | B2 BA Bd | c2 cd-dc | F4 F2 |
+G2 GD GA | B2 BA Bd | c2 cd-dc | FG Bc dc |
+ge cG EC | fdB FDB, | eB GE B,G, | A,C FA cA |
+B2 Bc-cd | d2 dc Bc | cc cB GF | G2 G4 :|
 ",
     )?;
     let notes = abc_to_notes(tune)?;
@@ -60,7 +64,7 @@ B2 Bc-cd | d2-dc Bc | cc cB GF | G2 G4 :|
 }
 
 /// Tempo in BPM.
-const TEMPO: f32 = 200.0;
+const TEMPO: f32 = 300.0;
 /// The duration in milliseconds of a whole note.
 const WHOLE_NOTE_DURATION: f32 = 60.0 * 1000.0 * 4.0 / TEMPO;
 

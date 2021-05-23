@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 /// The minimum amount of time to wait between sending consecutive target commands to the device, to
 /// avoid overwhelming it or overflowing its receive buffer.
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
-const NOTE_SEND_SLEEP_DURATION: Duration = Duration::from_millis(1);
+const NOTE_SEND_SLEEP_DURATION: Duration = Duration::from_millis(50);
 
 /// A client to talk to a Hoverkite device over one or two serial ports.
 pub struct Hoverkite {
