@@ -106,6 +106,11 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
                             frequency: None,
                             duration_ms: (base_duration * length / 2.0) as u32,
                         });
+                    } else if tie.is_some() {
+                        notes.push(messages::Note {
+                            frequency: Some(frequency),
+                            duration_ms: (base_duration * length) as u32,
+                        });
                     } else {
                         notes.push(messages::Note {
                             frequency: Some(frequency),
