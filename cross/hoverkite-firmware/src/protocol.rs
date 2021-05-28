@@ -2,10 +2,7 @@ use crate::buffered_tx::BufferedSerialWriter;
 use crate::circular_buffer::CircularBuffer;
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
-use core::{
-    fmt::Debug,
-    ops::{Deref, RangeInclusive},
-};
+use core::{fmt::Debug, ops::Deref};
 use embedded_hal::blocking::serial::Write;
 use gd32f1x0_hal::{
     pac::{self, usart0},
@@ -13,7 +10,9 @@ use gd32f1x0_hal::{
     serial::{Rx, Tx},
 };
 #[allow(unused_imports)]
-use messages::{Command, DirectedCommand, Note, ProtocolError, Response, Side, SideResponse};
+use messages::{
+    Command, DirectedCommand, Note, ProtocolError, Response, Side, SideResponse, SpeedLimits,
+};
 #[allow(unused_imports)]
 use nb::Error::{Other, WouldBlock};
 
@@ -116,7 +115,7 @@ fn forward_command(hoverboard: &mut Hoverboard, _command: &DirectedCommand) {
 pub fn process_command<const L: usize>(
     command: &[u8],
     hoverboard: &mut Hoverboard,
-    speed_limits: &mut RangeInclusive<i16>,
+    speed_limits: &mut SpeedLimits,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
     note_queue: &mut CircularBuffer<Note, L>,
@@ -155,7 +154,7 @@ pub fn process_command<const L: usize>(
 pub fn handle_command<const L: usize>(
     command: Command,
     hoverboard: &mut Hoverboard,
-    speed_limits: &mut RangeInclusive<i16>,
+    speed_limits: &mut SpeedLimits,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
     note_queue: &mut CircularBuffer<Note, L>,

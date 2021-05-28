@@ -12,9 +12,9 @@ mod util;
 
 #[cfg(feature = "primary")]
 use messages::Command;
-use messages::SideResponse;
 #[cfg(feature = "secondary")]
 use messages::{Note, Response};
+use messages::{SideResponse, SpeedLimits};
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -134,7 +134,10 @@ fn main() -> ! {
     let mut proxy_response_length = 0;
     let mut speed;
     let mut target_position: Option<i64> = None;
-    let mut speed_limits = -200..=200;
+    let mut speed_limits = SpeedLimits {
+        negative: -200,
+        positive: 200,
+    };
     let mut spring_constant = 10;
     loop {
         // The watchdog must be fed every second or so or the microcontroller will reset.
@@ -209,7 +212,7 @@ fn main() -> ! {
         // Try to move towards the target position.
         if let Some(target_position) = target_position {
             let difference = target_position - position;
-            speed = clamp(difference * spring_constant, &speed_limits);
+            speed = clamp(difference * spring_constant, &speed_limits.into());
 
             // Set LEDs based on position difference
             if difference.abs() < 3 {
