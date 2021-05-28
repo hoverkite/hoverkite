@@ -4,9 +4,9 @@ use eyre::Report;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use hoverkite::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use log::error;
+use messages::SpeedLimits;
 use messages::{Command, Side};
 use std::env;
-use std::ops::RangeInclusive;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
@@ -17,7 +17,10 @@ const SLEEP_DURATION: Duration = Duration::from_millis(2);
 const DEFAULT_SCALE: f32 = 50.0;
 const MAX_SCALE: f32 = 100.0;
 
-const DEFAULT_MAX_SPEED: RangeInclusive<i16> = -200..=30;
+const DEFAULT_MAX_SPEED: SpeedLimits = SpeedLimits {
+    negative: -200,
+    positive: 30,
+};
 const MAX_MAX_SPEED: i16 = 300;
 const MAX_SPEED_STEP: i16 = 10;
 
@@ -75,7 +78,7 @@ struct Controller {
     centre_left: i64,
     centre_right: i64,
     scale: f32,
-    max_speed: RangeInclusive<i16>,
+    max_speed: SpeedLimits,
     spring_constant: u16,
 }
 
@@ -138,16 +141,14 @@ impl Controller {
                 println!("Scale {}", self.scale);
             }
             EventType::ButtonPressed(Button::DPadUp, _code) => {
-                if -self.max_speed.start() < MAX_MAX_SPEED {
-                    self.max_speed =
-                        self.max_speed.start() - MAX_SPEED_STEP..=*self.max_speed.end();
+                if -self.max_speed.negative < MAX_MAX_SPEED {
+                    self.max_speed.negative -= MAX_SPEED_STEP;
                     self.send_max_speed()?;
                 }
             }
             EventType::ButtonPressed(Button::DPadDown, _code) => {
-                if -self.max_speed.start() > MAX_SPEED_STEP {
-                    self.max_speed =
-                        self.max_speed.start() + MAX_SPEED_STEP..=*self.max_speed.end();
+                if -self.max_speed.negative > MAX_SPEED_STEP {
+                    self.max_speed.negative += MAX_SPEED_STEP;
                     self.send_max_speed()?;
                 }
             }
@@ -216,11 +217,9 @@ impl Controller {
 
     pub fn send_max_speed(&mut self) -> Result<(), Report> {
         // Invert left
-        self.hoverkite.set_max_speed(
-            Side::Left,
-            &(-self.max_speed.end()..=-self.max_speed.start()),
-        )?;
-        self.hoverkite.set_max_speed(Side::Right, &self.max_speed)?;
+        self.hoverkite
+            .set_max_speed(Side::Left, self.max_speed.invert())?;
+        self.hoverkite.set_max_speed(Side::Right, self.max_speed)?;
         Ok(())
     }
 

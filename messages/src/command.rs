@@ -19,7 +19,7 @@ pub struct Note {
 }
 
 impl Display for Note {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         if let Some(frequency) = self.frequency {
             write!(f, "{} Hz for {} ms", frequency, self.duration_ms)
         } else {
@@ -28,7 +28,38 @@ impl Display for Note {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// Speed (or really, torque) limits for the motor.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct SpeedLimits {
+    /// The lowest negative speed, inclusive.
+    pub negative: i16,
+    /// The highest positive speed, inclusive.
+    pub positive: i16,
+}
+
+impl SpeedLimits {
+    /// Swap the limits, so e.g. -42..66 becomes -66..42.
+    pub fn invert(self) -> Self {
+        Self {
+            negative: -self.positive,
+            positive: -self.negative,
+        }
+    }
+}
+
+impl Display for SpeedLimits {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}..{}", self.negative, self.positive)
+    }
+}
+
+impl From<SpeedLimits> for RangeInclusive<i16> {
+    fn from(limits: SpeedLimits) -> Self {
+        limits.negative..=limits.positive
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Command {
     SetSideLed(bool),
     SetOrangeLed(bool),
@@ -38,8 +69,7 @@ pub enum Command {
     AddBuzzerNote(Note),
     ReportBattery,
     ReportCharger,
-    // FIXME: stop using RangeInclusive, so we can derive Copy
-    SetMaxSpeed(RangeInclusive<i16>),
+    SetMaxSpeed(SpeedLimits),
     SetSpringConstant(u16),
     SetTarget(i64),
     RemoveTarget,
@@ -76,8 +106,8 @@ impl Command {
             }
             Self::SetMaxSpeed(max_speed) => {
                 writer.bwrite_all(b"S")?;
-                writer.bwrite_all(&max_speed.start().to_le_bytes())?;
-                writer.bwrite_all(&max_speed.end().to_le_bytes())?;
+                writer.bwrite_all(&max_speed.negative.to_le_bytes())?;
+                writer.bwrite_all(&max_speed.positive.to_le_bytes())?;
             }
             Self::SetSpringConstant(spring_constant) => {
                 writer.bwrite_all(b"K")?;
@@ -138,9 +168,9 @@ impl Command {
                 if rest.len() > 4 {
                     return Err(Other(ProtocolError::MessageTooLong));
                 }
-                let min_power = i16::from_le_bytes(rest[..2].try_into().unwrap());
-                let max_power = i16::from_le_bytes(rest[2..4].try_into().unwrap());
-                Self::SetMaxSpeed(min_power..=max_power)
+                let negative = i16::from_le_bytes(rest[..2].try_into().unwrap());
+                let positive = i16::from_le_bytes(rest[2..4].try_into().unwrap());
+                Self::SetMaxSpeed(SpeedLimits { negative, positive })
             }
             [b'K', ref rest @ ..] => {
                 if rest.len() < size_of::<u16>() {
@@ -304,7 +334,7 @@ mod tests {
         #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]
@@ -330,7 +360,7 @@ mod tests {
         #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]
@@ -359,7 +389,7 @@ mod tests {
         #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(-30..=42))]
+        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]
