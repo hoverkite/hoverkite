@@ -243,6 +243,32 @@ impl DirectedCommand {
 mod tests {
     use super::*;
 
+    mod speed_limits {
+        use super::*;
+
+        #[test]
+        fn display() {
+            assert_eq!(
+                SpeedLimits {
+                    negative: -42,
+                    positive: 66
+                }
+                .to_string(),
+                "-42..66"
+            )
+        }
+
+        #[test]
+        fn to_range_inclusive() {
+            let range: RangeInclusive<i16> = SpeedLimits {
+                negative: -42,
+                positive: 66,
+            }
+            .into();
+            assert_eq!(range, -42..=66)
+        }
+    }
+
     mod command {
         use super::*;
 
