@@ -80,7 +80,7 @@ where
 /// Process the given response from the secondary board.
 #[cfg(feature = "primary")]
 pub fn process_response(response: &[u8], hoverboard: &mut Hoverboard) -> bool {
-    match SideResponse::parse(response) {
+    match SideResponse::parse_exact(response) {
         Ok(side_response) => {
             side_response.write_to(hoverboard.response_tx()).unwrap();
             if side_response.response == Response::PowerOff {

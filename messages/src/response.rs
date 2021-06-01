@@ -95,15 +95,15 @@ impl Response {
         }
     }
 
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
-        let report = match *buf {
+    pub fn parse(buf: &[u8]) -> nb::Result<(Self, usize), ProtocolError> {
+        let result: (Response, usize) = match *buf {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
                 if let [ref rest @ .., b'\n'] = *rest {
                     let utf8 = str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
                     let message =
                         ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
-                    Self::Log(message)
+                    (Self::Log(message), rest.len() + 2)
                 } else if rest.len() > MAX_LOG_SIZE {
                     return Err(Other(ProtocolError::MessageTooLong));
                 } else {
@@ -114,37 +114,38 @@ impl Response {
                 if rest.len() < size_of::<i64>() {
                     return Err(WouldBlock);
                 }
-                let bytes = rest
-                    .try_into()
-                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
+                let bytes = rest[..8].try_into().unwrap();
                 let position = i64::from_le_bytes(bytes);
-                Self::Position(position)
+                (Self::Position(position), 9)
             }
             [b'B', ref rest @ ..] => {
                 #[allow(clippy::comparison_chain)]
                 if rest.len() < 6 {
                     return Err(WouldBlock);
-                } else if rest.len() > 6 {
-                    return Err(Other(ProtocolError::MessageTooLong));
                 }
                 let battery_voltage = u16::from_le_bytes(rest[..2].try_into().unwrap());
                 let backup_battery_voltage = u16::from_le_bytes(rest[2..4].try_into().unwrap());
                 let motor_current = u16::from_le_bytes(rest[4..6].try_into().unwrap());
-                Self::BatteryReadings {
-                    battery_voltage,
-                    backup_battery_voltage,
-                    motor_current,
-                }
+                (
+                    Self::BatteryReadings {
+                        battery_voltage,
+                        backup_battery_voltage,
+                        motor_current,
+                    },
+                    7,
+                )
             }
             [b'C'] => return Err(WouldBlock),
-            [b'C', charger_connected] => Self::ChargeState {
-                charger_connected: ascii_to_bool(charger_connected)?,
-            },
-            [b'p'] => Self::PowerOff,
-            [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
-            [..] => return Err(Other(ProtocolError::MessageTooLong)),
+            [b'C', charger_connected, ..] => (
+                Self::ChargeState {
+                    charger_connected: ascii_to_bool(charger_connected)?,
+                },
+                2,
+            ),
+            [b'p', ..] => (Self::PowerOff, 1),
+            [c, ..] => return Err(Other(ProtocolError::InvalidCommand(c))),
         };
-        Ok(report)
+        Ok(result)
     }
 }
 
@@ -168,12 +169,20 @@ impl SideResponse {
         self.response.write_to(writer)
     }
 
-    pub fn parse(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
+    pub fn parse_exact(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
+        let (result, length) = Self::parse(buffer)?;
+        if length == buffer.len() {
+            Ok(result)
+        } else {
+            Err(Other(ProtocolError::MessageTooLong))
+        }
+    }
+
+    pub fn parse(buffer: &[u8]) -> nb::Result<(Self, usize), ProtocolError> {
         if let [side, ref rest @ ..] = *buffer {
-            Ok(SideResponse {
-                side: Side::parse(side)?,
-                response: Response::parse(rest)?,
-            })
+            let side = Side::parse(side)?;
+            let (response, length) = Response::parse(rest)?;
+            Ok((SideResponse { side, response }, length + 1))
         } else {
             Err(WouldBlock)
         }
@@ -260,9 +269,19 @@ mod tests {
     fn parse_valid(bytes: &[u8], response: Response) {
         assert_eq!(
             SideResponse::parse(bytes),
+            Ok((
+                SideResponse {
+                    side: Side::Right,
+                    response: response.clone(),
+                },
+                bytes.len()
+            ))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(bytes),
             Ok(SideResponse {
                 side: Side::Right,
-                response: response,
+                response,
             })
         );
     }
@@ -286,7 +305,7 @@ mod tests {
         let mut buffer = Vec::new();
         side_response.write_to_std(&mut buffer).unwrap();
 
-        assert_eq!(SideResponse::parse(&mut buffer), Ok(side_response));
+        assert_eq!(SideResponse::parse_exact(&mut buffer), Ok(side_response));
     }
 
     // Note that Log only currently looks at the last byte for `\n`,
@@ -311,7 +330,7 @@ mod tests {
         buffer.push(42);
 
         assert_eq!(
-            SideResponse::parse(&mut buffer),
+            SideResponse::parse_exact(&mut buffer),
             Err(Other(ProtocolError::MessageTooLong))
         )
     }
