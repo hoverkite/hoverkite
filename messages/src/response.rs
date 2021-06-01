@@ -339,6 +339,10 @@ mod tests {
         let mut buffer = Vec::new();
         side_response.write_to_std(&mut buffer).unwrap();
 
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Ok((side_response.clone(), buffer.len()))
+        );
         assert_eq!(SideResponse::parse_exact(&mut buffer), Ok(side_response));
     }
 
@@ -363,6 +367,10 @@ mod tests {
         side_response.write_to_std(&mut buffer).unwrap();
         buffer.push(42);
 
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Ok((side_response, buffer.len() - 1))
+        );
         assert_eq!(
             SideResponse::parse_exact(&mut buffer),
             Err(Other(ProtocolError::MessageTooLong))
