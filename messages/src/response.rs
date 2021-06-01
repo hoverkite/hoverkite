@@ -229,10 +229,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_invalid() {
+    fn parse_invalid_side() {
         assert_eq!(
             SideResponse::parse(b"x"),
             Err(Other((ProtocolError::InvalidSide(b'x'), 1)))
+        );
+    }
+
+    #[test]
+    fn parse_invalid_command() {
+        assert_eq!(
+            SideResponse::parse(b"Lx"),
+            Err(Other((ProtocolError::InvalidCommand(b'x'), 2)))
         );
     }
 
