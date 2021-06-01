@@ -190,21 +190,18 @@ fn read_port(
         let bytes_read = port.read(&mut temp)?;
         buffer.extend(&temp[0..bytes_read]);
     }
-    // I guess we could make parse() return Result<(response, len), ...>
-    // to avoid this byte-at-a-time nonsense.
-    for len in 1..=buffer.len() {
-        match SideResponse::parse(&buffer[..len]) {
-            Ok(response) => {
-                buffer.drain(..len);
-                return Ok(Some(response));
-            }
-            Err(nb::Error::Other(e)) => {
-                error!("Unexpected response {:?} from {:?}", e, &buffer[..len]);
-                buffer.drain(..len);
-                return Ok(None);
-            }
-            Err(nb::Error::WouldBlock) => (),
+
+    match SideResponse::parse(&buffer) {
+        Ok((response, len)) => {
+            buffer.drain(..len);
+            return Ok(Some(response));
         }
+        Err(nb::Error::Other((e, len))) => {
+            error!("Unexpected response {:?} from {:?}", e, &buffer[..len]);
+            buffer.drain(..len);
+            return Ok(None);
+        }
+        Err(nb::Error::WouldBlock) => (),
     }
 
     Ok(None)

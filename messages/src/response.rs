@@ -95,17 +95,18 @@ impl Response {
         }
     }
 
-    pub fn parse(buf: &[u8]) -> nb::Result<(Self, usize), ProtocolError> {
+    pub fn parse(buf: &[u8]) -> nb::Result<(Self, usize), (ProtocolError, usize)> {
         let result: (Response, usize) = match *buf {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
                 if let [ref rest @ .., b'\n'] = *rest {
-                    let utf8 = str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
-                    let message =
-                        ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
+                    let utf8 = str::from_utf8(rest)
+                        .map_err(|e| (ProtocolError::Utf8Error(e), rest.len() + 2))?;
+                    let message = ArrayString::from(utf8)
+                        .map_err(|_| (ProtocolError::MessageTooLong, rest.len() + 2))?;
                     (Self::Log(message), rest.len() + 2)
                 } else if rest.len() > MAX_LOG_SIZE {
-                    return Err(Other(ProtocolError::MessageTooLong));
+                    return Err(Other((ProtocolError::MessageTooLong, rest.len() + 1)));
                 } else {
                     return Err(WouldBlock);
                 }
@@ -138,12 +139,12 @@ impl Response {
             [b'C'] => return Err(WouldBlock),
             [b'C', charger_connected, ..] => (
                 Self::ChargeState {
-                    charger_connected: ascii_to_bool(charger_connected)?,
+                    charger_connected: ascii_to_bool(charger_connected).map_err(|e| (e, 2))?,
                 },
                 2,
             ),
             [b'p', ..] => (Self::PowerOff, 1),
-            [c, ..] => return Err(Other(ProtocolError::InvalidCommand(c))),
+            [c, ..] => return Err(Other((ProtocolError::InvalidCommand(c), 1))),
         };
         Ok(result)
     }
@@ -170,19 +171,27 @@ impl SideResponse {
     }
 
     pub fn parse_exact(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
-        let (result, length) = Self::parse(buffer)?;
-        if length == buffer.len() {
-            Ok(result)
-        } else {
-            Err(Other(ProtocolError::MessageTooLong))
+        match Self::parse(buffer) {
+            Ok((result, length)) => {
+                if length == buffer.len() {
+                    Ok(result)
+                } else {
+                    Err(Other(ProtocolError::MessageTooLong))
+                }
+            }
+            Err(WouldBlock) => Err(WouldBlock),
+            Err(Other((e, _))) => Err(Other(e)),
         }
     }
 
-    pub fn parse(buffer: &[u8]) -> nb::Result<(Self, usize), ProtocolError> {
+    pub fn parse(buffer: &[u8]) -> nb::Result<(Self, usize), (ProtocolError, usize)> {
         if let [side, ref rest @ ..] = *buffer {
-            let side = Side::parse(side)?;
-            let (response, length) = Response::parse(rest)?;
-            Ok((SideResponse { side, response }, length + 1))
+            let side = Side::parse(side).map_err(|e| (e, 1))?;
+            match Response::parse(rest) {
+                Ok((response, length)) => Ok((SideResponse { side, response }, length + 1)),
+                Err(WouldBlock) => Err(WouldBlock),
+                Err(Other((e, length))) => Err(Other((e, length + 1))),
+            }
         } else {
             Err(WouldBlock)
         }
@@ -215,7 +224,7 @@ mod tests {
         fn parse_too_long() {
             let buf = format!("\"{}\n", "n".repeat(500));
             let response = Response::parse(buf.as_bytes());
-            assert_eq!(response, Err(Other(ProtocolError::MessageTooLong)));
+            assert_eq!(response, Err(Other((ProtocolError::MessageTooLong, 502))));
         }
     }
 
@@ -223,7 +232,7 @@ mod tests {
     fn parse_invalid() {
         assert_eq!(
             SideResponse::parse(b"x"),
-            Err(Other(ProtocolError::InvalidSide(b'x')))
+            Err(Other((ProtocolError::InvalidSide(b'x'), 1)))
         );
     }
 
@@ -253,7 +262,7 @@ mod tests {
     fn parse_invalid_charge_state() {
         assert_eq!(
             SideResponse::parse(b"RCx"),
-            Err(Other(ProtocolError::InvalidByte(b'x')))
+            Err(Other((ProtocolError::InvalidByte(b'x'), 3)))
         );
     }
 
