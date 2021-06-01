@@ -1,5 +1,5 @@
 use log::{error, trace};
-use messages::{Command, DirectedCommand, Note, Response, Side, SideResponse, SpeedLimits};
+use messages::{Command, DirectedCommand, Note, Side, SideResponse, SpeedLimits};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
 use std::time::{Duration, Instant};
@@ -40,19 +40,20 @@ impl Hoverkite {
         }
     }
 
-    pub fn process(&mut self) -> Result<(), eyre::Report> {
+    /// Sends any pending target commands, reads from both serial ports, and returns any available
+    /// responses.
+    pub fn poll(&mut self) -> Result<Vec<SideResponse>, eyre::Report> {
         self.send_pending_targets()?;
 
+        let mut responses = vec![];
         if let Some(port) = &mut self.left_port {
-            let response = read_port(port, &mut self.left_buffer)?;
-            print_response(&response);
+            responses.extend(read_port(port, &mut self.left_buffer)?);
         }
         if let Some(port) = &mut self.right_port {
-            let response = read_port(port, &mut self.right_buffer)?;
-            print_response(&response);
+            responses.extend(read_port(port, &mut self.right_buffer)?);
         }
 
-        Ok(())
+        Ok(responses)
     }
 
     fn send_pending_targets(&mut self) -> Result<(), eyre::Report> {
@@ -157,33 +158,6 @@ impl Hoverkite {
         };
         side_command.write_to_std(port)?;
         Ok(())
-    }
-}
-
-fn print_response(side_response: &Option<SideResponse>) {
-    if let Some(SideResponse { side, response }) = side_response {
-        match response {
-            Response::Log(log) => println!("{:?}: '{}'", side, log),
-            Response::Position(position) => println!("{:?} at {}", side, position),
-            Response::BatteryReadings {
-                battery_voltage,
-                backup_battery_voltage,
-                motor_current,
-            } => println!(
-                "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
-                side, battery_voltage, backup_battery_voltage, motor_current
-            ),
-            Response::ChargeState { charger_connected } => println!(
-                "{:?} {}",
-                side,
-                if *charger_connected {
-                    "charger connected"
-                } else {
-                    "charger not connected"
-                }
-            ),
-            Response::PowerOff => println!("{:?} powering off", side),
-        }
     }
 }
 
