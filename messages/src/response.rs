@@ -234,6 +234,10 @@ mod tests {
             SideResponse::parse(b"x"),
             Err(Other((ProtocolError::InvalidSide(b'x'), 1)))
         );
+        assert_eq!(
+            SideResponse::parse_exact(b"x"),
+            Err(Other(ProtocolError::InvalidSide(b'x')))
+        );
     }
 
     #[test]
@@ -242,11 +246,16 @@ mod tests {
             SideResponse::parse(b"Lx"),
             Err(Other((ProtocolError::InvalidCommand(b'x'), 2)))
         );
+        assert_eq!(
+            SideResponse::parse_exact(b"Lx"),
+            Err(Other(ProtocolError::InvalidCommand(b'x')))
+        );
     }
 
     #[test]
     fn parse_empty() {
         assert_eq!(SideResponse::parse(b""), Err(WouldBlock));
+        assert_eq!(SideResponse::parse_exact(b""), Err(WouldBlock));
     }
 
     #[test_case(b"RI" ; "position")]
@@ -263,6 +272,10 @@ mod tests {
                 SideResponse::parse(&partial_response[..length]),
                 Err(WouldBlock)
             );
+            assert_eq!(
+                SideResponse::parse_exact(&partial_response[..length]),
+                Err(WouldBlock)
+            );
         }
     }
 
@@ -271,6 +284,10 @@ mod tests {
         assert_eq!(
             SideResponse::parse(b"RCx"),
             Err(Other((ProtocolError::InvalidByte(b'x'), 3)))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(b"RCx"),
+            Err(Other(ProtocolError::InvalidByte(b'x')))
         );
     }
 
