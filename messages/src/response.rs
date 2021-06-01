@@ -95,17 +95,18 @@ impl Response {
         }
     }
 
-    pub fn parse(buf: &[u8]) -> nb::Result<Self, ProtocolError> {
-        let report = match *buf {
+    pub fn parse(buf: &[u8]) -> nb::Result<(Self, usize), (ProtocolError, usize)> {
+        let result: (Response, usize) = match *buf {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
                 if let [ref rest @ .., b'\n'] = *rest {
-                    let utf8 = str::from_utf8(rest).map_err(ProtocolError::Utf8Error)?;
-                    let message =
-                        ArrayString::from(utf8).map_err(|_| ProtocolError::MessageTooLong)?;
-                    Self::Log(message)
+                    let utf8 = str::from_utf8(rest)
+                        .map_err(|e| (ProtocolError::Utf8Error(e), rest.len() + 2))?;
+                    let message = ArrayString::from(utf8)
+                        .map_err(|_| (ProtocolError::MessageTooLong, rest.len() + 2))?;
+                    (Self::Log(message), rest.len() + 2)
                 } else if rest.len() > MAX_LOG_SIZE {
-                    return Err(Other(ProtocolError::MessageTooLong));
+                    return Err(Other((ProtocolError::MessageTooLong, rest.len() + 1)));
                 } else {
                     return Err(WouldBlock);
                 }
@@ -114,37 +115,38 @@ impl Response {
                 if rest.len() < size_of::<i64>() {
                     return Err(WouldBlock);
                 }
-                let bytes = rest
-                    .try_into()
-                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
+                let bytes = rest[..8].try_into().unwrap();
                 let position = i64::from_le_bytes(bytes);
-                Self::Position(position)
+                (Self::Position(position), 9)
             }
             [b'B', ref rest @ ..] => {
                 #[allow(clippy::comparison_chain)]
                 if rest.len() < 6 {
                     return Err(WouldBlock);
-                } else if rest.len() > 6 {
-                    return Err(Other(ProtocolError::MessageTooLong));
                 }
                 let battery_voltage = u16::from_le_bytes(rest[..2].try_into().unwrap());
                 let backup_battery_voltage = u16::from_le_bytes(rest[2..4].try_into().unwrap());
                 let motor_current = u16::from_le_bytes(rest[4..6].try_into().unwrap());
-                Self::BatteryReadings {
-                    battery_voltage,
-                    backup_battery_voltage,
-                    motor_current,
-                }
+                (
+                    Self::BatteryReadings {
+                        battery_voltage,
+                        backup_battery_voltage,
+                        motor_current,
+                    },
+                    7,
+                )
             }
             [b'C'] => return Err(WouldBlock),
-            [b'C', charger_connected] => Self::ChargeState {
-                charger_connected: ascii_to_bool(charger_connected)?,
-            },
-            [b'p'] => Self::PowerOff,
-            [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
-            [..] => return Err(Other(ProtocolError::MessageTooLong)),
+            [b'C', charger_connected, ..] => (
+                Self::ChargeState {
+                    charger_connected: ascii_to_bool(charger_connected).map_err(|e| (e, 2))?,
+                },
+                2,
+            ),
+            [b'p', ..] => (Self::PowerOff, 1),
+            [c, ..] => return Err(Other((ProtocolError::InvalidCommand(c), 1))),
         };
-        Ok(report)
+        Ok(result)
     }
 }
 
@@ -168,12 +170,28 @@ impl SideResponse {
         self.response.write_to(writer)
     }
 
-    pub fn parse(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
+    pub fn parse_exact(buffer: &[u8]) -> nb::Result<Self, ProtocolError> {
+        match Self::parse(buffer) {
+            Ok((result, length)) => {
+                if length == buffer.len() {
+                    Ok(result)
+                } else {
+                    Err(Other(ProtocolError::MessageTooLong))
+                }
+            }
+            Err(WouldBlock) => Err(WouldBlock),
+            Err(Other((e, _))) => Err(Other(e)),
+        }
+    }
+
+    pub fn parse(buffer: &[u8]) -> nb::Result<(Self, usize), (ProtocolError, usize)> {
         if let [side, ref rest @ ..] = *buffer {
-            Ok(SideResponse {
-                side: Side::parse(side)?,
-                response: Response::parse(rest)?,
-            })
+            let side = Side::parse(side).map_err(|e| (e, 1))?;
+            match Response::parse(rest) {
+                Ok((response, length)) => Ok((SideResponse { side, response }, length + 1)),
+                Err(WouldBlock) => Err(WouldBlock),
+                Err(Other((e, length))) => Err(Other((e, length + 1))),
+            }
         } else {
             Err(WouldBlock)
         }
@@ -206,21 +224,38 @@ mod tests {
         fn parse_too_long() {
             let buf = format!("\"{}\n", "n".repeat(500));
             let response = Response::parse(buf.as_bytes());
-            assert_eq!(response, Err(Other(ProtocolError::MessageTooLong)));
+            assert_eq!(response, Err(Other((ProtocolError::MessageTooLong, 502))));
         }
     }
 
     #[test]
-    fn parse_invalid() {
+    fn parse_invalid_side() {
         assert_eq!(
             SideResponse::parse(b"x"),
+            Err(Other((ProtocolError::InvalidSide(b'x'), 1)))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(b"x"),
             Err(Other(ProtocolError::InvalidSide(b'x')))
+        );
+    }
+
+    #[test]
+    fn parse_invalid_command() {
+        assert_eq!(
+            SideResponse::parse(b"Lx"),
+            Err(Other((ProtocolError::InvalidCommand(b'x'), 2)))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(b"Lx"),
+            Err(Other(ProtocolError::InvalidCommand(b'x')))
         );
     }
 
     #[test]
     fn parse_empty() {
         assert_eq!(SideResponse::parse(b""), Err(WouldBlock));
+        assert_eq!(SideResponse::parse_exact(b""), Err(WouldBlock));
     }
 
     #[test_case(b"RI" ; "position")]
@@ -237,6 +272,10 @@ mod tests {
                 SideResponse::parse(&partial_response[..length]),
                 Err(WouldBlock)
             );
+            assert_eq!(
+                SideResponse::parse_exact(&partial_response[..length]),
+                Err(WouldBlock)
+            );
         }
     }
 
@@ -244,6 +283,10 @@ mod tests {
     fn parse_invalid_charge_state() {
         assert_eq!(
             SideResponse::parse(b"RCx"),
+            Err(Other((ProtocolError::InvalidByte(b'x'), 3)))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(b"RCx"),
             Err(Other(ProtocolError::InvalidByte(b'x')))
         );
     }
@@ -260,9 +303,19 @@ mod tests {
     fn parse_valid(bytes: &[u8], response: Response) {
         assert_eq!(
             SideResponse::parse(bytes),
+            Ok((
+                SideResponse {
+                    side: Side::Right,
+                    response: response.clone(),
+                },
+                bytes.len()
+            ))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(bytes),
             Ok(SideResponse {
                 side: Side::Right,
-                response: response,
+                response,
             })
         );
     }
@@ -286,7 +339,11 @@ mod tests {
         let mut buffer = Vec::new();
         side_response.write_to_std(&mut buffer).unwrap();
 
-        assert_eq!(SideResponse::parse(&mut buffer), Ok(side_response));
+        assert_eq!(
+            SideResponse::parse(&mut buffer),
+            Ok((side_response.clone(), buffer.len()))
+        );
+        assert_eq!(SideResponse::parse_exact(&mut buffer), Ok(side_response));
     }
 
     // Note that Log only currently looks at the last byte for `\n`,
@@ -312,6 +369,10 @@ mod tests {
 
         assert_eq!(
             SideResponse::parse(&mut buffer),
+            Ok((side_response, buffer.len() - 1))
+        );
+        assert_eq!(
+            SideResponse::parse_exact(&mut buffer),
             Err(Other(ProtocolError::MessageTooLong))
         )
     }
