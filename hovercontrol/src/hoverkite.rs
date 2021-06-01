@@ -22,6 +22,8 @@ pub struct Hoverkite {
 }
 
 impl Hoverkite {
+    /// Constructs a new `Hoverkite`, communicating over the given serial ports. If only one of the
+    /// serial ports is given then all commands will be sent to it, to be forwarded.
     pub fn new(
         right_port: Option<Box<dyn SerialPort>>,
         left_port: Option<Box<dyn SerialPort>>,
@@ -64,6 +66,7 @@ impl Hoverkite {
         Ok(())
     }
 
+    /// Sets the maximum 'speed' (really more like torque) on both sides.
     pub fn set_max_speed(
         &mut self,
         side: Side,
@@ -75,6 +78,7 @@ impl Hoverkite {
         Ok(())
     }
 
+    /// Sets the spring constant to the given value on both sides.
     pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
@@ -83,12 +87,13 @@ impl Hoverkite {
         Ok(())
     }
 
+    /// Makes the buzzer play the given frequency until otherwise instructed.
     pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), eyre::Report> {
         let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
         self.send_command(Side::Left, command)
     }
 
-    /// Play the given sequence of notes on the hoverboard.
+    /// Plays the given sequence of notes on the hoverboard.
     pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), eyre::Report> {
         for note in notes {
             let command = Command::AddBuzzerNote(*note);
@@ -97,7 +102,7 @@ impl Hoverkite {
         Ok(())
     }
 
-    /// Set the given target position.
+    /// Sets the given target position.
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive
     /// buffer.
@@ -125,6 +130,7 @@ impl Hoverkite {
         self.send_command(side, Command::SetTarget(target))
     }
 
+    /// Sends the given command to the given side.
     pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), eyre::Report> {
         trace!("Sending command to {:?}: {:?}", side, command);
         match side {
