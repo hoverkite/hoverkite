@@ -1,7 +1,8 @@
+use super::{Command, DirectedCommand, Note, Side, SideResponse, SpeedLimits};
 use log::{error, trace};
-use messages::{Command, DirectedCommand, Note, Side, SideResponse, SpeedLimits};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
+use std::io;
 use std::time::{Duration, Instant};
 
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
@@ -42,7 +43,7 @@ impl Hoverkite {
 
     /// Sends any pending target commands, reads from both serial ports, and returns any available
     /// responses.
-    pub fn poll(&mut self) -> Result<Vec<SideResponse>, eyre::Report> {
+    pub fn poll(&mut self) -> Result<Vec<SideResponse>, io::Error> {
         self.send_pending_targets()?;
 
         let mut responses = vec![];
@@ -56,7 +57,7 @@ impl Hoverkite {
         Ok(responses)
     }
 
-    fn send_pending_targets(&mut self) -> Result<(), eyre::Report> {
+    fn send_pending_targets(&mut self) -> Result<(), io::Error> {
         if let Some(target_pending) = self.left_target_pending {
             // Just retry. If the rate limit is still in effect then this will be a no-op.
             self.set_target(Side::Left, target_pending)?;
@@ -68,11 +69,7 @@ impl Hoverkite {
     }
 
     /// Sets the maximum 'speed' (really more like torque) on both sides.
-    pub fn set_max_speed(
-        &mut self,
-        side: Side,
-        max_speed: SpeedLimits,
-    ) -> Result<(), eyre::Report> {
+    pub fn set_max_speed(&mut self, side: Side, max_speed: SpeedLimits) -> Result<(), io::Error> {
         println!("{:?} max speed: {}", side, max_speed);
         let command = Command::SetMaxSpeed(max_speed);
         self.send_command(side, command)?;
@@ -80,7 +77,7 @@ impl Hoverkite {
     }
 
     /// Sets the spring constant to the given value on both sides.
-    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
+    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), io::Error> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
         self.send_command(Side::Left, command.clone())?;
@@ -89,13 +86,13 @@ impl Hoverkite {
     }
 
     /// Makes the buzzer play the given frequency until otherwise instructed.
-    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), eyre::Report> {
+    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), io::Error> {
         let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
         self.send_command(Side::Left, command)
     }
 
     /// Plays the given sequence of notes on the hoverboard.
-    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), eyre::Report> {
+    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
             let command = Command::AddBuzzerNote(*note);
             self.send_command(Side::Left, command)?;
@@ -107,7 +104,7 @@ impl Hoverkite {
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive
     /// buffer.
-    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), eyre::Report> {
+    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), io::Error> {
         let now = Instant::now();
         match side {
             Side::Left => {
@@ -132,7 +129,7 @@ impl Hoverkite {
     }
 
     /// Sends the given command to the given side.
-    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), eyre::Report> {
+    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), io::Error> {
         trace!("Sending command to {:?}: {:?}", side, command);
         match side {
             Side::Left => {
@@ -164,7 +161,7 @@ impl Hoverkite {
 fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut SliceDeque<u8>,
-) -> Result<Option<SideResponse>, eyre::Report> {
+) -> Result<Option<SideResponse>, io::Error> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;

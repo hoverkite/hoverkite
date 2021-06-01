@@ -5,14 +5,17 @@ authors = ["David Laban <alsuren@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-embedded-hal = "0.2.5"
-nb = "1.0.0"
 arrayvec = { version = "0.7.0", default-features = false }
 displaydoc = { version = "0.2.1", default-features = false }
+embedded-hal = "0.2.5"
+log = { version = "0.4.14", optional = true }
+nb = "1.0.0"
+serialport = { version = "4.0.0", optional = true }
+slice-deque = { version = "0.3.0", optional = true}
 
 [dev-dependencies]
 test-case = "1.1.0"
 
 [features]
 default = ["std"]
-std = []
+std = ["log", "serialport", "slice-deque"]

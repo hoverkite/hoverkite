@@ -1,9 +1,7 @@
-mod hoverkite;
-
-use eyre::Report;
+use eyre::{Report, WrapErr};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use hoverkite::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use log::error;
+use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use messages::{Command, Response, Side, SideResponse, SpeedLimits};
 use std::env;
 use std::process::exit;
@@ -225,7 +223,9 @@ impl Controller {
     }
 
     fn send_spring_constant(&mut self) -> Result<(), Report> {
-        self.hoverkite.set_spring_constant(self.spring_constant)
+        self.hoverkite
+            .set_spring_constant(self.spring_constant)
+            .wrap_err("Failed to set spring constant")
     }
 
     fn send_target(&mut self, side: Side) -> Result<(), Report> {
@@ -233,7 +233,9 @@ impl Controller {
             Side::Left => -self.centre_left - self.offset_left,
             Side::Right => self.centre_right + self.offset_right,
         };
-        self.hoverkite.set_target(side, target)
+        self.hoverkite
+            .set_target(side, target)
+            .wrap_err("Failed to set target")
     }
 }
 
