@@ -5,8 +5,11 @@ use slice_deque::SliceDeque;
 use std::io;
 use std::time::{Duration, Instant};
 
+/// The minimum amount of time to wait between sending consecutive target commands to the device, to
+/// avoid overwhelming it or overflowing its receive buffer.
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
+/// A client to talk to a Hoverkite device over one or two serial ports.
 pub struct Hoverkite {
     right_port: Option<Box<dyn SerialPort>>,
     left_port: Option<Box<dyn SerialPort>>,
