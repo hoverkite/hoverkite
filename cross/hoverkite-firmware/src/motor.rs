@@ -77,17 +77,13 @@ pub struct Motor {
     _emergency_off: PB12<Alternate<AF2>>,
 }
 
-pub type Pins = (
-    (PA8<Alternate<AF2>>, PB13<Alternate<AF2>>),
-    (PA9<Alternate<AF2>>, PB14<Alternate<AF2>>),
-    (PA10<Alternate<AF2>>, PB15<Alternate<AF2>>),
-);
+type YellowPins = (PA8<Alternate<AF2>>, PB13<Alternate<AF2>>);
+type BluePins = (PA9<Alternate<AF2>>, PB14<Alternate<AF2>>);
+type GreenPins = (PA10<Alternate<AF2>>, PB15<Alternate<AF2>>);
 
-type OptionalPins = (
-    Option<(PA8<Alternate<AF2>>, PB13<Alternate<AF2>>)>,
-    Option<(PA9<Alternate<AF2>>, PB14<Alternate<AF2>>)>,
-    Option<(PA10<Alternate<AF2>>, PB15<Alternate<AF2>>)>,
-);
+pub type Pins = (YellowPins, BluePins, GreenPins);
+
+type OptionalPins = (Option<YellowPins>, Option<BluePins>, Option<GreenPins>);
 
 fn setup_pwm(
     timer: TIMER0,
