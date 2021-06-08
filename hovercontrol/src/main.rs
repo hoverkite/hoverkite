@@ -1,11 +1,8 @@
-mod hoverkite;
-
-use eyre::Report;
+use eyre::{Report, WrapErr};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use hoverkite::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
 use log::error;
-use messages::SpeedLimits;
-use messages::{Command, Side};
+use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
+use messages::{Command, Response, Side, SideResponse, SpeedLimits};
 use std::env;
 use std::process::exit;
 use std::thread;
@@ -103,7 +100,9 @@ impl Controller {
         self.send_spring_constant()?;
 
         loop {
-            self.hoverkite.process()?;
+            for response in self.hoverkite.poll()? {
+                print_response(&response);
+            }
 
             if let Some(Event {
                 id: _,
@@ -224,7 +223,9 @@ impl Controller {
     }
 
     fn send_spring_constant(&mut self) -> Result<(), Report> {
-        self.hoverkite.set_spring_constant(self.spring_constant)
+        self.hoverkite
+            .set_spring_constant(self.spring_constant)
+            .wrap_err("Failed to set spring constant")
     }
 
     fn send_target(&mut self, side: Side) -> Result<(), Report> {
@@ -232,6 +233,33 @@ impl Controller {
             Side::Left => -self.centre_left - self.offset_left,
             Side::Right => self.centre_right + self.offset_right,
         };
-        self.hoverkite.set_target(side, target)
+        self.hoverkite
+            .set_target(side, target)
+            .wrap_err("Failed to set target")
+    }
+}
+
+fn print_response(side_response: &SideResponse) {
+    match side_response.response {
+        Response::Log(log) => println!("{:?}: '{}'", side_response.side, log),
+        Response::Position(position) => println!("{:?} at {}", side_response.side, position),
+        Response::BatteryReadings {
+            battery_voltage,
+            backup_battery_voltage,
+            motor_current,
+        } => println!(
+            "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
+            side_response.side, battery_voltage, backup_battery_voltage, motor_current
+        ),
+        Response::ChargeState { charger_connected } => println!(
+            "{:?} {}",
+            side_response.side,
+            if charger_connected {
+                "charger connected"
+            } else {
+                "charger not connected"
+            }
+        ),
+        Response::PowerOff => println!("{:?} powering off", side_response.side),
     }
 }

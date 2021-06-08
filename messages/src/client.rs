@@ -1,11 +1,15 @@
+use super::{Command, DirectedCommand, Note, Side, SideResponse, SpeedLimits};
 use log::{error, trace};
-use messages::{Command, DirectedCommand, Note, Response, Side, SideResponse, SpeedLimits};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
+use std::io;
 use std::time::{Duration, Instant};
 
+/// The minimum amount of time to wait between sending consecutive target commands to the device, to
+/// avoid overwhelming it or overflowing its receive buffer.
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
 
+/// A client to talk to a Hoverkite device over one or two serial ports.
 pub struct Hoverkite {
     right_port: Option<Box<dyn SerialPort>>,
     left_port: Option<Box<dyn SerialPort>>,
@@ -22,6 +26,8 @@ pub struct Hoverkite {
 }
 
 impl Hoverkite {
+    /// Constructs a new `Hoverkite`, communicating over the given serial ports. If only one of the
+    /// serial ports is given then all commands will be sent to it, to be forwarded.
     pub fn new(
         right_port: Option<Box<dyn SerialPort>>,
         left_port: Option<Box<dyn SerialPort>>,
@@ -38,22 +44,23 @@ impl Hoverkite {
         }
     }
 
-    pub fn process(&mut self) -> Result<(), eyre::Report> {
+    /// Sends any pending target commands, reads from both serial ports, and returns any available
+    /// responses.
+    pub fn poll(&mut self) -> Result<Vec<SideResponse>, io::Error> {
         self.send_pending_targets()?;
 
+        let mut responses = vec![];
         if let Some(port) = &mut self.left_port {
-            let response = read_port(port, &mut self.left_buffer)?;
-            print_response(&response);
+            responses.extend(read_port(port, &mut self.left_buffer)?);
         }
         if let Some(port) = &mut self.right_port {
-            let response = read_port(port, &mut self.right_buffer)?;
-            print_response(&response);
+            responses.extend(read_port(port, &mut self.right_buffer)?);
         }
 
-        Ok(())
+        Ok(responses)
     }
 
-    fn send_pending_targets(&mut self) -> Result<(), eyre::Report> {
+    fn send_pending_targets(&mut self) -> Result<(), io::Error> {
         if let Some(target_pending) = self.left_target_pending {
             // Just retry. If the rate limit is still in effect then this will be a no-op.
             self.set_target(Side::Left, target_pending)?;
@@ -64,18 +71,16 @@ impl Hoverkite {
         Ok(())
     }
 
-    pub fn set_max_speed(
-        &mut self,
-        side: Side,
-        max_speed: SpeedLimits,
-    ) -> Result<(), eyre::Report> {
+    /// Sets the maximum 'speed' (really more like torque) on both sides.
+    pub fn set_max_speed(&mut self, side: Side, max_speed: SpeedLimits) -> Result<(), io::Error> {
         println!("{:?} max speed: {}", side, max_speed);
         let command = Command::SetMaxSpeed(max_speed);
         self.send_command(side, command)?;
         Ok(())
     }
 
-    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), eyre::Report> {
+    /// Sets the spring constant to the given value on both sides.
+    pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), io::Error> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
         self.send_command(Side::Left, command.clone())?;
@@ -83,13 +88,14 @@ impl Hoverkite {
         Ok(())
     }
 
-    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), eyre::Report> {
+    /// Makes the buzzer play the given frequency until otherwise instructed.
+    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), io::Error> {
         let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
         self.send_command(Side::Left, command)
     }
 
-    /// Play the given sequence of notes on the hoverboard.
-    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), eyre::Report> {
+    /// Plays the given sequence of notes on the hoverboard.
+    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
             let command = Command::AddBuzzerNote(*note);
             self.send_command(Side::Left, command)?;
@@ -97,11 +103,11 @@ impl Hoverkite {
         Ok(())
     }
 
-    /// Set the given target position.
+    /// Sets the given target position.
     ///
     /// These commands are automatically rate-limited, to avoid overflowing the hoverboard's receive
     /// buffer.
-    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), eyre::Report> {
+    pub fn set_target(&mut self, side: Side, target: i64) -> Result<(), io::Error> {
         let now = Instant::now();
         match side {
             Side::Left => {
@@ -125,7 +131,8 @@ impl Hoverkite {
         self.send_command(side, Command::SetTarget(target))
     }
 
-    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), eyre::Report> {
+    /// Sends the given command to the given side.
+    pub fn send_command(&mut self, side: Side, command: Command) -> Result<(), io::Error> {
         trace!("Sending command to {:?}: {:?}", side, command);
         match side {
             Side::Left => {
@@ -154,37 +161,10 @@ impl Hoverkite {
     }
 }
 
-fn print_response(side_response: &Option<SideResponse>) {
-    if let Some(SideResponse { side, response }) = side_response {
-        match response {
-            Response::Log(log) => println!("{:?}: '{}'", side, log),
-            Response::Position(position) => println!("{:?} at {}", side, position),
-            Response::BatteryReadings {
-                battery_voltage,
-                backup_battery_voltage,
-                motor_current,
-            } => println!(
-                "{:?} battery voltage: {} mV, backup: {} mV, current {} mV",
-                side, battery_voltage, backup_battery_voltage, motor_current
-            ),
-            Response::ChargeState { charger_connected } => println!(
-                "{:?} {}",
-                side,
-                if *charger_connected {
-                    "charger connected"
-                } else {
-                    "charger not connected"
-                }
-            ),
-            Response::PowerOff => println!("{:?} powering off", side),
-        }
-    }
-}
-
 fn read_port(
     port: &mut Box<dyn SerialPort>,
     buffer: &mut SliceDeque<u8>,
-) -> Result<Option<SideResponse>, eyre::Report> {
+) -> Result<Option<SideResponse>, io::Error> {
     if port.bytes_to_read()? > 0 {
         let mut temp = [0; 100];
         let bytes_read = port.read(&mut temp)?;

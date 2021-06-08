@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "std")]
+pub mod client;
 mod command;
 mod error;
 mod response;
