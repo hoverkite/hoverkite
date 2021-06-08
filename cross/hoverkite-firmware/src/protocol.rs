@@ -180,10 +180,10 @@ pub fn handle_command<const L: usize>(
         }
         Command::SetRedLed(on) => {
             if on {
-                log!(hoverboard.response_tx(), "green on");
+                log!(hoverboard.response_tx(), "red on");
                 hoverboard.leds.red.set_high().unwrap()
             } else {
-                log!(hoverboard.response_tx(), "green off");
+                log!(hoverboard.response_tx(), "red off");
                 hoverboard.leds.red.set_low().unwrap()
             }
         }

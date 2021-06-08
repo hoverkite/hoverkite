@@ -99,12 +99,12 @@ impl Response {
         let result: (Response, usize) = match *buf {
             [] => return Err(WouldBlock),
             [b'"', ref rest @ ..] => {
-                if let [ref rest @ .., b'\n'] = *rest {
-                    let utf8 = str::from_utf8(rest)
-                        .map_err(|e| (ProtocolError::Utf8Error(e), rest.len() + 2))?;
+                if let Some(end) = rest.iter().position(|c| *c == b'\n') {
+                    let utf8 = str::from_utf8(&rest[..end])
+                        .map_err(|e| (ProtocolError::Utf8Error(e), end + 2))?;
                     let message = ArrayString::from(utf8)
-                        .map_err(|_| (ProtocolError::MessageTooLong, rest.len() + 2))?;
-                    (Self::Log(message), rest.len() + 2)
+                        .map_err(|_| (ProtocolError::MessageTooLong, end + 2))?;
+                    (Self::Log(message), end + 2)
                 } else if rest.len() > MAX_LOG_SIZE {
                     return Err(Other((ProtocolError::MessageTooLong, rest.len() + 1)));
                 } else {
@@ -346,9 +346,6 @@ mod tests {
         assert_eq!(SideResponse::parse_exact(&mut buffer), Ok(side_response));
     }
 
-    // Note that Log only currently looks at the last byte for `\n`,
-    // to avoid quadratic performance when parsing a byte at a time,
-    // so it won't detect MessageTooLong until the length exceeds MAX_LOG_SIZE.
     #[test_case(Response::Position(0x1122334455667788))]
     #[test_case(Response::BatteryReadings {
         battery_voltage: 0x5566,
@@ -357,6 +354,7 @@ mod tests {
     })]
     #[test_case(Response::ChargeState { charger_connected: false })]
     #[test_case(Response::ChargeState { charger_connected: true })]
+    #[test_case(Response::Log(ArrayString::from("hello").unwrap()))]
     #[test_case(Response::PowerOff)]
     fn parse_error_if_extra_byte(response: Response) {
         let side_response = SideResponse {
