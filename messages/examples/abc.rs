@@ -11,6 +11,11 @@ use std::time::Duration;
 const BAUD_RATE: u32 = 115_200;
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
+/// Tempo in BPM.
+const TEMPO: f32 = 300.0;
+/// The duration in milliseconds of a whole note (i.e. four crotchets).
+const WHOLE_NOTE_DURATION: f32 = 60.0 * 1000.0 * 4.0 / TEMPO;
+
 fn main() -> Result<(), Report> {
     stable_eyre::install()?;
     pretty_env_logger::init();
@@ -62,11 +67,6 @@ B2 Bc-cd | d2 dc Bc | cc cB GF | G2 G4 :|
         thread::sleep(SLEEP_DURATION);
     }
 }
-
-/// Tempo in BPM.
-const TEMPO: f32 = 300.0;
-/// The duration in milliseconds of a whole note.
-const WHOLE_NOTE_DURATION: f32 = 60.0 * 1000.0 * 4.0 / TEMPO;
 
 fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
     let mut notes = vec![];
