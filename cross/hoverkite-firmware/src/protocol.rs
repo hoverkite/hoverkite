@@ -196,14 +196,6 @@ pub fn handle_command<const L: usize>(
                 hoverboard.leds.green.set_low().unwrap()
             }
         }
-        Command::SetBuzzerFrequency(frequency) => {
-            log!(hoverboard.response_tx(), "Buzzer {} Hz", frequency);
-            hoverboard.buzzer.set_frequency(if frequency == 0 {
-                None
-            } else {
-                Some(frequency.hz())
-            })
-        }
         Command::AddBuzzerNote(note) => {
             if !note_queue.add(note) {
                 log!(

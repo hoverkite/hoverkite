@@ -65,7 +65,6 @@ pub enum Command {
     SetOrangeLed(bool),
     SetRedLed(bool),
     SetGreenLed(bool),
-    SetBuzzerFrequency(u32),
     AddBuzzerNote(Note),
     ReportBattery,
     ReportCharger,
@@ -95,12 +94,8 @@ impl Command {
             Self::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
             Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
             Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
-            Self::SetBuzzerFrequency(frequency) => {
-                writer.bwrite_all(b"f")?;
-                writer.bwrite_all(&frequency.to_le_bytes())?;
-            }
             Self::AddBuzzerNote(note) => {
-                writer.bwrite_all(b"d")?;
+                writer.bwrite_all(b"f")?;
                 writer.bwrite_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
                 writer.bwrite_all(&note.duration_ms.to_le_bytes())?;
             }
@@ -138,16 +133,6 @@ impl Command {
             [b'b'] => Self::ReportBattery,
             [b'c'] => Self::ReportCharger,
             [b'f', ref rest @ ..] => {
-                if rest.len() < size_of::<u32>() {
-                    return Err(WouldBlock);
-                }
-                let bytes = rest
-                    .try_into()
-                    .map_err(|_| Other(ProtocolError::MessageTooLong))?;
-                let frequency = u32::from_le_bytes(bytes);
-                Self::SetBuzzerFrequency(frequency)
-            }
-            [b'd', ref rest @ ..] => {
                 if rest.len() < 8 {
                     return Err(WouldBlock);
                 }
@@ -357,7 +342,6 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
-        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
@@ -383,7 +367,6 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
-        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
@@ -412,7 +395,6 @@ mod tests {
         #[test_case(SetOrangeLed(false))]
         #[test_case(SetRedLed(true))]
         #[test_case(SetGreenLed(false))]
-        #[test_case(SetBuzzerFrequency(42))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
         #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]

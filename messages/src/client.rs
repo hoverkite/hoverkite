@@ -90,12 +90,6 @@ impl Hoverkite {
         Ok(())
     }
 
-    /// Makes the buzzer play the given frequency until otherwise instructed.
-    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), io::Error> {
-        let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
-        self.send_command(Side::Left, command)
-    }
-
     /// Plays the given sequence of notes on the hoverboard.
     pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
