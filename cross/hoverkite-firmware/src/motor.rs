@@ -89,12 +89,12 @@ impl Motor {
 
         let power: i16 = clamp(power, &(-1000..=1000));
         let (y, b, g) = match position {
-            0 => (0, -power, power),
-            1 => (power, -power, 0),
-            2 => (power, 0, -power),
-            3 => (0, power, -power),
-            4 => (-power, power, 0),
-            5 => (-power, 0, power),
+            0 => (0, power, -power),
+            1 => (-power, power, 0),
+            2 => (-power, 0, power),
+            3 => (0, -power, power),
+            4 => (power, -power, 0),
+            5 => (power, 0, -power),
             _ => (0, 0, 0),
         };
         let duty_max = self.pwm.duty_max();
