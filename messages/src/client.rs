@@ -3,11 +3,13 @@ use log::{error, trace};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
 use std::io;
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 /// The minimum amount of time to wait between sending consecutive target commands to the device, to
 /// avoid overwhelming it or overflowing its receive buffer.
 pub const MIN_TIME_BETWEEN_TARGET_UPDATES: Duration = Duration::from_millis(100);
+const NOTE_SEND_SLEEP_DURATION: Duration = Duration::from_millis(50);
 
 /// A client to talk to a Hoverkite device over one or two serial ports.
 pub struct Hoverkite {
@@ -88,17 +90,16 @@ impl Hoverkite {
         Ok(())
     }
 
-    /// Makes the buzzer play the given frequency until otherwise instructed.
-    pub fn set_buzzer_frequency(&mut self, frequency: Option<u32>) -> Result<(), io::Error> {
-        let command = Command::SetBuzzerFrequency(frequency.unwrap_or(0));
-        self.send_command(Side::Left, command)
-    }
-
     /// Plays the given sequence of notes on the hoverboard.
-    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
+    ///
+    /// This method sleeps for a short time between sending each note, to avoid overflowing the
+    /// hoverboard's note buffer, so it will take a while.
+    pub fn play_notes_blocking(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
+            trace!("Sending {:?}", note);
             let command = Command::AddBuzzerNote(*note);
             self.send_command(Side::Left, command)?;
+            sleep(NOTE_SEND_SLEEP_DURATION);
         }
         Ok(())
     }
