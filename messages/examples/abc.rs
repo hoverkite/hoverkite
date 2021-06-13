@@ -3,6 +3,7 @@ use eyre::{eyre, Report};
 use log::error;
 use messages::client::Hoverkite;
 use std::env;
+use std::fs::read_to_string;
 use std::num::NonZeroU32;
 use std::process::exit;
 use std::thread;
@@ -25,12 +26,13 @@ fn main() -> Result<(), Report> {
     let binary_name = args
         .next()
         .ok_or_else(|| eyre::eyre!("Binary name missing"))?;
-    if args.len() != 1 {
+    if args.len() != 2 {
         eprintln!("Usage:");
-        eprintln!("  {} <serial port>", binary_name);
+        eprintln!("  {} <serial port> <tune.abc>", binary_name);
         exit(1);
     }
     let port_name = args.next().unwrap();
+    let tune_filename = args.next().unwrap();
 
     let port = serialport::new(&port_name, BAUD_RATE)
         .open()
@@ -39,24 +41,8 @@ fn main() -> Result<(), Report> {
 
     let mut hoverkite = Hoverkite::new(port, None);
 
-    // From https://thesession.org/tunes/8237.
-    let tune = abc_parser::abc::tune(
-        "X:1
-T: The Origin Of The World
-R: mazurka
-M: 3/4
-L: 1/8
-K: Gm
-|: de dc AB | G2-GGAB | ce ee dc | d2-dd dc |
-de dc AB | G2-GG AB | EG BE GB | A2 AA BA |
-GE CE GE | F2 FD B,D | GE B,E GE | F2 F2 GA |
-B2 Bc-cd | d2-dc Bc | cc cB GF | G2 G4 :|
-|: G2 GD GA | B2 BA Bd | c2 cd-dc | F4 F2 |
-G2 GD GA | B2 BA Bd | c2 cd-dc | FG Bc dc |
-ge cG EC | fdB FDB, | eB GE B,G, | A,C FA cA |
-B2 Bc-cd | d2 dc Bc | cc cB GF | G2 G4 :|
-",
-    )?;
+    let tune_string = read_to_string(tune_filename)?;
+    let tune = abc_parser::abc::tune(&tune_string)?;
     let notes = abc_to_notes(tune)?;
     hoverkite.play_notes_blocking(&notes)?;
 
