@@ -91,7 +91,10 @@ impl Hoverkite {
     }
 
     /// Plays the given sequence of notes on the hoverboard.
-    pub fn play_notes(&mut self, notes: &[Note]) -> Result<(), io::Error> {
+    ///
+    /// This method sleeps for a short time between sending each note, to avoid overflowing the
+    /// hoverboard's note buffer, so it will take a while.
+    pub fn play_notes_blocking(&mut self, notes: &[Note]) -> Result<(), io::Error> {
         for note in notes {
             trace!("Sending {:?}", note);
             let command = Command::AddBuzzerNote(*note);

@@ -12,7 +12,7 @@ const BAUD_RATE: u32 = 115_200;
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
 /// Tempo in BPM.
-const TEMPO: f32 = 300.0;
+const TEMPO: f32 = 150.0;
 /// The duration in milliseconds of a whole note (i.e. four crotchets).
 const WHOLE_NOTE_DURATION: f32 = 60.0 * 1000.0 * 4.0 / TEMPO;
 
@@ -39,6 +39,7 @@ fn main() -> Result<(), Report> {
 
     let mut hoverkite = Hoverkite::new(port, None);
 
+    // From https://thesession.org/tunes/8237.
     let tune = abc_parser::abc::tune(
         "X:1
 T: The Origin Of The World
@@ -57,7 +58,7 @@ B2 Bc-cd | d2 dc Bc | cc cB GF | G2 G4 :|
 ",
     )?;
     let notes = abc_to_notes(tune)?;
-    hoverkite.play_notes(&notes)?;
+    hoverkite.play_notes_blocking(&notes)?;
 
     loop {
         for response in hoverkite.poll()? {
