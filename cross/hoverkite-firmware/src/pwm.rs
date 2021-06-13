@@ -179,12 +179,10 @@ impl Pwm {
         }
     }
 
-    #[allow(dead_code)]
     pub fn automatic_output_disable(&mut self) {
         self.timer.cchp.modify(|_, w| w.oaen().manual());
     }
 
-    #[allow(dead_code)]
     pub fn automatic_output_enable(&mut self) {
         self.timer.cchp.modify(|_, w| w.oaen().automatic());
     }

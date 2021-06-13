@@ -445,6 +445,7 @@ impl Hoverboard {
                 (duty_max * b_percent as u32 / 100) as u16,
                 (duty_max * g_percent as u32 / 100) as u16,
             );
+            pwm.automatic_output_enable();
         })
     }
 }
