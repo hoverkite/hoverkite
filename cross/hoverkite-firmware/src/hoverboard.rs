@@ -28,7 +28,7 @@ use gd32f1x0_hal::{
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
     time::Hertz,
-    timer::Timer,
+    timer::{self, Timer},
 };
 
 const USART_BAUD_RATE: u32 = 115200;
@@ -113,8 +113,8 @@ pub struct Leds {
 fn TIMER0_BRK_UP_TRG_COM() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-            let intf = &shared.motor.pwm.timer.intf;
-            if intf.read().upif().is_update_pending() {
+            let pwm = &mut shared.motor.pwm.pwm;
+            if pwm.is_pending(timer::Event::Update) {
                 shared.adc_dma.with(move |adc_dma| {
                     if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
                         // Enable interrupts
@@ -126,7 +126,7 @@ fn TIMER0_BRK_UP_TRG_COM() {
                     }
                 });
                 // Clear timer update interrupt flag
-                intf.modify(|_, w| w.upif().clear());
+                pwm.clear_interrupt_flag(timer::Event::Update);
             }
         }
     });

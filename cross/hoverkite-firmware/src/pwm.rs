@@ -5,15 +5,15 @@ use gd32f1x0_hal::{
         Alternate, AF2,
     },
     pac::TIMER0,
-    pwm::Channel,
-    rcu::{Clocks, Enable, Reset, APB2},
+    prelude::*,
+    pwm::{Alignment, BreakMode, Channel, IdleState, Polarity, Pwm as HalPwm},
+    rcu::{Clocks, APB2},
     time::Hertz,
+    timer::{Event, Timer},
 };
 
 pub struct Pwm {
-    pub timer: TIMER0,
-    auto_reload_value: u16,
-    _pins: Pins,
+    pub pwm: HalPwm<TIMER0, OptionalPins>,
     _emergency_off: PB12<Alternate<AF2>>,
 }
 
@@ -21,6 +21,12 @@ pub type Pins = (
     (PA8<Alternate<AF2>>, PB13<Alternate<AF2>>),
     (PA9<Alternate<AF2>>, PB14<Alternate<AF2>>),
     (PA10<Alternate<AF2>>, PB15<Alternate<AF2>>),
+);
+
+type OptionalPins = (
+    Option<(PA8<Alternate<AF2>>, PB13<Alternate<AF2>>)>,
+    Option<(PA9<Alternate<AF2>>, PB14<Alternate<AF2>>)>,
+    Option<(PA10<Alternate<AF2>>, PB15<Alternate<AF2>>)>,
 );
 
 impl Pwm {
@@ -32,170 +38,57 @@ impl Pwm {
         emergency_off: PB12<Alternate<AF2>>,
         apb: &mut APB2,
     ) -> Self {
-        // Enable clock
-        TIMER0::enable(apb);
+        let pins = (Some(pins.0), Some(pins.1), Some(pins.2));
+        let mut pwm = Timer::timer0(timer, &clocks, apb).pwm(pins, frequency);
 
-        // Reset timer via RCU
-        TIMER0::reset(apb);
-
-        // Configure direction, aligned mode and clock division. Disable auto-reload shadow.
-        timer.ctl0.modify(|_, w| {
-            w.dir()
-                .up()
-                .cam()
-                .center_aligned_counting_up()
-                .ckdiv()
-                .div1() // default
-                .arse()
-                .disabled() // default
-        });
-
-        // Configure prescaler and auto-reload value to give desired period.
-        // If pclk is prescaled from hclk, the frequency fed into the timers is doubled
-        let tclk = clocks.pclk2_tim().0;
-        let period = tclk / frequency.0;
-        let prescaler = ((period - 1) >> 16) as u16;
-        let auto_reload_value = (period / (prescaler + 1) as u32) as u16;
-        timer.psc.write(|w| w.psc().bits(prescaler));
-        timer.car.write(|w| w.car().bits(auto_reload_value));
-
-        // Configure repetition counter.
-        timer.crep.write(|w| w.crep().bits(0)); // default
+        pwm.set_alignment(Alignment::Center);
 
         let channels = [Channel::C0, Channel::C1, Channel::C2];
+        // Configure output channels and set duty cycle to 0 on all channels.
         for channel in &channels {
-            // Set duty cycle to 0.
-            match channel {
-                Channel::C0 => timer.ch0cv.write(|w| w.ch0val().bits(0)),
-                Channel::C1 => timer.ch1cv.write(|w| w.ch1val().bits(0)),
-                Channel::C2 => timer.ch2cv.write(|w| w.ch2val().bits(0)),
-                Channel::C3 => timer.ch3cv.write(|w| w.ch3val().bits(0)),
-            }
+            pwm.set_duty(*channel, 0);
+            pwm.set_polarity(*channel, Polarity::NotInverted);
+            pwm.set_complementary_polarity(*channel, Polarity::Inverted);
+            pwm.set_idle_state(*channel, IdleState::Low);
+            pwm.set_complementary_idle_state(*channel, IdleState::High);
         }
-        // Deactivate fastmode, activate output shadow function, and set output channel PWM type
-        // to PWM0 for all channels.
-        timer.chctl0_output().modify(|_, w| {
-            w.ch0comfen()
-                .slow()
-                .ch1comfen()
-                .slow()
-                .ch0comsen()
-                .enabled()
-                .ch1comsen()
-                .enabled()
-                .ch0comctl()
-                .pwm_mode0()
-                .ch1comctl()
-                .pwm_mode0()
-        });
-        timer.chctl1_output().modify(|_, w| {
-            w.ch2comfen()
-                .slow()
-                .ch2comsen()
-                .enabled()
-                .ch2comctl()
-                .pwm_mode0()
-        });
-
-        // Configure output channels
-        timer.chctl2.modify(|_, w| {
-            w.ch0p()
-                .not_inverted()
-                .ch0np()
-                .inverted()
-                .ch1p()
-                .not_inverted()
-                .ch1np()
-                .inverted()
-                .ch2p()
-                .not_inverted()
-                .ch2np()
-                .inverted()
-        });
-        timer.ctl1.modify(|_, w| {
-            w.iso0()
-                .low()
-                .iso0n()
-                .high()
-                .iso1()
-                .low()
-                .iso1n()
-                .high()
-                .iso2()
-                .low()
-                .iso2n()
-                .high()
-        });
 
         // Configure break parameters
-        timer.cchp.write(|w| {
-            w.ros()
-                .enabled() // Run mode off-state
-                .ios()
-                .disabled() // Idle mode off-state
-                .prot()
-                .disabled() // Write protect
-                .dtcfg()
-                .bits(60) // Dead time
-                .brken()
-                .enabled()
-                .brkp()
-                .inverted()
-                .oaen()
-                .automatic()
-        });
-
-        // Disable timer
-        timer.ctl0.modify(|_, w| w.cen().disabled());
+        pwm.set_dead_time(60);
+        pwm.break_enable(BreakMode::ActiveLow);
+        pwm.run_mode_off_state(true);
+        pwm.idle_mode_off_state(false);
 
         // Enable PWM output on all channels and complementary channels.
-        timer.chctl2.modify(|_, w| {
-            w.ch0en()
-                .enabled()
-                .ch1en()
-                .enabled()
-                .ch2en()
-                .enabled()
-                .ch0nen()
-                .enabled()
-                .ch1nen()
-                .enabled()
-                .ch2nen()
-                .enabled()
-        });
+        for channel in &channels {
+            pwm.enable(*channel);
+        }
 
         // Enable timer interrupt
         // TODO: Set priority?
-        timer.dmainten.modify(|_, w| w.upie().enabled());
-
-        // Enable timer
-        timer.ctl0.modify(|_, w| w.cen().enabled());
+        pwm.listen(Event::Update);
 
         Pwm {
-            timer,
-            auto_reload_value,
-            _pins: pins,
+            pwm,
             _emergency_off: emergency_off,
         }
     }
 
     pub fn output_disable(&mut self) {
-        self.timer
-            .cchp
-            .modify(|_, w| w.oaen().manual().poen().disabled());
+        self.pwm.output_disable();
     }
 
     pub fn automatic_output_enable(&mut self) {
-        self.timer.cchp.modify(|_, w| w.oaen().automatic());
+        self.pwm.automatic_output_enable();
     }
 
     pub fn set_duty_cycles(&mut self, y: u16, b: u16, g: u16) {
-        self.timer.ch0cv.write(|w| w.ch0val().bits(y));
-        self.timer.ch1cv.write(|w| w.ch1val().bits(b));
-        self.timer.ch2cv.write(|w| w.ch2val().bits(g));
+        self.pwm.set_duty(Channel::C0, y);
+        self.pwm.set_duty(Channel::C1, b);
+        self.pwm.set_duty(Channel::C2, g);
     }
 
     pub fn duty_max(&self) -> u16 {
-        self.auto_reload_value
+        self.pwm.get_max_duty()
     }
 }
