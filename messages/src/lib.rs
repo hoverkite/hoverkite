@@ -8,6 +8,7 @@ mod response;
 mod util;
 
 pub use command::{Command, DirectedCommand, Note, SpeedLimits};
+use deku::prelude::*;
 pub use error::ProtocolError;
 pub use response::{Response, SideResponse};
 
@@ -32,9 +33,12 @@ impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for WriteCompa
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, DekuRead, DekuWrite)]
+#[deku(type = "u8")]
 pub enum Side {
+    #[deku(id = "b'L'")]
     Left,
+    #[deku(id = "b'R'")]
     Right,
 }
 
