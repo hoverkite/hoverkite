@@ -1,4 +1,4 @@
-use crate::util::{ascii_to_bool, bool_to_ascii};
+use crate::util::{ascii_to_bool, bool_to_ascii, read_bool, read_option_nonzerou32, write_bool};
 #[cfg(feature = "std")]
 use crate::WriteCompat;
 use crate::{ProtocolError, Side};
@@ -7,12 +7,15 @@ use core::fmt::{self, Display, Formatter};
 use core::mem::size_of;
 use core::num::NonZeroU32;
 use core::ops::RangeInclusive;
+use deku::prelude::*;
 use nb::Error::{Other, WouldBlock};
 
 /// A note to play on the buzzer.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, DekuRead, DekuWrite)]
+#[deku(endian = "endian", ctx = "endian: deku::ctx::Endian")]
 pub struct Note {
     /// The frequency in Hertz, or `None` for silence.
+    #[deku(reader = "read_option_nonzerou32(deku::rest)")]
     pub frequency: Option<NonZeroU32>,
     /// The duration in milliseconds.
     pub duration_ms: u32,
@@ -29,7 +32,8 @@ impl Display for Note {
 }
 
 /// Speed (or really, torque) limits for the motor.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, DekuRead, DekuWrite)]
+#[deku(endian = "endian", ctx = "endian: deku::ctx::Endian")]
 pub struct SpeedLimits {
     /// The lowest negative speed, inclusive.
     pub negative: i16,
@@ -59,22 +63,62 @@ impl From<SpeedLimits> for RangeInclusive<i16> {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, DekuRead, DekuWrite)]
+#[deku(type = "u8", endian = "little")]
 pub enum Command {
-    SetSideLed(bool),
-    SetOrangeLed(bool),
-    SetRedLed(bool),
-    SetGreenLed(bool),
+    #[deku(id = "b'l'")]
+    SetSideLed(
+        #[deku(
+            reader = "read_bool(deku::rest)",
+            writer = "write_bool(deku::output, match self {Command::SetSideLed(b) => *b, _ => unreachable!()})"
+        )]
+        bool,
+    ),
+    #[deku(id = "b'o'")]
+    SetOrangeLed(
+        #[deku(
+            reader = "read_bool(deku::rest)",
+            writer = "write_bool(deku::output, match self {Command::SetOrangeLed(b) => *b, _ => unreachable!()})"
+        )]
+        bool,
+    ),
+    #[deku(id = "b'r'")]
+    SetRedLed(
+        #[deku(
+            reader = "read_bool(deku::rest)",
+            writer = "write_bool(deku::output, match self {Command::SetRedLed(b) => *b, _ => unreachable!()})"
+        )]
+        bool,
+    ),
+    #[deku(id = "b'g'")]
+    SetGreenLed(
+        #[deku(
+            reader = "read_bool(deku::rest)",
+            writer = "write_bool(deku::output, match self {Command::SetGreenLed(b) => *b, _ => unreachable!()})"
+        )]
+        bool,
+    ),
+    #[deku(id = "b'f'")]
     AddBuzzerNote(Note),
+    #[deku(id = "b'b'")]
     ReportBattery,
+    #[deku(id = "b'c'")]
     ReportCharger,
+    #[deku(id = "b'S'")]
     SetMaxSpeed(SpeedLimits),
+    #[deku(id = "b'K'")]
     SetSpringConstant(u16),
+    #[deku(id = "b'T'")]
     SetTarget(i64),
+    #[deku(id = "b'n'")]
     RemoveTarget,
+    #[deku(id = "b'e'")]
     Recenter,
+    #[deku(id = "b'+'")]
     IncrementTarget,
+    #[deku(id = "b'-'")]
     DecrementTarget,
+    #[deku(id = "b'p'")]
     PowerOff,
 }
 
@@ -190,7 +234,7 @@ impl Command {
 }
 
 /// A command for a particular side.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, DekuRead, DekuWrite)]
 pub struct DirectedCommand {
     pub side: Side,
     pub command: Command,
@@ -415,8 +459,10 @@ mod tests {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
             let round_tripped_command = DirectedCommand::parse(&buf).unwrap();
+            let deku_command = DirectedCommand::from_bytes((&buf, 0)).unwrap().1;
 
-            assert_eq!(round_tripped_command, command)
+            assert_eq!(round_tripped_command, command);
+            assert_eq!(deku_command, command);
         }
     }
 }
