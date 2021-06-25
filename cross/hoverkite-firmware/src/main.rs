@@ -6,7 +6,6 @@ mod circular_buffer;
 mod hoverboard;
 mod motor;
 mod protocol;
-mod pwm;
 mod systick;
 mod util;
 
