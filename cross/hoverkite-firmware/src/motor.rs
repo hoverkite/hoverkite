@@ -117,6 +117,9 @@ fn setup_pwm(
     pwm.run_mode_off_state(true);
     pwm.idle_mode_off_state(false);
 
+    // Disable outputs for now.
+    pwm.output_disable();
+
     // Enable PWM output on all channels and complementary channels.
     for channel in &channels {
         pwm.enable(*channel);
