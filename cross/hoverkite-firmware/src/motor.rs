@@ -82,10 +82,10 @@ impl Motor {
     fn set_position_power(&mut self, power: i16, position: u8) {
         // If power is below a threshold, turn it off entirely.
         if power.abs() < MOTOR_POWER_DEAD_ZONE {
-            self.pwm.output_disable();
+            self.pwm.pwm.output_disable();
             return;
         }
-        self.pwm.automatic_output_enable();
+        self.pwm.pwm.automatic_output_enable();
 
         let power: i16 = clamp(power, &(-1000..=1000));
         let (y, b, g) = match position {
@@ -97,7 +97,7 @@ impl Motor {
             5 => (power, 0, -power),
             _ => (0, 0, 0),
         };
-        let duty_max = self.pwm.duty_max();
+        let duty_max = self.pwm.pwm.get_max_duty();
         let power_max = (duty_max / 2) as i32;
         let y = y as i32 * power_max / 1000;
         let b = b as i32 * power_max / 1000;

@@ -439,13 +439,13 @@ impl Hoverboard {
             let shared = shared.as_mut().unwrap();
             let pwm = &mut shared.motor.pwm;
 
-            let duty_max = pwm.duty_max() as u32;
+            let duty_max = pwm.pwm.get_max_duty() as u32;
             pwm.set_duty_cycles(
                 (duty_max * y_percent as u32 / 100) as u16,
                 (duty_max * b_percent as u32 / 100) as u16,
                 (duty_max * g_percent as u32 / 100) as u16,
             );
-            pwm.automatic_output_enable();
+            pwm.pwm.automatic_output_enable();
         })
     }
 }

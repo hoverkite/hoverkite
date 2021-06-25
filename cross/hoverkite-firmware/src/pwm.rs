@@ -74,21 +74,9 @@ impl Pwm {
         }
     }
 
-    pub fn output_disable(&mut self) {
-        self.pwm.output_disable();
-    }
-
-    pub fn automatic_output_enable(&mut self) {
-        self.pwm.automatic_output_enable();
-    }
-
     pub fn set_duty_cycles(&mut self, y: u16, b: u16, g: u16) {
         self.pwm.set_duty(Channel::C0, y);
         self.pwm.set_duty(Channel::C1, b);
         self.pwm.set_duty(Channel::C2, g);
-    }
-
-    pub fn duty_max(&self) -> u16 {
-        self.pwm.get_max_duty()
     }
 }
