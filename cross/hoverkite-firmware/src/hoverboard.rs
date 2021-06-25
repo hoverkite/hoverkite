@@ -153,18 +153,17 @@ fn DMA_CHANNEL0() {
     });
 }
 
+/// This type is a bit bogus, PB10 is the only one that matters.
+type BuzzerPwmPins = (
+    Option<PA0<Alternate<AF2>>>,
+    Option<PA1<Alternate<AF2>>>,
+    Option<PB10<Alternate<AF2>>>,
+    Option<PA3<Alternate<AF2>>>,
+);
+
 /// The buzzer on the secondary board. This should not be used on the primary board.
 pub struct Buzzer {
-    pwm: pwm::Pwm<
-        TIMER1,
-        // This type is a bit bogus, PB10 is the only one that matters.
-        (
-            Option<PA0<Alternate<AF2>>>,
-            Option<PA1<Alternate<AF2>>>,
-            Option<PB10<Alternate<AF2>>>,
-            Option<PA3<Alternate<AF2>>>,
-        ),
-    >,
+    pwm: pwm::Pwm<TIMER1, BuzzerPwmPins>,
 }
 
 impl Buzzer {
