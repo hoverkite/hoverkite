@@ -85,7 +85,7 @@ impl Hoverkite {
     pub fn set_spring_constant(&mut self, spring_constant: u16) -> Result<(), io::Error> {
         println!("Spring constant: {}", spring_constant);
         let command = Command::SetSpringConstant(spring_constant);
-        self.send_command(Side::Left, command.clone())?;
+        self.send_command(Side::Left, command)?;
         self.send_command(Side::Right, command)?;
         Ok(())
     }

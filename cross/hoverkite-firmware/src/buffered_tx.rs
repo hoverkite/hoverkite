@@ -32,7 +32,7 @@ impl<W: Write<u8> + Listenable> BufferedSerialWriter<W> {
     pub fn write_bytes(&mut self, mut bytes: &[u8]) {
         // Block until all bytes can be added to the buffer. It should be drained by the
         // interrupt handler.
-        while bytes.len() > 0 {
+        while !bytes.is_empty() {
             free(|cs| {
                 // Add as many bytes as possible to the buffer.
                 let state = &mut *self.state.borrow(cs).borrow_mut();
@@ -44,7 +44,7 @@ impl<W: Write<u8> + Listenable> BufferedSerialWriter<W> {
                 state.try_write();
             });
 
-            if bytes.len() > 0 {
+            if !bytes.is_empty() {
                 // Wait for an interrupt.
                 wfi();
             }
