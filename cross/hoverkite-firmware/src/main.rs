@@ -11,9 +11,9 @@ mod util;
 
 #[cfg(feature = "primary")]
 use messages::Command;
+use messages::SpeedLimits;
 #[cfg(feature = "secondary")]
-use messages::{Note, Response};
-use messages::{SideResponse, SpeedLimits};
+use messages::{Note, Response, SideResponse};
 // pick a panicking behavior
 use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
                      // use panic_abort as _; // requires nightly
@@ -25,7 +25,9 @@ use circular_buffer::CircularBuffer;
 use core::num::NonZeroU32;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Read;
-use gd32f1x0_hal::{pac, prelude::*, time::Hertz, watchdog::FreeWatchdog};
+#[cfg(feature = "secondary")]
+use gd32f1x0_hal::time::Hertz;
+use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
 use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
