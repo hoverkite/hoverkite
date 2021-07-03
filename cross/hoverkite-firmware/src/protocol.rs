@@ -219,7 +219,7 @@ pub fn handle_command<const L: usize>(
             send_charge_state(hoverboard.response_tx(), charger_connected);
         }
         Command::SetMaxSpeed(limits) => {
-            log!(hoverboard.response_tx(), "max speed {:?}", limits);
+            log!(hoverboard.response_tx(), "Max speed {:?}", limits);
             *speed_limits = limits;
         }
         Command::SetSpringConstant(spring) => {
