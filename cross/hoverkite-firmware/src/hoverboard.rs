@@ -430,4 +430,21 @@ impl Hoverboard {
             shared.motor.position = 0;
         })
     }
+
+    /// Set the motor PWM values directly for testing.
+    pub fn set_motor_pwm_for_test(&mut self, y_percent: u8, b_percent: u8, g_percent: u8) {
+        free(|cs| {
+            // SHARED must have been initialised by the time this is called.
+            let shared = &mut *SHARED.borrow(cs).borrow_mut();
+            let shared = shared.as_mut().unwrap();
+            let pwm = &mut shared.motor.pwm;
+
+            let duty_max = pwm.duty_max() as u32;
+            pwm.set_duty_cycles(
+                (duty_max * y_percent as u32 / 100) as u16,
+                (duty_max * b_percent as u32 / 100) as u16,
+                (duty_max * g_percent as u32 / 100) as u16,
+            );
+        })
+    }
 }

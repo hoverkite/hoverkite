@@ -76,6 +76,7 @@ pub enum Command {
     IncrementTarget,
     DecrementTarget,
     PowerOff,
+    TestMotor,
 }
 
 impl Command {
@@ -119,6 +120,7 @@ impl Command {
             Self::IncrementTarget => writer.bwrite_all(b"+")?,
             Self::DecrementTarget => writer.bwrite_all(b"-")?,
             Self::PowerOff => writer.bwrite_all(b"p")?,
+            Self::TestMotor => writer.bwrite_all(b"t")?,
         };
         Ok(())
     }
@@ -182,6 +184,7 @@ impl Command {
             [b'+'] => Self::IncrementTarget,
             [b'-'] => Self::DecrementTarget,
             [b'p'] => Self::PowerOff,
+            [b't'] => Self::TestMotor,
             [c] => return Err(Other(ProtocolError::InvalidCommand(c))),
             [..] => return Err(Other(ProtocolError::MessageTooLong)),
         };
@@ -354,6 +357,7 @@ mod tests {
         #[test_case(IncrementTarget)]
         #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
+        #[test_case(TestMotor)]
         fn would_block_if_missing_byte(command: Command) {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
@@ -379,6 +383,7 @@ mod tests {
         #[test_case(IncrementTarget)]
         #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
+        #[test_case(TestMotor)]
         fn parse_error_if_extra_byte(command: Command) {
             let mut buf = vec![];
             command.write_to_std(&mut buf).unwrap();
@@ -407,6 +412,7 @@ mod tests {
         #[test_case(IncrementTarget)]
         #[test_case(DecrementTarget)]
         #[test_case(PowerOff)]
+        #[test_case(TestMotor)]
         fn round_trip_equality(command: Command) {
             let command = DirectedCommand {
                 side: Side::Left,

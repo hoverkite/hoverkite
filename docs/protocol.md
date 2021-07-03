@@ -24,6 +24,7 @@ on the command.
 | T       | i64        | Set target position.                                           |
 | e       | none       | Set current position as 0 position and target position.        |
 | p       | none       | Power off.                                                     |
+| t       | none       | Set motor PWM values for testing.                              |
 
 ## Responses
 
