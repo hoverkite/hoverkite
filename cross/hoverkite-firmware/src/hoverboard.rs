@@ -197,6 +197,7 @@ pub struct Hoverboard {
     pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
     pub buzzer: Buzzer,
     pub power_latch: PB2<Output<PushPull>>,
+    /// This will be high when the power button is pressed.
     pub power_button: PC15<Input<Floating>>,
     /// This will be low when the charger is connected.
     pub charge_state: PF0<Input<PullUp>>,

@@ -260,12 +260,14 @@ fn main() -> ! {
 
         // If the power button is pressed, turn off.
         if hoverboard.power_button.is_high().unwrap() {
+            log!(hoverboard.response_tx(), "Power button pressed");
             #[cfg(feature = "secondary")]
             hoverboard.buzzer.set_frequency(Some(POWER_OFF_FREQUENCY));
             // Wait until it is released.
             while hoverboard.power_button.is_high().unwrap() {
                 watchdog.feed();
             }
+            log!(hoverboard.response_tx(), "Power button released");
             #[cfg(feature = "secondary")]
             {
                 log!(hoverboard.response_tx(), "Telling primary to power off");
