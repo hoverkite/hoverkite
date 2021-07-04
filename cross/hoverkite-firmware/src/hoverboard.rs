@@ -1,7 +1,6 @@
 use crate::{
     buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
     motor::{HallSensors, Motor},
-    pwm::Pwm,
 };
 use core::{cell::RefCell, mem, ops::Deref};
 use cortex_m::{
@@ -24,11 +23,11 @@ use gd32f1x0_hal::{
         TIMER0, TIMER1, USART0, USART1,
     },
     prelude::*,
-    pwm::{self, Channel},
+    pwm::{Channel, Pwm},
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
     time::Hertz,
-    timer::Timer,
+    timer::{self, Timer},
 };
 
 const USART_BAUD_RATE: u32 = 115200;
@@ -113,8 +112,8 @@ pub struct Leds {
 fn TIMER0_BRK_UP_TRG_COM() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-            let intf = &shared.motor.pwm.timer.intf;
-            if intf.read().upif().is_update_pending() {
+            let pwm = &mut shared.motor.pwm;
+            if pwm.is_pending(timer::Event::Update) {
                 shared.adc_dma.with(move |adc_dma| {
                     if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
                         // Enable interrupts
@@ -126,7 +125,7 @@ fn TIMER0_BRK_UP_TRG_COM() {
                     }
                 });
                 // Clear timer update interrupt flag
-                intf.modify(|_, w| w.upif().clear());
+                pwm.clear_interrupt_flag(timer::Event::Update);
             }
         }
     });
@@ -163,7 +162,7 @@ type BuzzerPwmPins = (
 
 /// The buzzer on the secondary board. This should not be used on the primary board.
 pub struct Buzzer {
-    pwm: pwm::Pwm<TIMER1, BuzzerPwmPins>,
+    pwm: Pwm<TIMER1, BuzzerPwmPins>,
 }
 
 impl Buzzer {
@@ -333,20 +332,20 @@ impl Hoverboard {
             (blue_high, blue_low),
             (green_high, green_low),
         );
-        let pwm = Pwm::new(
+        let hall_sensors = HallSensors::new(
+            gpiob.pb11.into_floating_input(&mut gpiob.config),
+            gpiof.pf1.into_floating_input(&mut gpiof.config),
+            gpioc.pc14.into_floating_input(&mut gpioc.config),
+        );
+        let motor = Motor::new(
             timer0,
             MOTOR_PWM_FREQ_HERTZ.hz(),
             clocks,
             motor_pins,
             emergency_off,
             apb2,
+            hall_sensors,
         );
-        let hall_sensors = HallSensors::new(
-            gpiob.pb11.into_floating_input(&mut gpiob.config),
-            gpiof.pf1.into_floating_input(&mut gpiof.config),
-            gpioc.pc14.into_floating_input(&mut gpioc.config),
-        );
-        let motor = Motor::new(pwm, hall_sensors);
 
         // Buzzer
         let buzzer_pin =
@@ -439,12 +438,11 @@ impl Hoverboard {
             let shared = shared.as_mut().unwrap();
             let pwm = &mut shared.motor.pwm;
 
-            let duty_max = pwm.duty_max() as u32;
-            pwm.set_duty_cycles(
-                (duty_max * y_percent as u32 / 100) as u16,
-                (duty_max * b_percent as u32 / 100) as u16,
-                (duty_max * g_percent as u32 / 100) as u16,
-            );
+            let duty_max = pwm.get_max_duty() as u32;
+            pwm.set_duty(Channel::C0, (duty_max * y_percent as u32 / 100) as u16);
+            pwm.set_duty(Channel::C1, (duty_max * b_percent as u32 / 100) as u16);
+            pwm.set_duty(Channel::C2, (duty_max * g_percent as u32 / 100) as u16);
+            pwm.automatic_output_enable();
         })
     }
 }

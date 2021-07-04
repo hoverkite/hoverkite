@@ -1,8 +1,18 @@
-use crate::pwm::Pwm;
 use crate::util::clamp;
 use gd32f1x0_hal::{
-    gpio::{gpiob::PB11, gpioc::PC14, gpiof::PF1, Floating, Input},
+    gpio::{
+        gpioa::{PA10, PA8, PA9},
+        gpiob::{PB11, PB12, PB13, PB14, PB15},
+        gpioc::PC14,
+        gpiof::PF1,
+        Alternate, Floating, Input, AF2,
+    },
+    pac::TIMER0,
     prelude::*,
+    pwm::{Alignment, BreakMode, Channel, IdleState, Polarity, Pwm},
+    rcu::{Clocks, APB2},
+    time::Hertz,
+    timer::{Event, Timer},
 };
 
 /// The minimum number of timer interrupt cycles to wait between increasing the motor power by one
@@ -52,7 +62,7 @@ impl HallSensors {
 }
 
 pub struct Motor {
-    pub pwm: Pwm,
+    pub pwm: Pwm<TIMER0, OptionalPins>,
     hall_sensors: HallSensors,
     /// The absolute position of the motor.
     pub position: i64,
@@ -64,10 +74,72 @@ pub struct Motor {
     power: i16,
     /// The number of timer cycles since the motor power was last changed.
     smoothing_cycles: u32,
+    /// Having this here ensures it is in the correct state, although we don't actually call any
+    /// methods on it. It should really be part of the `Pwm` struct.
+    _emergency_off: PB12<Alternate<AF2>>,
+}
+
+type YellowPins = (PA8<Alternate<AF2>>, PB13<Alternate<AF2>>);
+type BluePins = (PA9<Alternate<AF2>>, PB14<Alternate<AF2>>);
+type GreenPins = (PA10<Alternate<AF2>>, PB15<Alternate<AF2>>);
+
+pub type Pins = (YellowPins, BluePins, GreenPins);
+
+type OptionalPins = (Option<YellowPins>, Option<BluePins>, Option<GreenPins>);
+
+fn setup_pwm(
+    timer: TIMER0,
+    frequency: Hertz,
+    clocks: Clocks,
+    pins: Pins,
+    apb: &mut APB2,
+) -> Pwm<TIMER0, OptionalPins> {
+    let pins = (Some(pins.0), Some(pins.1), Some(pins.2));
+    let mut pwm = Timer::timer0(timer, &clocks, apb).pwm(pins, frequency);
+
+    pwm.set_alignment(Alignment::Center);
+
+    let channels = [Channel::C0, Channel::C1, Channel::C2];
+    // Configure output channels and set duty cycle to 0 on all channels.
+    for channel in &channels {
+        pwm.set_duty(*channel, 0);
+        pwm.set_polarity(*channel, Polarity::NotInverted);
+        pwm.set_complementary_polarity(*channel, Polarity::Inverted);
+        pwm.set_idle_state(*channel, IdleState::Low);
+        pwm.set_complementary_idle_state(*channel, IdleState::High);
+    }
+
+    // Configure break parameters
+    pwm.set_dead_time(60);
+    pwm.break_enable(BreakMode::ActiveLow);
+    pwm.run_mode_off_state(true);
+    pwm.idle_mode_off_state(false);
+
+    // Disable outputs for now.
+    pwm.output_disable();
+
+    // Enable PWM output on all channels and complementary channels.
+    for channel in &channels {
+        pwm.enable(*channel);
+    }
+
+    // Enable timer interrupt
+    pwm.listen(Event::Update);
+
+    pwm
 }
 
 impl Motor {
-    pub fn new(pwm: Pwm, hall_sensors: HallSensors) -> Self {
+    pub fn new(
+        timer: TIMER0,
+        pwm_frequency: Hertz,
+        clocks: Clocks,
+        pins: Pins,
+        emergency_off: PB12<Alternate<AF2>>,
+        apb2: &mut APB2,
+        hall_sensors: HallSensors,
+    ) -> Self {
+        let pwm = setup_pwm(timer, pwm_frequency, clocks, pins, apb2);
         Self {
             pwm,
             hall_sensors,
@@ -76,27 +148,29 @@ impl Motor {
             power: 0,
             target_power: 0,
             smoothing_cycles: 0,
+            _emergency_off: emergency_off,
         }
     }
 
     fn set_position_power(&mut self, power: i16, position: u8) {
         // If power is below a threshold, turn it off entirely.
         if power.abs() < MOTOR_POWER_DEAD_ZONE {
-            self.pwm.set_duty_cycles(0, 0, 0);
+            self.pwm.output_disable();
             return;
         }
+        self.pwm.automatic_output_enable();
 
         let power: i16 = clamp(power, &(-1000..=1000));
         let (y, b, g) = match position {
-            0 => (0, -power, power),
-            1 => (power, -power, 0),
-            2 => (power, 0, -power),
-            3 => (0, power, -power),
-            4 => (-power, power, 0),
-            5 => (-power, 0, power),
+            0 => (0, power, -power),
+            1 => (-power, power, 0),
+            2 => (-power, 0, power),
+            3 => (0, -power, power),
+            4 => (power, -power, 0),
+            5 => (power, 0, -power),
             _ => (0, 0, 0),
         };
-        let duty_max = self.pwm.duty_max();
+        let duty_max = self.pwm.get_max_duty();
         let power_max = (duty_max / 2) as i32;
         let y = y as i32 * power_max / 1000;
         let b = b as i32 * power_max / 1000;
@@ -104,7 +178,13 @@ impl Motor {
         let y = clamp((y + power_max) as u16, &(10..=duty_max - 10));
         let b = clamp((b + power_max) as u16, &(10..=duty_max - 10));
         let g = clamp((g + power_max) as u16, &(10..=duty_max - 10));
-        self.pwm.set_duty_cycles(y, b, g);
+        self.set_duty_cycles(y, b, g);
+    }
+
+    fn set_duty_cycles(&mut self, y: u16, b: u16, g: u16) {
+        self.pwm.set_duty(Channel::C0, y);
+        self.pwm.set_duty(Channel::C1, b);
+        self.pwm.set_duty(Channel::C2, g);
     }
 
     /// This should be called at regular intervals from the timer interrupt.

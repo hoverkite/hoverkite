@@ -253,9 +253,9 @@ pub fn handle_command<const L: usize>(
             log!(hoverboard.response_tx(), "Setting motor PWM for test");
             log!(
                 hoverboard.response_tx(),
-                "yellow (PA8/PB13) = 100%, blue (PA9/PB14) = 75%, green (PA10/PB15) = 50%"
+                "yellow (PA8/PB13) = 0%, blue (PA9/PB14) = 25%, green (PA10/PB15) = 50%"
             );
-            hoverboard.set_motor_pwm_for_test(100, 75, 50);
+            hoverboard.set_motor_pwm_for_test(0, 25, 50);
         }
     }
 }
