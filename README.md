@@ -8,7 +8,7 @@ would like to use this setup to produce power, but that's a long way off.
 
 There are currently two crates in this repository:
 
-- [Firmware](./hoverkite-firmware) for a hoverboard.
+- [Firmware](./cross/hoverkite-firmware) for a hoverboard.
 - [A utility](./hovercontrol) to control it with a game controller.
 
 They communicate over a serial port using a custom [protocol](docs/protocol.md).
