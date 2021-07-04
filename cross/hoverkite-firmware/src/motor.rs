@@ -74,6 +74,8 @@ pub struct Motor {
     power: i16,
     /// The number of timer cycles since the motor power was last changed.
     smoothing_cycles: u32,
+    /// Having this here ensures it is in the correct state, although we don't actually call any
+    /// methods on it. It should really be part of the `Pwm` struct.
     _emergency_off: PB12<Alternate<AF2>>,
 }
 
