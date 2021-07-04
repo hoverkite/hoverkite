@@ -122,7 +122,6 @@ fn setup_pwm(
     }
 
     // Enable timer interrupt
-    // TODO: Set priority?
     pwm.listen(Event::Update);
 
     pwm
