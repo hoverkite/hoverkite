@@ -179,8 +179,10 @@ impl Pwm {
         }
     }
 
-    pub fn automatic_output_disable(&mut self) {
-        self.timer.cchp.modify(|_, w| w.oaen().manual());
+    pub fn output_disable(&mut self) {
+        self.timer
+            .cchp
+            .modify(|_, w| w.oaen().manual().poen().disabled());
     }
 
     pub fn automatic_output_enable(&mut self) {
