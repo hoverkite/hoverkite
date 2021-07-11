@@ -96,6 +96,13 @@ async fn make_homie_device(config: MqttConfig) -> Result<HomieDevice, Report> {
     let device_base = format!("{}/{}", HOMIE_PREFIX, HOMIE_DEVICE_ID);
     let homie_builder = HomieDevice::builder(&device_base, HOMIE_DEVICE_NAME, mqtt_options);
     let (mut homie, homie_handle) = homie_builder.spawn().await?;
+
+    tokio::spawn(async {
+        if let Err(e) = homie_handle.await {
+            error!("Homie error: {}", e)
+        }
+    });
+
     let motor_properties = vec![
         Property::integer("centre", "Centre", false, true, None, None),
         Property::integer("target", "Target position", false, true, None, None),
