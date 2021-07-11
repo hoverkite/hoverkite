@@ -19,12 +19,12 @@ pub struct Homie<'a> {
 }
 
 impl<'a> Homie<'a> {
-    pub async fn make_homie_device(
+    pub fn connect_and_start(
         handle: &'a Handle,
         config: Option<MqttConfig>,
     ) -> Result<Homie<'a>, Report> {
         let homie = if let Some(config) = config {
-            Some(make_homie_device(config).await?)
+            Some(handle.block_on(make_homie_device(config))?)
         } else {
             None
         };

@@ -41,7 +41,7 @@ fn main() -> Result<(), Report> {
 
     let runtime = Runtime::new()?;
     let handle = runtime.handle();
-    let homie = handle.block_on(Homie::make_homie_device(handle, config.mqtt))?;
+    let homie = Homie::connect_and_start(handle, config.mqtt)?;
 
     let mut controller = Controller::new(hoverkite, gilrs, homie);
     controller.run()
