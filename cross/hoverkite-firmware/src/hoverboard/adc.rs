@@ -11,6 +11,7 @@ use gd32f1x0_hal::{
     rcu::{Clocks, APB2},
 };
 
+// TODO: Use this to calculate the motor current.
 #[allow(dead_code)]
 const CURRENT_OFFSET_DC: u16 = 1073;
 
