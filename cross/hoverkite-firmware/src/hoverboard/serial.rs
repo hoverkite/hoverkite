@@ -1,11 +1,12 @@
-use super::util::buffered_tx::{BufferState, BufferedSerialWriter};
+use super::util::buffered_tx::{BufferState, BufferedSerialWriter, Listenable};
 use core::cell::RefCell;
+use core::ops::Deref;
 use cortex_m::{
     interrupt::{free, Mutex},
     peripheral::NVIC,
 };
 use gd32f1x0_hal::{
-    pac::{interrupt, Interrupt, USART0, USART1},
+    pac::{interrupt, usart0, Interrupt, USART0, USART1},
     serial::Tx,
 };
 
@@ -58,4 +59,14 @@ fn USART1() {
     free(|cs| {
         SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
     })
+}
+
+impl<USART: Deref<Target = usart0::RegisterBlock>> Listenable for Tx<USART> {
+    fn listen(&mut self) {
+        self.listen()
+    }
+
+    fn unlisten(&mut self) {
+        self.unlisten()
+    }
 }

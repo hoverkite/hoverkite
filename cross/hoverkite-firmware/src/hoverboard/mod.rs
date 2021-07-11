@@ -11,8 +11,7 @@ pub use self::buzzer::Buzzer;
 use self::interrupts::{unmask_interrupts, SHARED};
 use self::motor::{HallSensors, Motor};
 use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
-use self::util::buffered_tx::{BufferedSerialWriter, Listenable};
-use core::ops::Deref;
+use self::util::buffered_tx::BufferedSerialWriter;
 use cortex_m::interrupt::free;
 use gd32f1x0_hal::{
     gpio::{
@@ -22,7 +21,7 @@ use gd32f1x0_hal::{
         gpiof::PF0,
         Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
-    pac::{usart0, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0, USART1},
+    pac::{ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0, USART1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -31,16 +30,6 @@ use gd32f1x0_hal::{
 
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
-
-impl<USART: Deref<Target = usart0::RegisterBlock>> Listenable for Tx<USART> {
-    fn listen(&mut self) {
-        self.listen()
-    }
-
-    fn unlisten(&mut self) {
-        self.unlisten()
-    }
-}
 
 pub struct Leds {
     pub side: PA0<Output<PushPull>>,
