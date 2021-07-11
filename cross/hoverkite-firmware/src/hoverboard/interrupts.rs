@@ -12,13 +12,13 @@ use gd32f1x0_hal::{
     timer,
 };
 
-pub(super) struct Shared {
-    pub(super) motor: Motor,
-    pub(super) adc_dma: AdcDmaState,
-    pub(super) last_adc_readings: AdcReadings,
+pub struct Shared {
+    pub motor: Motor,
+    pub adc_dma: AdcDmaState,
+    pub last_adc_readings: AdcReadings,
 }
 
-pub(super) static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
+pub static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
 
 #[interrupt]
 fn TIMER0_BRK_UP_TRG_COM() {
