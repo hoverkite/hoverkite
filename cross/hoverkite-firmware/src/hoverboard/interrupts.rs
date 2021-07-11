@@ -6,9 +6,7 @@ use cortex_m::{
     peripheral::NVIC,
 };
 use gd32f1x0_hal::{
-    dma::Event,
     pac::{interrupt, Interrupt},
-    prelude::*,
     timer,
 };
 
@@ -26,16 +24,7 @@ fn TIMER0_BRK_UP_TRG_COM() {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
             let pwm = &mut shared.motor.pwm;
             if pwm.is_pending(timer::Event::Update) {
-                shared.adc_dma.with(move |adc_dma| {
-                    if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
-                        // Enable interrupts
-                        adc_dma.channel.listen(Event::TransferComplete);
-                        // Trigger ADC
-                        AdcDmaState::Started(adc_dma.read(buffer))
-                    } else {
-                        adc_dma
-                    }
-                });
+                shared.adc_dma.trigger_adc();
                 // Clear timer update interrupt flag
                 pwm.clear_interrupt_flag(timer::Event::Update);
             }
@@ -48,16 +37,9 @@ fn DMA_CHANNEL0() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
             // Fetch ADC readings from the DMA buffer.
-            let last_adc_readings = &mut shared.last_adc_readings;
-            shared.adc_dma.with(move |adc_dma| {
-                if let AdcDmaState::Started(transfer) = adc_dma {
-                    let (buffer, adc_dma) = transfer.wait();
-                    last_adc_readings.update_from_buffer(buffer, adc_dma.as_ref());
-                    AdcDmaState::NotStarted(adc_dma, buffer)
-                } else {
-                    adc_dma
-                }
-            });
+            shared
+                .adc_dma
+                .read_dma_result(&mut shared.last_adc_readings);
 
             shared.motor.update();
         }

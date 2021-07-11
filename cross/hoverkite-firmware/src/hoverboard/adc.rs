@@ -2,12 +2,13 @@ use core::mem;
 use cortex_m::singleton;
 use gd32f1x0_hal::{
     adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
-    dma::{self, Transfer, W},
+    dma::{self, Event, Transfer, W},
     gpio::{
         gpioa::{PA4, PA6},
         Analog,
     },
     pac::{adc::ctl1::CTN_A, ADC},
+    prelude::*,
     rcu::{Clocks, APB2},
 };
 
@@ -23,7 +24,7 @@ pub struct AdcReadings {
 }
 
 impl AdcReadings {
-    pub(super) fn update_from_buffer(&mut self, buffer: &[u16; 3], adc: &Adc) {
+    fn update_from_buffer(&mut self, buffer: &[u16; 3], adc: &Adc) {
         // TODO: Or is it better to just hardcode the ADC scaling factor?
         self.battery_voltage = adc.calculate_voltage(buffer[0]) * 30;
         self.motor_current = adc.calculate_voltage(buffer[1]);
@@ -61,7 +62,34 @@ impl AdcDmaState {
         AdcDmaState::NotStarted(adc_dma, adc_dma_buffer)
     }
 
-    pub fn with(&mut self, f: impl FnOnce(Self) -> Self) {
+    /// Trigger an ADC read using DMA.
+    pub fn trigger_adc(&mut self) {
+        self.with(move |adc_dma| {
+            if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
+                // Enable interrupts
+                adc_dma.channel.listen(Event::TransferComplete);
+                // Trigger ADC
+                AdcDmaState::Started(adc_dma.read(buffer))
+            } else {
+                adc_dma
+            }
+        });
+    }
+
+    /// Fetch ADC results from the DMA buffer, in response to a DMA interrupt.
+    pub fn read_dma_result(&mut self, result: &mut AdcReadings) {
+        self.with(move |adc_dma| {
+            if let AdcDmaState::Started(transfer) = adc_dma {
+                let (buffer, adc_dma) = transfer.wait();
+                result.update_from_buffer(buffer, adc_dma.as_ref());
+                AdcDmaState::NotStarted(adc_dma, buffer)
+            } else {
+                adc_dma
+            }
+        });
+    }
+
+    fn with(&mut self, f: impl FnOnce(Self) -> Self) {
         let adc_dma = mem::replace(self, AdcDmaState::None);
         let adc_dma = f(adc_dma);
         let _ = mem::replace(self, adc_dma);
