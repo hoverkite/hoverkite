@@ -1,3 +1,6 @@
+mod buzzer;
+
+pub use self::buzzer::Buzzer;
 use crate::{
     buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
     motor::{HallSensors, Motor},
@@ -12,22 +15,21 @@ use gd32f1x0_hal::{
     adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
     dma::{Event, Transfer, W},
     gpio::{
-        gpioa::{PA0, PA1, PA12, PA15, PA3},
-        gpiob::{PB10, PB2, PB3},
+        gpioa::{PA0, PA12, PA15},
+        gpiob::{PB2, PB3},
         gpioc::PC15,
         gpiof::PF0,
-        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF2,
+        Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
     pac::{
         adc::ctl1::CTN_A, interrupt, usart0, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF,
         TIMER0, TIMER1, USART0, USART1,
     },
     prelude::*,
-    pwm::{Channel, Pwm},
+    pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
-    time::Hertz,
-    timer::{self, Timer},
+    timer,
 };
 
 const USART_BAUD_RATE: u32 = 115200;
@@ -150,43 +152,6 @@ fn DMA_CHANNEL0() {
             shared.motor.update();
         }
     });
-}
-
-/// This type is a bit bogus, PB10 is the only one that matters.
-type BuzzerPwmPins = (
-    Option<PA0<Alternate<AF2>>>,
-    Option<PA1<Alternate<AF2>>>,
-    Option<PB10<Alternate<AF2>>>,
-    Option<PA3<Alternate<AF2>>>,
-);
-
-/// The buzzer on the secondary board. This should not be used on the primary board.
-pub struct Buzzer {
-    pwm: Pwm<TIMER1, BuzzerPwmPins>,
-}
-
-impl Buzzer {
-    fn new(
-        timer1: TIMER1,
-        buzzer_pin: PB10<Alternate<AF2>>,
-        clocks: Clocks,
-        apb1: &mut APB1,
-    ) -> Self {
-        let pins = (None, None, Some(buzzer_pin), None);
-        let pwm = Timer::timer1(timer1, &clocks, apb1).pwm(pins, 1.khz());
-        Self { pwm }
-    }
-
-    /// Set the frequency of the buzzer, or turn it off.
-    pub fn set_frequency(&mut self, frequency: Option<impl Into<Hertz>>) {
-        if let Some(frequency) = frequency {
-            self.pwm.set_period(frequency.into());
-            self.pwm.set_duty(Channel::C2, self.pwm.get_max_duty() / 2);
-            self.pwm.enable(Channel::C2);
-        } else {
-            self.pwm.disable(Channel::C2);
-        }
-    }
 }
 
 pub struct Hoverboard {
