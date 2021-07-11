@@ -2,13 +2,15 @@ mod adc;
 mod buzzer;
 mod interrupts;
 mod motor;
+mod serial;
 pub mod util;
 
 use self::adc::AdcDmaState;
 pub use self::adc::AdcReadings;
 pub use self::buzzer::Buzzer;
-use self::interrupts::{unmask_interrupts, Shared, SERIAL0_BUFFER, SERIAL1_BUFFER, SHARED};
+use self::interrupts::{unmask_interrupts, Shared, SHARED};
 use self::motor::{HallSensors, Motor};
+use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
 use self::util::buffered_tx::{BufferedSerialWriter, Listenable};
 use core::ops::Deref;
 use cortex_m::{interrupt::free, singleton};
@@ -99,7 +101,7 @@ impl Hoverboard {
             gpiob
                 .pb7
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
-        let (mut serial_remote_tx, serial_remote_rx) = Serial::usart(
+        let (serial_remote_tx, serial_remote_rx) = Serial::usart(
             usart0,
             (tx0, rx0),
             Config {
@@ -110,14 +112,7 @@ impl Hoverboard {
             apb2,
         )
         .split();
-        serial_remote_tx.listen();
-        free(move |cs| {
-            SERIAL0_BUFFER
-                .borrow(cs)
-                .borrow_mut()
-                .set_writer(serial_remote_tx)
-        });
-        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER);
+        let serial_remote_writer = setup_usart0_buffered_writer(serial_remote_tx);
 
         // USART1
         let tx1 =
@@ -128,7 +123,7 @@ impl Hoverboard {
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
-        let (mut serial_tx, serial_rx) = Serial::usart(
+        let (serial_tx, serial_rx) = Serial::usart(
             usart1,
             (tx1, rx1),
             Config {
@@ -139,9 +134,7 @@ impl Hoverboard {
             apb1,
         )
         .split();
-        serial_tx.listen();
-        free(move |cs| SERIAL1_BUFFER.borrow(cs).borrow_mut().set_writer(serial_tx));
-        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER);
+        let serial_writer = setup_usart1_buffered_writer(serial_tx);
 
         // DMA controller
         let dma = dma.split(ahb);

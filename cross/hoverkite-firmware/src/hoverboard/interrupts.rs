@@ -1,6 +1,5 @@
 use super::adc::{AdcDmaState, AdcReadings};
 use super::motor::Motor;
-use super::util::buffered_tx::BufferState;
 use core::cell::RefCell;
 use cortex_m::{
     interrupt::{free, Mutex},
@@ -8,9 +7,8 @@ use cortex_m::{
 };
 use gd32f1x0_hal::{
     dma::Event,
-    pac::{interrupt, Interrupt, USART0, USART1},
+    pac::{interrupt, Interrupt},
     prelude::*,
-    serial::Tx,
     timer,
 };
 
@@ -21,24 +19,6 @@ pub(super) struct Shared {
 }
 
 pub(super) static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
-pub(super) static SERIAL0_BUFFER: Mutex<RefCell<BufferState<Tx<USART0>>>> =
-    Mutex::new(RefCell::new(BufferState::new()));
-pub(super) static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
-    Mutex::new(RefCell::new(BufferState::new()));
-
-#[interrupt]
-fn USART0() {
-    free(|cs| {
-        SERIAL0_BUFFER.borrow(cs).borrow_mut().try_write();
-    })
-}
-
-#[interrupt]
-fn USART1() {
-    free(|cs| {
-        SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
-    })
-}
 
 #[interrupt]
 fn TIMER0_BRK_UP_TRG_COM() {
