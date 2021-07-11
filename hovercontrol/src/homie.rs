@@ -38,6 +38,24 @@ impl<'a> Homie<'a> {
                     Property::integer("centre", "Centre", false, true, None, None),
                     Property::integer("target", "Target position", false, true, None, None),
                     Property::integer("position", "Actual position", false, true, None, None),
+                    Property::integer(
+                        "battery_voltage",
+                        "Battery voltage",
+                        false,
+                        true,
+                        Some("mV"),
+                        None,
+                    ),
+                    Property::integer(
+                        "backup_battery_voltage",
+                        "Backup battery voltage",
+                        false,
+                        true,
+                        Some("mV"),
+                        None,
+                    ),
+                    Property::integer("motor_current", "Motor current", false, true, None, None),
+                    Property::boolean("charger_connected", "Charger connected", false, true, None),
                 ],
             })
             .await?;
@@ -50,6 +68,24 @@ impl<'a> Homie<'a> {
                     Property::integer("centre", "Centre", false, true, None, None),
                     Property::integer("target", "Target position", false, true, None, None),
                     Property::integer("position", "Actual position", false, true, None, None),
+                    Property::integer(
+                        "battery_voltage",
+                        "Battery voltage",
+                        false,
+                        true,
+                        Some("mV"),
+                        None,
+                    ),
+                    Property::integer(
+                        "backup_battery_voltage",
+                        "Backup battery voltage",
+                        false,
+                        true,
+                        Some("mV"),
+                        None,
+                    ),
+                    Property::integer("motor_current", "Motor current", false, true, None, None),
+                    Property::boolean("charger_connected", "Charger connected", false, true, None),
                 ],
             })
             .await?;
@@ -91,24 +127,6 @@ impl<'a> Homie<'a> {
                         None,
                         Some(1.0..MAX_SCALE.into()),
                     ),
-                    Property::integer(
-                        "battery_voltage",
-                        "Battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer(
-                        "backup_battery_voltage",
-                        "Backup battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer("motor_current", "Motor current", false, true, None, None),
-                    Property::boolean("charger_connected", "Charger connected", false, true, None),
                 ],
             })
             .await?;
@@ -157,17 +175,19 @@ impl<'a> Homie<'a> {
 
     pub fn send_battery_readings(
         &self,
+        side: Side,
         battery_voltage: u16,
         backup_battery_voltage: u16,
         motor_current: u16,
     ) {
-        self.send_property("general", "battery_voltage", battery_voltage);
-        self.send_property("general", "backup_battery_voltage", backup_battery_voltage);
-        self.send_property("general", "motor_current", motor_current);
+        let node_id = node_id(side);
+        self.send_property(node_id, "battery_voltage", battery_voltage);
+        self.send_property(node_id, "backup_battery_voltage", backup_battery_voltage);
+        self.send_property(node_id, "motor_current", motor_current);
     }
 
-    pub fn send_charge_state(&self, charger_connected: bool) {
-        self.send_property("general", "charger_connected", charger_connected)
+    pub fn send_charge_state(&self, side: Side, charger_connected: bool) {
+        self.send_property(node_id(side), "charger_connected", charger_connected)
     }
 
     fn send_property(&self, node_id: &str, property_id: &str, value: impl ToString) {

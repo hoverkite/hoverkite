@@ -87,12 +87,14 @@ impl<'a> Controller<'a> {
                 backup_battery_voltage,
                 motor_current,
             } => self.homie.send_battery_readings(
+                response.side,
                 battery_voltage,
                 backup_battery_voltage,
                 motor_current,
             ),
             Response::ChargeState { charger_connected } => {
-                self.homie.send_charge_state(charger_connected);
+                self.homie
+                    .send_charge_state(response.side, charger_connected);
             }
             _ => {}
         }
