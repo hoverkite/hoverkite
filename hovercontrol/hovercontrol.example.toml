@@ -1,0 +1,14 @@
+[mqtt]
+# The hostname of the MQTT broker to use.
+host="test.mosquitto.org"
+# The port number of the MQTT broker to use.
+port=1883
+# The client name to use when connecting to the MQTT broker. If this is not set it will default to
+# the Homie device ID.
+client_name="hoverkite"
+# The username with which to authenticate to the MQTT broker, if any.
+#username=""
+# The password with which to authenticate to the MQTT broker, if any.
+#password=""
+# Whether to use TLS for the connection to the MQTT broker.
+use_tls=false

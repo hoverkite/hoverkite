@@ -1,6 +1,8 @@
+mod config;
 mod controller;
 mod homie;
 
+use crate::config::Config;
 use crate::controller::Controller;
 use crate::homie::Homie;
 use eyre::Report;
@@ -17,6 +19,8 @@ fn main() -> Result<(), Report> {
     stable_eyre::install()?;
     pretty_env_logger::init();
     color_backtrace::install();
+
+    let config = Config::from_file()?;
 
     let mut args = env::args();
     let binary_name = args
@@ -51,7 +55,7 @@ fn main() -> Result<(), Report> {
 
     let gilrs = Gilrs::new().unwrap();
     let hoverkite = Hoverkite::new(right_port, left_port);
-    let homie = handle.block_on(Homie::make_homie_device(handle))?;
+    let homie = handle.block_on(Homie::make_homie_device(handle, config.mqtt))?;
 
     let mut controller = Controller::new(hoverkite, gilrs, homie);
     controller.run()
