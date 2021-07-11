@@ -7,10 +7,8 @@ use crate::controller::Controller;
 use crate::homie::Homie;
 use eyre::Report;
 use gilrs::Gilrs;
-use log::{error, warn};
+use log::error;
 use messages::client::Hoverkite;
-use std::env;
-use std::process::exit;
 use tokio::runtime::Runtime;
 
 const BAUD_RATE: u32 = 115_200;
@@ -20,44 +18,29 @@ fn main() -> Result<(), Report> {
     pretty_env_logger::init();
     color_backtrace::install();
 
-    let config = Config::from_file().unwrap_or_else(|e| {
-        warn!("Failed to load config file, using default: {:?}", e);
-        Config::default()
-    });
+    let config = Config::from_file()?;
 
-    let mut args = env::args();
-    let binary_name = args
-        .next()
-        .ok_or_else(|| eyre::eyre!("Binary name missing"))?;
-    if !(1..=2).contains(&args.len()) {
-        eprintln!("Usage:");
-        eprintln!("  {} <right serial port> [<left serial port>]", binary_name);
-        exit(1);
-    }
-    let right_port_name = args.next().unwrap();
-    let left_port_name = args.next();
-
-    let right_port = serialport::new(&right_port_name, BAUD_RATE)
+    let right_port = serialport::new(&config.right_port, BAUD_RATE)
         .open()
         .map_err(|e| {
             error!(
                 "Failed to open right serial port {}: {}",
-                right_port_name, e
+                config.right_port, e
             )
         })
         .ok();
-    let left_port = left_port_name.and_then(|name| {
+    let left_port = config.left_port.and_then(|name| {
         serialport::new(&name, BAUD_RATE)
             .open()
             .map_err(|e| error!("Failed to open left serial port {}: {}", name, e))
             .ok()
     });
+    let hoverkite = Hoverkite::new(right_port, left_port);
+
+    let gilrs = Gilrs::new().unwrap();
 
     let runtime = Runtime::new()?;
     let handle = runtime.handle();
-
-    let gilrs = Gilrs::new().unwrap();
-    let hoverkite = Hoverkite::new(right_port, left_port);
     let homie = handle.block_on(Homie::make_homie_device(handle, config.mqtt))?;
 
     let mut controller = Controller::new(hoverkite, gilrs, homie);

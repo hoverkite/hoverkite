@@ -1,3 +1,9 @@
+# The serial port connected to the right side of the hoverboard.
+right_port = "/dev/ttyUSB0"
+# The serial port connected to the left side of the hoverboard, when not using the forwarding
+# configuration.
+#left_port = "/dev/ttyUSB1"
+
 [mqtt]
 # The hostname of the MQTT broker to use.
 host="test.mosquitto.org"

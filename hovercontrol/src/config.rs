@@ -5,9 +5,11 @@ use std::fs::read_to_string;
 
 const CONFIG_FILENAME: &str = "hovercontrol.toml";
 
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
+    pub right_port: String,
+    pub left_port: Option<String>,
     pub mqtt: Option<MqttConfig>,
 }
 
@@ -66,9 +68,29 @@ mod tests {
         Config::read("hovercontrol.example.toml").unwrap();
     }
 
-    /// Parsing an empty config file should not give any errors.
+    /// Parsing a minimal config file should not give any errors.
     #[test]
-    fn empty_config() {
-        toml::from_str::<Config>("").unwrap();
+    fn minimal_config() {
+        toml::from_str::<Config>(
+            r#"
+right_port = "/dev/ttyUSB0"
+"#,
+        )
+        .unwrap();
+    }
+
+    /// Parsing a config file with a minimal [mqtt] section should not give any errors.
+    #[test]
+    fn minimal_mqtt_config() {
+        toml::from_str::<Config>(
+            r#"
+right_port = "/dev/ttyUSB0"
+
+[mqtt]
+host="test.mosquitto.org"
+port=1883
+"#,
+        )
+        .unwrap();
     }
 }
