@@ -68,7 +68,5 @@ pub fn unmask_interrupts() {
     unsafe {
         NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
         NVIC::unmask(Interrupt::DMA_CHANNEL0);
-        NVIC::unmask(Interrupt::USART0);
-        NVIC::unmask(Interrupt::USART1);
     }
 }

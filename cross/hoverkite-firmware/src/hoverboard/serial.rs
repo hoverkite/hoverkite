@@ -1,8 +1,11 @@
 use super::util::buffered_tx::{BufferState, BufferedSerialWriter};
 use core::cell::RefCell;
-use cortex_m::interrupt::{free, Mutex};
+use cortex_m::{
+    interrupt::{free, Mutex},
+    peripheral::NVIC,
+};
 use gd32f1x0_hal::{
-    pac::{interrupt, USART0, USART1},
+    pac::{interrupt, Interrupt, USART0, USART1},
     serial::Tx,
 };
 
@@ -21,6 +24,9 @@ pub fn setup_usart0_buffered_writer(
             .borrow_mut()
             .set_writer(serial_remote_tx)
     });
+    unsafe {
+        NVIC::unmask(Interrupt::USART0);
+    }
     BufferedSerialWriter::new(&SERIAL0_BUFFER)
 }
 
@@ -34,6 +40,9 @@ pub fn setup_usart1_buffered_writer(
             .borrow_mut()
             .set_writer(serial_remote_tx)
     });
+    unsafe {
+        NVIC::unmask(Interrupt::USART1);
+    }
     BufferedSerialWriter::new(&SERIAL1_BUFFER)
 }
 
