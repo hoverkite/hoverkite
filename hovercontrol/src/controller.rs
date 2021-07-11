@@ -170,7 +170,7 @@ impl Controller {
         Ok(())
     }
 
-    pub fn send_max_speed(&mut self) -> Result<(), Report> {
+    fn send_max_speed(&mut self) -> Result<(), Report> {
         // Invert left
         self.hoverkite
             .set_max_speed(Side::Left, self.max_speed.invert())?;
