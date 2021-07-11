@@ -1,10 +1,9 @@
 mod buzzer;
+mod motor;
 
 pub use self::buzzer::Buzzer;
-use crate::{
-    buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
-    motor::{HallSensors, Motor},
-};
+use self::motor::{HallSensors, Motor};
+use crate::buffered_tx::{BufferState, BufferedSerialWriter, Listenable};
 use core::{cell::RefCell, mem, ops::Deref};
 use cortex_m::{
     interrupt::{free, Mutex},

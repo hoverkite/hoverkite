@@ -4,7 +4,6 @@
 mod buffered_tx;
 mod circular_buffer;
 mod hoverboard;
-mod motor;
 mod protocol;
 mod systick;
 mod util;
