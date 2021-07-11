@@ -7,7 +7,7 @@ use crate::controller::Controller;
 use crate::homie::Homie;
 use eyre::Report;
 use gilrs::Gilrs;
-use log::error;
+use log::{error, warn};
 use messages::client::Hoverkite;
 use std::env;
 use std::process::exit;
@@ -20,7 +20,10 @@ fn main() -> Result<(), Report> {
     pretty_env_logger::init();
     color_backtrace::install();
 
-    let config = Config::from_file()?;
+    let config = Config::from_file().unwrap_or_else(|e| {
+        warn!("Failed to load config file, using default: {:?}", e);
+        Config::default()
+    });
 
     let mut args = env::args();
     let binary_name = args
