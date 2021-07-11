@@ -2,10 +2,13 @@ use super::adc::{AdcDmaState, AdcReadings};
 use super::motor::Motor;
 use super::util::buffered_tx::BufferState;
 use core::cell::RefCell;
-use cortex_m::interrupt::{free, Mutex};
+use cortex_m::{
+    interrupt::{free, Mutex},
+    peripheral::NVIC,
+};
 use gd32f1x0_hal::{
     dma::Event,
-    pac::{interrupt, USART0, USART1},
+    pac::{interrupt, Interrupt, USART0, USART1},
     prelude::*,
     serial::Tx,
     timer,
@@ -79,4 +82,13 @@ fn DMA_CHANNEL0() {
             shared.motor.update();
         }
     });
+}
+
+pub fn unmask_interrupts() {
+    unsafe {
+        NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
+        NVIC::unmask(Interrupt::DMA_CHANNEL0);
+        NVIC::unmask(Interrupt::USART0);
+        NVIC::unmask(Interrupt::USART1);
+    }
 }

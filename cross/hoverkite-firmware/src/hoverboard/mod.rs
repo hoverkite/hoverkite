@@ -7,11 +7,11 @@ pub mod util;
 use self::adc::AdcDmaState;
 pub use self::adc::AdcReadings;
 pub use self::buzzer::Buzzer;
-use self::interrupts::{Shared, SERIAL0_BUFFER, SERIAL1_BUFFER, SHARED};
+use self::interrupts::{unmask_interrupts, Shared, SERIAL0_BUFFER, SERIAL1_BUFFER, SHARED};
 use self::motor::{HallSensors, Motor};
 use self::util::buffered_tx::{BufferedSerialWriter, Listenable};
 use core::ops::Deref;
-use cortex_m::{interrupt::free, peripheral::NVIC, singleton};
+use cortex_m::{interrupt::free, singleton};
 use gd32f1x0_hal::{
     adc::{Adc, SampleTime, Sequence, VBat},
     gpio::{
@@ -22,8 +22,8 @@ use gd32f1x0_hal::{
         Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
     pac::{
-        adc::ctl1::CTN_A, usart0, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1,
-        USART0, USART1,
+        adc::ctl1::CTN_A, usart0, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0,
+        USART1,
     },
     prelude::*,
     pwm::Channel,
@@ -227,12 +227,7 @@ impl Hoverboard {
             }))
         });
 
-        unsafe {
-            NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
-            NVIC::unmask(Interrupt::DMA_CHANNEL0);
-            NVIC::unmask(Interrupt::USART0);
-            NVIC::unmask(Interrupt::USART1);
-        }
+        unmask_interrupts();
 
         Hoverboard {
             serial_remote_rx,
