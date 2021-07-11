@@ -14,6 +14,8 @@ messages = { path = "../messages" }
 nb = "1.0.0"
 pretty_env_logger = "0.4.0"
 rumqttc = "0.4.0"
+rustls = "0.19.0"
+rustls-native-certs = "0.5.0"
 serialport = "4.0.0"
 stable-eyre = "0.2.2"
 tokio = { version = "1.8.1", features = ["rt"] }

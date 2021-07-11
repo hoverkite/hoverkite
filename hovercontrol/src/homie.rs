@@ -6,11 +6,14 @@ use eyre::Report;
 use homie_device::{HomieDevice, Node, Property};
 use log::error;
 use messages::{Side, SpeedLimits};
-use rumqttc::MqttOptions;
+use rumqttc::{ClientConfig, MqttOptions, Transport};
 use tokio::runtime::Handle;
 
-const MQTT_HOST: &str = "localhost";
+const MQTT_HOST: &str = "test.mosquitto.org";
 const MQTT_PORT: u16 = 1883;
+const USE_TLS: bool = false;
+const MQTT_USERNAME: Option<&str> = None;
+const MQTT_PASSWORD: Option<&str> = None;
 const HOMIE_PREFIX: &str = "homie";
 const HOMIE_DEVICE_ID: &str = "hoverkite";
 const HOMIE_DEVICE_NAME: &str = "Hoverkite";
@@ -22,7 +25,7 @@ pub struct Homie<'a> {
 
 impl<'a> Homie<'a> {
     pub async fn make_homie_device(handle: &'a Handle) -> Result<Homie<'a>, Report> {
-        let mqtt_options = MqttOptions::new(HOMIE_DEVICE_ID, MQTT_HOST, MQTT_PORT);
+        let mqtt_options = get_mqtt_options();
         let device_base = format!("{}/{}", HOMIE_PREFIX, HOMIE_DEVICE_ID);
         let homie_builder = HomieDevice::builder(&device_base, HOMIE_DEVICE_NAME, mqtt_options);
         let (mut homie, homie_handle) = homie_builder.spawn().await?;
@@ -181,4 +184,23 @@ fn node_id(side: Side) -> &'static str {
         Side::Left => "left",
         Side::Right => "right",
     }
+}
+
+/// Construct the `MqttOptions` for connecting to the MQTT broker based on configuration options or
+/// defaults.
+fn get_mqtt_options() -> MqttOptions {
+    let mut mqtt_options = MqttOptions::new(HOMIE_DEVICE_ID, MQTT_HOST, MQTT_PORT);
+
+    mqtt_options.set_keep_alive(5);
+    if let (Some(username), Some(password)) = (MQTT_USERNAME, MQTT_PASSWORD) {
+        mqtt_options.set_credentials(username, password);
+    }
+
+    if USE_TLS {
+        let mut client_config = ClientConfig::new();
+        client_config.root_store =
+            rustls_native_certs::load_native_certs().expect("could not load platform certs");
+        mqtt_options.set_transport(Transport::tls_with_config(client_config.into()));
+    }
+    mqtt_options
 }
