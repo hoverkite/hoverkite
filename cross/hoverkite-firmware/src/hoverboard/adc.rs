@@ -1,6 +1,15 @@
 use core::mem;
-use gd32f1x0_hal::adc::{Adc, AdcDma, Scan, Sequence};
-use gd32f1x0_hal::dma::{Transfer, W};
+use cortex_m::singleton;
+use gd32f1x0_hal::{
+    adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
+    dma::{self, Transfer, W},
+    gpio::{
+        gpioa::{PA4, PA6},
+        Analog,
+    },
+    pac::{adc::ctl1::CTN_A, ADC},
+    rcu::{Clocks, APB2},
+};
 
 #[allow(dead_code)]
 const CURRENT_OFFSET_DC: u16 = 1073;
@@ -21,14 +30,37 @@ impl AdcReadings {
     }
 }
 
-pub(super) enum AdcDmaState {
+pub enum AdcDmaState {
     NotStarted(AdcDma<Sequence, Scan>, &'static mut [u16; 3]),
     Started(Transfer<W, &'static mut [u16; 3], AdcDma<Sequence, Scan>>),
     None,
 }
 
 impl AdcDmaState {
-    pub(super) fn with(&mut self, f: impl FnOnce(Self) -> Self) {
+    pub fn setup(
+        adc: ADC,
+        battery_voltage: PA4<Analog>,
+        motor_current: PA6<Analog>,
+        apb2: &mut APB2,
+        clocks: Clocks,
+        dma_channel: dma::C0,
+    ) -> AdcDmaState {
+        let mut adc = Adc::new(adc, apb2, clocks);
+        adc.set_sample_time(&battery_voltage, SampleTime::Cycles13_5);
+        adc.set_sample_time(&motor_current, SampleTime::Cycles13_5);
+        adc.set_sample_time(&VBat, SampleTime::Cycles13_5);
+        adc.enable_vbat(true);
+        let mut sequence = Sequence::default();
+        sequence.add_pin(battery_voltage).ok().unwrap();
+        sequence.add_pin(motor_current).ok().unwrap();
+        sequence.add_pin(VBat).ok().unwrap();
+        let adc = adc.with_regular_sequence(sequence);
+        let adc_dma = adc.with_scan_dma(dma_channel, CTN_A::SINGLE, None);
+        let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
+        AdcDmaState::NotStarted(adc_dma, adc_dma_buffer)
+    }
+
+    pub fn with(&mut self, f: impl FnOnce(Self) -> Self) {
         let adc_dma = mem::replace(self, AdcDmaState::None);
         let adc_dma = f(adc_dma);
         let _ = mem::replace(self, adc_dma);

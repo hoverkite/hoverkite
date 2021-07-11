@@ -13,9 +13,8 @@ use self::motor::{HallSensors, Motor};
 use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
 use self::util::buffered_tx::{BufferedSerialWriter, Listenable};
 use core::ops::Deref;
-use cortex_m::{interrupt::free, singleton};
+use cortex_m::interrupt::free;
 use gd32f1x0_hal::{
-    adc::{Adc, SampleTime, Sequence, VBat},
     gpio::{
         gpioa::{PA0, PA12, PA15},
         gpiob::{PB2, PB3},
@@ -23,10 +22,7 @@ use gd32f1x0_hal::{
         gpiof::PF0,
         Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
-    pac::{
-        adc::ctl1::CTN_A, usart0, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0,
-        USART1,
-    },
+    pac::{usart0, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0, USART1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -140,20 +136,9 @@ impl Hoverboard {
         let dma = dma.split(ahb);
 
         // ADC
-        let mut adc = Adc::new(adc, apb2, clocks);
         let battery_voltage = gpioa.pa4.into_analog(&mut gpioa.config);
         let motor_current = gpioa.pa6.into_analog(&mut gpioa.config);
-        adc.set_sample_time(&battery_voltage, SampleTime::Cycles13_5);
-        adc.set_sample_time(&motor_current, SampleTime::Cycles13_5);
-        adc.set_sample_time(&VBat, SampleTime::Cycles13_5);
-        adc.enable_vbat(true);
-        let mut sequence = Sequence::default();
-        sequence.add_pin(battery_voltage).ok().unwrap();
-        sequence.add_pin(motor_current).ok().unwrap();
-        sequence.add_pin(VBat).ok().unwrap();
-        let adc = adc.with_regular_sequence(sequence);
-        let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
-        let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
+        let adc_dma = AdcDmaState::setup(adc, battery_voltage, motor_current, apb2, clocks, dma.0);
 
         // Motor
         // Output speed defaults to 2MHz
@@ -215,7 +200,7 @@ impl Hoverboard {
         free(move |cs| {
             SHARED.borrow(cs).replace(Some(Shared {
                 motor,
-                adc_dma: AdcDmaState::NotStarted(adc_dma, adc_dma_buffer),
+                adc_dma,
                 last_adc_readings: AdcReadings::default(),
             }))
         });
