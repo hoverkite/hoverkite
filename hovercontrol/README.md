@@ -5,10 +5,13 @@ port connected to each side of the hoverboard, and a game controller supported b
 
 ## Usage
 
-You can run it like:
+Create a config file called `hovercontrol.toml`, with at least a `right_port` set. See
+[`hovercontrol.example.toml`](hovercontrol.example.toml) for details.
+
+Then you can run it like:
 
 ```shell
-$ cargo run /dev/ttyUSB0 /dev/ttyUSB1
+$ cargo run
 ```
 
 ## Control mapping
