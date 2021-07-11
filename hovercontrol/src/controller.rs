@@ -79,9 +79,10 @@ impl<'a> Controller<'a> {
 
     fn send_response(&self, response: &SideResponse) {
         match response.response {
-            Response::Position(position) => {
-                self.homie.send_position(response.side, position);
-            }
+            Response::Position(position) => match response.side {
+                Side::Left => self.homie.send_position(Side::Left, -position),
+                Side::Right => self.homie.send_position(Side::Right, position),
+            },
             Response::BatteryReadings {
                 battery_voltage,
                 backup_battery_voltage,
@@ -226,11 +227,15 @@ impl<'a> Controller<'a> {
 
     fn send_target(&mut self, side: Side) -> Result<(), Report> {
         let target = match side {
-            Side::Left => -self.centre_left - self.offset_left,
+            Side::Left => self.centre_left + self.offset_left,
             Side::Right => self.centre_right + self.offset_right,
         };
+        let target_maybe_negated = match side {
+            Side::Left => -target,
+            Side::Right => target,
+        };
         self.hoverkite
-            .set_target(side, target)
+            .set_target(side, target_maybe_negated)
             .wrap_err("Failed to set target")?;
         self.homie.send_target(side, target);
         Ok(())
