@@ -1,12 +1,15 @@
 mod controller;
+mod homie;
 
 use crate::controller::Controller;
+use crate::homie::Homie;
 use eyre::Report;
 use gilrs::Gilrs;
 use log::error;
 use messages::client::Hoverkite;
 use std::env;
 use std::process::exit;
+use tokio::runtime::Runtime;
 
 const BAUD_RATE: u32 = 115_200;
 
@@ -43,9 +46,13 @@ fn main() -> Result<(), Report> {
             .ok()
     });
 
-    let gilrs = Gilrs::new().unwrap();
+    let runtime = Runtime::new()?;
+    let handle = runtime.handle();
 
+    let gilrs = Gilrs::new().unwrap();
     let hoverkite = Hoverkite::new(right_port, left_port);
-    let mut controller = Controller::new(hoverkite, gilrs);
+    let homie = handle.block_on(Homie::make_homie_device(handle))?;
+
+    let mut controller = Controller::new(hoverkite, gilrs, homie);
     controller.run()
 }

@@ -1,3 +1,4 @@
+use crate::homie::Homie;
 use eyre::{Report, WrapErr};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
@@ -7,25 +8,26 @@ use std::time::Duration;
 
 const SLEEP_DURATION: Duration = Duration::from_millis(2);
 
-const DEFAULT_SCALE: f32 = 50.0;
-const MAX_SCALE: f32 = 100.0;
+pub const DEFAULT_SCALE: f32 = 50.0;
+pub const MAX_SCALE: f32 = 100.0;
 
-const DEFAULT_MAX_SPEED: SpeedLimits = SpeedLimits {
+pub const DEFAULT_MAX_SPEED: SpeedLimits = SpeedLimits {
     negative: -200,
     positive: 30,
 };
-const MAX_MAX_SPEED: i16 = 300;
+pub const MAX_MAX_SPEED: i16 = 300;
 const MAX_SPEED_STEP: i16 = 10;
 
-const DEFAULT_SPRING_CONSTANT: u16 = 10;
-const MAX_SPRING_CONSTANT: u16 = 50;
-const SPRING_CONSTANT_STEP: u16 = 2;
+pub const DEFAULT_SPRING_CONSTANT: u16 = 10;
+pub const MAX_SPRING_CONSTANT: u16 = 50;
+pub const SPRING_CONSTANT_STEP: u16 = 2;
 
 const CENTRE_STEP: i64 = 20;
 
-pub struct Controller {
+pub struct Controller<'a> {
     hoverkite: Hoverkite,
     gilrs: Gilrs,
+    homie: Homie<'a>,
     offset_left: i64,
     offset_right: i64,
     centre_left: i64,
@@ -35,11 +37,12 @@ pub struct Controller {
     spring_constant: u16,
 }
 
-impl Controller {
-    pub fn new(hoverkite: Hoverkite, gilrs: Gilrs) -> Self {
+impl<'a> Controller<'a> {
+    pub fn new(hoverkite: Hoverkite, gilrs: Gilrs, homie: Homie<'a>) -> Self {
         Self {
             hoverkite,
             gilrs,
+            homie,
             offset_left: 0,
             offset_right: 0,
             centre_left: 0,
@@ -58,6 +61,7 @@ impl Controller {
         loop {
             for response in self.hoverkite.poll()? {
                 print_response(&response);
+                self.send_response(&response);
             }
 
             if let Some(Event {
@@ -70,6 +74,27 @@ impl Controller {
             } else {
                 thread::sleep(SLEEP_DURATION);
             }
+        }
+    }
+
+    fn send_response(&self, response: &SideResponse) {
+        match response.response {
+            Response::Position(position) => {
+                self.homie.send_position(response.side, position);
+            }
+            Response::BatteryReadings {
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            } => self.homie.send_battery_readings(
+                battery_voltage,
+                backup_battery_voltage,
+                motor_current,
+            ),
+            Response::ChargeState { charger_connected } => {
+                self.homie.send_charge_state(charger_connected);
+            }
+            _ => {}
         }
     }
 
@@ -88,12 +113,14 @@ impl Controller {
                     self.scale -= 1.0;
                 }
                 println!("Scale {}", self.scale);
+                self.homie.send_scale(self.scale);
             }
             EventType::ButtonPressed(Button::DPadRight, _code) => {
                 if self.scale < MAX_SCALE {
                     self.scale += 1.0;
                 }
                 println!("Scale {}", self.scale);
+                self.homie.send_scale(self.scale);
             }
             EventType::ButtonPressed(Button::DPadUp, _code) => {
                 if -self.max_speed.negative < MAX_MAX_SPEED {
@@ -110,27 +137,35 @@ impl Controller {
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
                 self.centre_left += CENTRE_STEP;
                 self.send_target(Side::Left)?;
+                self.homie.send_centre(Side::Left, self.centre_left);
             }
             EventType::ButtonPressed(Button::LeftTrigger2, _code) => {
                 self.centre_left -= CENTRE_STEP;
                 self.send_target(Side::Left)?;
+                self.homie.send_centre(Side::Left, self.centre_left);
             }
             EventType::ButtonPressed(Button::RightTrigger, _code) => {
                 self.centre_right += CENTRE_STEP;
                 self.send_target(Side::Right)?;
+                self.homie.send_centre(Side::Right, self.centre_right);
             }
             EventType::ButtonPressed(Button::RightTrigger2, _code) => {
                 self.centre_right -= CENTRE_STEP;
                 self.send_target(Side::Right)?;
+                self.homie.send_centre(Side::Right, self.centre_right);
             }
             EventType::ButtonPressed(Button::LeftThumb, _code) => {
                 self.centre_left = 0;
                 self.hoverkite.send_command(Side::Left, Command::Recenter)?;
+                self.homie.send_centre(Side::Left, self.centre_left);
+                self.homie.send_target(Side::Left, 0);
             }
             EventType::ButtonPressed(Button::RightThumb, _code) => {
                 self.centre_right = 0;
                 self.hoverkite
                     .send_command(Side::Right, Command::Recenter)?;
+                self.homie.send_centre(Side::Right, self.centre_right);
+                self.homie.send_target(Side::Right, 0);
             }
             EventType::ButtonPressed(Button::South, _code) => {
                 self.hoverkite
@@ -175,13 +210,16 @@ impl Controller {
         self.hoverkite
             .set_max_speed(Side::Left, self.max_speed.invert())?;
         self.hoverkite.set_max_speed(Side::Right, self.max_speed)?;
+        self.homie.send_max_speed(self.max_speed);
         Ok(())
     }
 
     fn send_spring_constant(&mut self) -> Result<(), Report> {
         self.hoverkite
             .set_spring_constant(self.spring_constant)
-            .wrap_err("Failed to set spring constant")
+            .wrap_err("Failed to set spring constant")?;
+        self.homie.send_spring_constant(self.spring_constant);
+        Ok(())
     }
 
     fn send_target(&mut self, side: Side) -> Result<(), Report> {
@@ -191,7 +229,9 @@ impl Controller {
         };
         self.hoverkite
             .set_target(side, target)
-            .wrap_err("Failed to set target")
+            .wrap_err("Failed to set target")?;
+        self.homie.send_target(side, target);
+        Ok(())
     }
 }
 
