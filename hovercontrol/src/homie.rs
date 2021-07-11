@@ -1,6 +1,6 @@
 use crate::controller::{
-    DEFAULT_MAX_SPEED, DEFAULT_SPRING_CONSTANT, MAX_MAX_SPEED, MAX_SCALE, MAX_SPRING_CONSTANT,
-    SPRING_CONSTANT_STEP,
+    DEFAULT_MAX_SPEED, DEFAULT_SCALE, DEFAULT_SPRING_CONSTANT, MAX_MAX_SPEED, MAX_SCALE,
+    MAX_SPRING_CONSTANT, SPRING_CONSTANT_STEP,
 };
 use eyre::Report;
 use homie_device::{HomieDevice, Node, Property};
@@ -119,6 +119,9 @@ impl<'a> Homie<'a> {
             .await?;
         homie
             .publish_value("general", "max_speed", DEFAULT_MAX_SPEED.positive)
+            .await?;
+        homie
+            .publish_value("general", "scale", DEFAULT_SCALE)
             .await?;
         homie.ready().await?;
         Ok(Self { homie, handle })
