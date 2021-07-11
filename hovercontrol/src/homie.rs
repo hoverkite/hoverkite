@@ -29,34 +29,35 @@ impl<'a> Homie<'a> {
         let device_base = format!("{}/{}", HOMIE_PREFIX, HOMIE_DEVICE_ID);
         let homie_builder = HomieDevice::builder(&device_base, HOMIE_DEVICE_NAME, mqtt_options);
         let (mut homie, homie_handle) = homie_builder.spawn().await?;
+        let motor_properties = vec![
+            Property::integer("centre", "Centre", false, true, None, None),
+            Property::integer("target", "Target position", false, true, None, None),
+            Property::integer("position", "Actual position", false, true, None, None),
+            Property::integer(
+                "battery_voltage",
+                "Battery voltage",
+                false,
+                true,
+                Some("mV"),
+                None,
+            ),
+            Property::integer(
+                "backup_battery_voltage",
+                "Backup battery voltage",
+                false,
+                true,
+                Some("mV"),
+                None,
+            ),
+            Property::integer("motor_current", "Motor current", false, true, None, None),
+            Property::boolean("charger_connected", "Charger connected", false, true, None),
+        ];
         homie
             .add_node(Node {
                 id: "left".to_owned(),
                 name: "Left motor".to_owned(),
                 node_type: "motor".to_owned(),
-                properties: vec![
-                    Property::integer("centre", "Centre", false, true, None, None),
-                    Property::integer("target", "Target position", false, true, None, None),
-                    Property::integer("position", "Actual position", false, true, None, None),
-                    Property::integer(
-                        "battery_voltage",
-                        "Battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer(
-                        "backup_battery_voltage",
-                        "Backup battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer("motor_current", "Motor current", false, true, None, None),
-                    Property::boolean("charger_connected", "Charger connected", false, true, None),
-                ],
+                properties: motor_properties.clone(),
             })
             .await?;
         homie
@@ -64,29 +65,7 @@ impl<'a> Homie<'a> {
                 id: "right".to_owned(),
                 name: "Right motor".to_owned(),
                 node_type: "motor".to_owned(),
-                properties: vec![
-                    Property::integer("centre", "Centre", false, true, None, None),
-                    Property::integer("target", "Target position", false, true, None, None),
-                    Property::integer("position", "Actual position", false, true, None, None),
-                    Property::integer(
-                        "battery_voltage",
-                        "Battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer(
-                        "backup_battery_voltage",
-                        "Backup battery voltage",
-                        false,
-                        true,
-                        Some("mV"),
-                        None,
-                    ),
-                    Property::integer("motor_current", "Motor current", false, true, None, None),
-                    Property::boolean("charger_connected", "Charger connected", false, true, None),
-                ],
+                properties: motor_properties,
             })
             .await?;
         homie
