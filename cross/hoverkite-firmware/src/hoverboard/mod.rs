@@ -8,7 +8,7 @@ pub mod util;
 use self::adc::AdcDmaState;
 pub use self::adc::AdcReadings;
 pub use self::buzzer::Buzzer;
-use self::interrupts::{unmask_interrupts, Shared, SHARED};
+use self::interrupts::{unmask_interrupts, SHARED};
 use self::motor::{HallSensors, Motor};
 use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
 use self::util::buffered_tx::{BufferedSerialWriter, Listenable};
@@ -197,15 +197,7 @@ impl Hoverboard {
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
         let buzzer = Buzzer::new(timer1, buzzer_pin, clocks, apb1);
 
-        free(move |cs| {
-            SHARED.borrow(cs).replace(Some(Shared {
-                motor,
-                adc_dma,
-                last_adc_readings: AdcReadings::default(),
-            }))
-        });
-
-        unmask_interrupts();
+        unmask_interrupts(motor, adc_dma);
 
         Hoverboard {
             serial_remote_rx,

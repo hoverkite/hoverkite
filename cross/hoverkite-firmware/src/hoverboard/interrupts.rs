@@ -64,7 +64,15 @@ fn DMA_CHANNEL0() {
     });
 }
 
-pub fn unmask_interrupts() {
+pub fn unmask_interrupts(motor: Motor, adc_dma: AdcDmaState) {
+    free(move |cs| {
+        SHARED.borrow(cs).replace(Some(Shared {
+            motor,
+            adc_dma,
+            last_adc_readings: AdcReadings::default(),
+        }))
+    });
+
     unsafe {
         NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
         NVIC::unmask(Interrupt::DMA_CHANNEL0);
