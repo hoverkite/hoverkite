@@ -11,7 +11,7 @@ Create a config file called `hovercontrol.toml`, with at least a `right_port` se
 Then you can run it like:
 
 ```shell
-$ cargo run
+$ RUST_LOG=info cargo run
 ```
 
 ## Control mapping
