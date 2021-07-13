@@ -81,10 +81,7 @@ impl Controller {
 
         // Send stats from the response to Homie, if appropriate.
         match response.response {
-            Response::Position(position) => match response.side {
-                Side::Left => self.homie.send_position(Side::Left, -position),
-                Side::Right => self.homie.send_position(Side::Right, position),
-            },
+            Response::Position(position) => self.homie.send_position(response.side, position),
             Response::BatteryReadings {
                 battery_voltage,
                 backup_battery_voltage,
@@ -211,9 +208,7 @@ impl Controller {
     }
 
     fn send_max_speed(&mut self) -> Result<(), Report> {
-        // Invert left
-        self.hoverkite
-            .set_max_speed(Side::Left, self.max_speed.invert())?;
+        self.hoverkite.set_max_speed(Side::Left, self.max_speed)?;
         self.hoverkite.set_max_speed(Side::Right, self.max_speed)?;
         self.homie.send_max_speed(self.max_speed);
         Ok(())
@@ -232,12 +227,8 @@ impl Controller {
             Side::Left => self.centre_left + self.offset_left,
             Side::Right => self.centre_right + self.offset_right,
         };
-        let target_maybe_negated = match side {
-            Side::Left => -target,
-            Side::Right => target,
-        };
         self.hoverkite
-            .set_target(side, target_maybe_negated)
+            .set_target(side, target)
             .wrap_err("Failed to set target")?;
         self.homie.send_target(side, target);
         Ok(())

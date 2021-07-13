@@ -201,6 +201,8 @@ pub struct Hoverboard {
     /// This will be low when the charger is connected.
     pub charge_state: PF0<Input<PullUp>>,
     pub leds: Leds,
+    /// Whether to negate the motor position readings and power setting.
+    pub negate_motor: bool,
 }
 
 impl Hoverboard {
@@ -219,6 +221,7 @@ impl Hoverboard {
         apb1: &mut APB1,
         apb2: &mut APB2,
         clocks: Clocks,
+        negate_motor: bool,
     ) -> Hoverboard {
         let mut gpioa = gpioa.split(ahb);
         let mut gpiob = gpiob.split(ahb);
@@ -384,6 +387,7 @@ impl Hoverboard {
                 orange: gpioa.pa12.into_push_pull_output(&mut gpioa.config),
                 red: gpiob.pb3.into_push_pull_output(&mut gpiob.config),
             },
+            negate_motor,
         }
     }
 
@@ -404,7 +408,11 @@ impl Hoverboard {
             let shared = &mut *SHARED.borrow(cs).borrow_mut();
             let shared = shared.as_mut().unwrap();
 
-            shared.motor.position
+            if self.negate_motor {
+                -shared.motor.position
+            } else {
+                shared.motor.position
+            }
         })
     }
 
@@ -415,7 +423,7 @@ impl Hoverboard {
             let shared = &mut *SHARED.borrow(cs).borrow_mut();
             let shared = shared.as_mut().unwrap();
 
-            shared.motor.target_power = power;
+            shared.motor.target_power = if self.negate_motor { -power } else { power };
         })
     }
 

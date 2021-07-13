@@ -61,6 +61,11 @@ const POWER_OFF_FREQUENCY: Hertz = Hertz(800);
 #[cfg(feature = "secondary")]
 const POWER_ON_SILENT_MS: u32 = 1000;
 
+#[cfg(feature = "primary")]
+const NEGATE_MOTOR: bool = false;
+#[cfg(feature = "secondary")]
+const NEGATE_MOTOR: bool = true;
+
 #[entry]
 fn main() -> ! {
     let cp = cortex_m::Peripherals::take().unwrap();
@@ -94,6 +99,7 @@ fn main() -> ! {
         &mut rcu.apb1,
         &mut rcu.apb2,
         clocks,
+        NEGATE_MOTOR,
     );
 
     // Keep power on.
