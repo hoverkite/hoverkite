@@ -9,7 +9,6 @@ use eyre::Report;
 use gilrs::Gilrs;
 use log::error;
 use messages::client::Hoverkite;
-use tokio::runtime::Runtime;
 
 const BAUD_RATE: u32 = 115_200;
 
@@ -39,9 +38,7 @@ fn main() -> Result<(), Report> {
 
     let gilrs = Gilrs::new().unwrap();
 
-    let runtime = Runtime::new()?;
-    let handle = runtime.handle();
-    let homie = Homie::connect_and_start(handle, config.mqtt)?;
+    let homie = Homie::connect_and_start(config.mqtt)?;
 
     let mut controller = Controller::new(hoverkite, gilrs, homie);
     controller.run()

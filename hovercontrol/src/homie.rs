@@ -7,28 +7,27 @@ use eyre::Report;
 use homie_device::{HomieDevice, Node, Property};
 use log::{error, trace};
 use messages::{Side, SpeedLimits};
-use tokio::runtime::Handle;
+use tokio::runtime::Runtime;
 
 const HOMIE_PREFIX: &str = "homie";
 const HOMIE_DEVICE_ID: &str = "hoverkite";
 const HOMIE_DEVICE_NAME: &str = "Hoverkite";
 
-pub struct Homie<'a> {
+pub struct Homie {
     homie: Option<HomieDevice>,
-    handle: &'a Handle,
+    runtime: Runtime,
 }
 
-impl<'a> Homie<'a> {
-    pub fn connect_and_start(
-        handle: &'a Handle,
-        config: Option<MqttConfig>,
-    ) -> Result<Homie<'a>, Report> {
+impl Homie {
+    pub fn connect_and_start(config: Option<MqttConfig>) -> Result<Homie, Report> {
+        let runtime = Runtime::new()?;
+
         let homie = if let Some(config) = config {
-            Some(handle.block_on(make_homie_device(config))?)
+            Some(runtime.block_on(make_homie_device(config))?)
         } else {
             None
         };
-        Ok(Self { homie, handle })
+        Ok(Self { homie, runtime })
     }
 
     pub fn send_target(&self, side: Side, target: i64) {
@@ -75,7 +74,7 @@ impl<'a> Homie<'a> {
 
     fn send_property(&self, node_id: &str, property_id: &str, value: impl ToString) {
         if let Some(homie) = &self.homie {
-            self.handle.block_on(async {
+            self.runtime.block_on(async {
                 if let Err(e) = homie.publish_value(node_id, property_id, value).await {
                     error!("Error sending {} {} over MQTT: {}", node_id, property_id, e);
                 }

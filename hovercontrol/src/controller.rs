@@ -24,10 +24,10 @@ pub const SPRING_CONSTANT_STEP: u16 = 2;
 
 const CENTRE_STEP: i64 = 20;
 
-pub struct Controller<'a> {
+pub struct Controller {
     hoverkite: Hoverkite,
     gilrs: Gilrs,
-    homie: Homie<'a>,
+    homie: Homie,
     offset_left: i64,
     offset_right: i64,
     centre_left: i64,
@@ -37,8 +37,8 @@ pub struct Controller<'a> {
     spring_constant: u16,
 }
 
-impl<'a> Controller<'a> {
-    pub fn new(hoverkite: Hoverkite, gilrs: Gilrs, homie: Homie<'a>) -> Self {
+impl Controller {
+    pub fn new(hoverkite: Hoverkite, gilrs: Gilrs, homie: Homie) -> Self {
         Self {
             hoverkite,
             gilrs,
