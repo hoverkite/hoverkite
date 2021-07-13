@@ -1,4 +1,4 @@
-use crate::circular_buffer::CircularBuffer;
+use super::circular_buffer::CircularBuffer;
 use core::{cell::RefCell, fmt};
 use cortex_m::{
     asm::wfi,

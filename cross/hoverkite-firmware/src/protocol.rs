@@ -1,5 +1,5 @@
-use crate::buffered_tx::BufferedSerialWriter;
-use crate::circular_buffer::CircularBuffer;
+use crate::hoverboard::util::buffered_tx::BufferedSerialWriter;
+use crate::hoverboard::util::circular_buffer::CircularBuffer;
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
 use core::{fmt::Debug, ops::Deref};

@@ -1,192 +1,41 @@
-use crate::{
-    buffered_tx::{BufferState, BufferedSerialWriter, Listenable},
-    motor::{HallSensors, Motor},
-};
-use core::{cell::RefCell, mem, ops::Deref};
-use cortex_m::{
-    interrupt::{free, Mutex},
-    peripheral::NVIC,
-    singleton,
-};
+mod adc;
+mod buzzer;
+mod interrupts;
+mod motor;
+mod serial;
+pub mod util;
+
+use self::adc::AdcDmaState;
+pub use self::adc::AdcReadings;
+pub use self::buzzer::Buzzer;
+use self::interrupts::{unmask_interrupts, SHARED};
+use self::motor::{HallSensors, Motor};
+use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
+use self::util::buffered_tx::BufferedSerialWriter;
+use cortex_m::interrupt::free;
 use gd32f1x0_hal::{
-    adc::{Adc, AdcDma, SampleTime, Scan, Sequence, VBat},
-    dma::{Event, Transfer, W},
     gpio::{
-        gpioa::{PA0, PA1, PA12, PA15, PA3},
-        gpiob::{PB10, PB2, PB3},
+        gpioa::{PA0, PA12, PA15},
+        gpiob::{PB2, PB3},
         gpioc::PC15,
         gpiof::PF0,
-        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF2,
+        Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
     },
-    pac::{
-        adc::ctl1::CTN_A, interrupt, usart0, Interrupt, ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF,
-        TIMER0, TIMER1, USART0, USART1,
-    },
+    pac::{ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0, USART1},
     prelude::*,
-    pwm::{Channel, Pwm},
+    pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
     serial::{Config, Rx, Serial, Tx},
-    time::Hertz,
-    timer::{self, Timer},
 };
 
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
-#[allow(dead_code)]
-const CURRENT_OFFSET_DC: u16 = 1073;
-
-struct Shared {
-    motor: Motor,
-    adc_dma: AdcDmaState,
-    last_adc_readings: AdcReadings,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct AdcReadings {
-    pub battery_voltage: u16,
-    pub motor_current: u16,
-    pub backup_battery_voltage: u16,
-}
-
-impl AdcReadings {
-    fn update_from_buffer(&mut self, buffer: &[u16; 3], adc: &Adc) {
-        // TODO: Or is it better to just hardcode the ADC scaling factor?
-        self.battery_voltage = adc.calculate_voltage(buffer[0]) * 30;
-        self.motor_current = adc.calculate_voltage(buffer[1]);
-        self.backup_battery_voltage = adc.calculate_voltage(buffer[2]) * 2;
-    }
-}
-
-enum AdcDmaState {
-    NotStarted(AdcDma<Sequence, Scan>, &'static mut [u16; 3]),
-    Started(Transfer<W, &'static mut [u16; 3], AdcDma<Sequence, Scan>>),
-    None,
-}
-
-impl AdcDmaState {
-    fn with(&mut self, f: impl FnOnce(Self) -> Self) {
-        let adc_dma = mem::replace(self, AdcDmaState::None);
-        let adc_dma = f(adc_dma);
-        let _ = mem::replace(self, adc_dma);
-    }
-}
-
-static SHARED: Mutex<RefCell<Option<Shared>>> = Mutex::new(RefCell::new(None));
-static SERIAL0_BUFFER: Mutex<RefCell<BufferState<Tx<USART0>>>> =
-    Mutex::new(RefCell::new(BufferState::new()));
-static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
-    Mutex::new(RefCell::new(BufferState::new()));
-
-#[interrupt]
-fn USART0() {
-    free(|cs| {
-        SERIAL0_BUFFER.borrow(cs).borrow_mut().try_write();
-    })
-}
-
-#[interrupt]
-fn USART1() {
-    free(|cs| {
-        SERIAL1_BUFFER.borrow(cs).borrow_mut().try_write();
-    })
-}
-
-impl<USART: Deref<Target = usart0::RegisterBlock>> Listenable for Tx<USART> {
-    fn listen(&mut self) {
-        self.listen()
-    }
-
-    fn unlisten(&mut self) {
-        self.unlisten()
-    }
-}
 
 pub struct Leds {
     pub side: PA0<Output<PushPull>>,
     pub green: PA15<Output<PushPull>>,
     pub orange: PA12<Output<PushPull>>,
     pub red: PB3<Output<PushPull>>,
-}
-
-#[interrupt]
-fn TIMER0_BRK_UP_TRG_COM() {
-    free(|cs| {
-        if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-            let pwm = &mut shared.motor.pwm;
-            if pwm.is_pending(timer::Event::Update) {
-                shared.adc_dma.with(move |adc_dma| {
-                    if let AdcDmaState::NotStarted(mut adc_dma, buffer) = adc_dma {
-                        // Enable interrupts
-                        adc_dma.channel.listen(Event::TransferComplete);
-                        // Trigger ADC
-                        AdcDmaState::Started(adc_dma.read(buffer))
-                    } else {
-                        adc_dma
-                    }
-                });
-                // Clear timer update interrupt flag
-                pwm.clear_interrupt_flag(timer::Event::Update);
-            }
-        }
-    });
-}
-
-#[interrupt]
-fn DMA_CHANNEL0() {
-    free(|cs| {
-        if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
-            // Fetch ADC readings from the DMA buffer.
-            let last_adc_readings = &mut shared.last_adc_readings;
-            shared.adc_dma.with(move |adc_dma| {
-                if let AdcDmaState::Started(transfer) = adc_dma {
-                    let (buffer, adc_dma) = transfer.wait();
-                    last_adc_readings.update_from_buffer(buffer, adc_dma.as_ref());
-                    AdcDmaState::NotStarted(adc_dma, buffer)
-                } else {
-                    adc_dma
-                }
-            });
-
-            shared.motor.update();
-        }
-    });
-}
-
-/// This type is a bit bogus, PB10 is the only one that matters.
-type BuzzerPwmPins = (
-    Option<PA0<Alternate<AF2>>>,
-    Option<PA1<Alternate<AF2>>>,
-    Option<PB10<Alternate<AF2>>>,
-    Option<PA3<Alternate<AF2>>>,
-);
-
-/// The buzzer on the secondary board. This should not be used on the primary board.
-pub struct Buzzer {
-    pwm: Pwm<TIMER1, BuzzerPwmPins>,
-}
-
-impl Buzzer {
-    fn new(
-        timer1: TIMER1,
-        buzzer_pin: PB10<Alternate<AF2>>,
-        clocks: Clocks,
-        apb1: &mut APB1,
-    ) -> Self {
-        let pins = (None, None, Some(buzzer_pin), None);
-        let pwm = Timer::timer1(timer1, &clocks, apb1).pwm(pins, 1.khz());
-        Self { pwm }
-    }
-
-    /// Set the frequency of the buzzer, or turn it off.
-    pub fn set_frequency(&mut self, frequency: Option<impl Into<Hertz>>) {
-        if let Some(frequency) = frequency {
-            self.pwm.set_period(frequency.into());
-            self.pwm.set_duty(Channel::C2, self.pwm.get_max_duty() / 2);
-            self.pwm.enable(Channel::C2);
-        } else {
-            self.pwm.disable(Channel::C2);
-        }
-    }
 }
 
 pub struct Hoverboard {
@@ -237,7 +86,7 @@ impl Hoverboard {
             gpiob
                 .pb7
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
-        let (mut serial_remote_tx, serial_remote_rx) = Serial::usart(
+        let (serial_remote_tx, serial_remote_rx) = Serial::usart(
             usart0,
             (tx0, rx0),
             Config {
@@ -248,14 +97,7 @@ impl Hoverboard {
             apb2,
         )
         .split();
-        serial_remote_tx.listen();
-        free(move |cs| {
-            SERIAL0_BUFFER
-                .borrow(cs)
-                .borrow_mut()
-                .set_writer(serial_remote_tx)
-        });
-        let serial_remote_writer = BufferedSerialWriter::new(&SERIAL0_BUFFER);
+        let serial_remote_writer = setup_usart0_buffered_writer(serial_remote_tx);
 
         // USART1
         let tx1 =
@@ -266,7 +108,7 @@ impl Hoverboard {
             gpioa
                 .pa3
                 .into_alternate(&mut gpioa.config, PullMode::Floating, OutputMode::PushPull);
-        let (mut serial_tx, serial_rx) = Serial::usart(
+        let (serial_tx, serial_rx) = Serial::usart(
             usart1,
             (tx1, rx1),
             Config {
@@ -277,28 +119,15 @@ impl Hoverboard {
             apb1,
         )
         .split();
-        serial_tx.listen();
-        free(move |cs| SERIAL1_BUFFER.borrow(cs).borrow_mut().set_writer(serial_tx));
-        let serial_writer = BufferedSerialWriter::new(&SERIAL1_BUFFER);
+        let serial_writer = setup_usart1_buffered_writer(serial_tx);
 
         // DMA controller
         let dma = dma.split(ahb);
 
         // ADC
-        let mut adc = Adc::new(adc, apb2, clocks);
         let battery_voltage = gpioa.pa4.into_analog(&mut gpioa.config);
         let motor_current = gpioa.pa6.into_analog(&mut gpioa.config);
-        adc.set_sample_time(&battery_voltage, SampleTime::Cycles13_5);
-        adc.set_sample_time(&motor_current, SampleTime::Cycles13_5);
-        adc.set_sample_time(&VBat, SampleTime::Cycles13_5);
-        adc.enable_vbat(true);
-        let mut sequence = Sequence::default();
-        sequence.add_pin(battery_voltage).ok().unwrap();
-        sequence.add_pin(motor_current).ok().unwrap();
-        sequence.add_pin(VBat).ok().unwrap();
-        let adc = adc.with_regular_sequence(sequence);
-        let adc_dma = adc.with_scan_dma(dma.0, CTN_A::SINGLE, None);
-        let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
+        let adc_dma = AdcDmaState::setup(adc, battery_voltage, motor_current, apb2, clocks, dma.0);
 
         // Motor
         // Output speed defaults to 2MHz
@@ -357,20 +186,7 @@ impl Hoverboard {
                 .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::PushPull);
         let buzzer = Buzzer::new(timer1, buzzer_pin, clocks, apb1);
 
-        free(move |cs| {
-            SHARED.borrow(cs).replace(Some(Shared {
-                motor,
-                adc_dma: AdcDmaState::NotStarted(adc_dma, adc_dma_buffer),
-                last_adc_readings: AdcReadings::default(),
-            }))
-        });
-
-        unsafe {
-            NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
-            NVIC::unmask(Interrupt::DMA_CHANNEL0);
-            NVIC::unmask(Interrupt::USART0);
-            NVIC::unmask(Interrupt::USART1);
-        }
+        unmask_interrupts(motor, adc_dma);
 
         Hoverboard {
             serial_remote_rx,

@@ -1,10 +1,7 @@
 #![no_std]
 #![no_main]
 
-mod buffered_tx;
-mod circular_buffer;
 mod hoverboard;
-mod motor;
 mod protocol;
 mod systick;
 mod util;
@@ -20,7 +17,6 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
                      // use panic_itm as _; // logs messages over ITM; requires ITM support
                      // use panic_semihosting as _; // logs messages to the host stderr; requires a debugger
 
-use circular_buffer::CircularBuffer;
 #[cfg(feature = "secondary")]
 use core::num::NonZeroU32;
 use cortex_m_rt::entry;
@@ -28,6 +24,7 @@ use embedded_hal::serial::Read;
 #[cfg(feature = "secondary")]
 use gd32f1x0_hal::time::Hertz;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
+use hoverboard::util::circular_buffer::CircularBuffer;
 use hoverboard::Hoverboard;
 #[cfg(feature = "primary")]
 use protocol::process_response;
