@@ -60,8 +60,7 @@ impl Controller {
 
         loop {
             for response in self.hoverkite.poll()? {
-                print_response(&response);
-                self.send_response(&response);
+                self.handle_response(&response);
             }
 
             if let Some(Event {
@@ -77,7 +76,10 @@ impl Controller {
         }
     }
 
-    fn send_response(&self, response: &SideResponse) {
+    fn handle_response(&self, response: &SideResponse) {
+        print_response(&response);
+
+        // Send stats from the response to Homie, if appropriate.
         match response.response {
             Response::Position(position) => match response.side {
                 Side::Left => self.homie.send_position(Side::Left, -position),
