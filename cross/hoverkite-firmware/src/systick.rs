@@ -1,6 +1,7 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 use cortex_m::peripheral::SYST;
 use cortex_m_rt::exception;
+use embedded_hal::blocking::delay::DelayMs;
 use gd32f1x0_hal::{
     prelude::*,
     rcu::Clocks,
@@ -27,5 +28,24 @@ impl SysTick {
 
     pub fn millis_since_start(&self) -> u32 {
         MILLIS_SINCE_START.load(Ordering::SeqCst)
+    }
+}
+
+impl DelayMs<u32> for SysTick {
+    fn delay_ms(&mut self, ms: u32) {
+        let finish_millis = self.millis_since_start() + ms;
+        while self.millis_since_start() < finish_millis {}
+    }
+}
+
+impl DelayMs<u16> for SysTick {
+    fn delay_ms(&mut self, ms: u16) {
+        self.delay_ms(ms as u32);
+    }
+}
+
+impl DelayMs<u8> for SysTick {
+    fn delay_ms(&mut self, ms: u8) {
+        self.delay_ms(ms as u32);
     }
 }
