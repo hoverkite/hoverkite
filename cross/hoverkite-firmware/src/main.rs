@@ -65,7 +65,7 @@ const NEGATE_MOTOR: bool = true;
 
 #[entry]
 fn main() -> ! {
-    let cp = cortex_m::Peripherals::take().unwrap();
+    let mut cp = cortex_m::Peripherals::take().unwrap();
     let dp = pac::Peripherals::take().unwrap();
 
     let mut rcu = dp.RCU.constrain();
@@ -88,6 +88,7 @@ fn main() -> ! {
         dp.GPIOF,
         dp.USART0,
         dp.USART1,
+        dp.I2C0,
         dp.TIMER0,
         dp.TIMER1,
         dp.DMA,
@@ -95,6 +96,7 @@ fn main() -> ! {
         &mut rcu.ahb,
         &mut rcu.apb1,
         &mut rcu.apb2,
+        &mut cp.DWT,
         clocks,
         NEGATE_MOTOR,
     );
