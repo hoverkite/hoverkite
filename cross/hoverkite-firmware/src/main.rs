@@ -6,6 +6,7 @@ mod protocol;
 mod systick;
 mod util;
 
+use bmi160::SensorSelector;
 #[cfg(feature = "primary")]
 use messages::Command;
 use messages::SpeedLimits;
@@ -213,6 +214,18 @@ fn main() -> ! {
         if position != last_position {
             send_position(hoverboard.response_tx(), position);
             last_position = position;
+        }
+
+        let status = hoverboard.imu.status().unwrap();
+        if status.accel_data_ready && status.gyro_data_ready {
+            let data = hoverboard.imu.data(SensorSelector::all()).unwrap();
+            log!(
+                hoverboard.response_tx(),
+                "Accel: {:?} gyro: {:?} time: {:?}",
+                data.accel.unwrap(),
+                data.gyro.unwrap(),
+                data.time.unwrap()
+            );
         }
 
         // Try to move towards the target position.
