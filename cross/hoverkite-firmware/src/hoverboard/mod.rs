@@ -162,10 +162,6 @@ impl Hoverboard {
         );
         // It's actually a BMI120 (or a clone of it), but the BMI160 is close enough that it works.
         let mut imu = Bmi160::new_with_i2c(i2c, SlaveAddr::Default);
-        match imu.chip_id() {
-            Err(e) => log!(&mut serial_writer, "Error reading chip ID: {:?}", e),
-            Ok(chip_id) => log!(&mut serial_writer, "Chip ID: {:#x}", chip_id),
-        }
         if let Err(e) = imu.set_accel_power_mode(AccelerometerPowerMode::Normal) {
             log!(
                 &mut serial_writer,
