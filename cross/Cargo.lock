@@ -30,6 +30,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bmi160"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "768b9d4065e62e7db91f03f258febcb4aa92b29376775a938605263c2d9facce"
+dependencies = [
+ "embedded-hal",
+]
+
+[[package]]
 name = "bxcan"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -149,6 +158,7 @@ dependencies = [
 name = "hoverkite-firmware"
 version = "0.1.0"
 dependencies = [
+ "bmi160",
  "cortex-m",
  "cortex-m-rt",
  "cortex-m-semihosting",

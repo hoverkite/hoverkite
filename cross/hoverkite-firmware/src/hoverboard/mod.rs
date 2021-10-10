@@ -12,16 +12,21 @@ use self::interrupts::{unmask_interrupts, SHARED};
 use self::motor::{HallSensors, Motor};
 use self::serial::{setup_usart0_buffered_writer, setup_usart1_buffered_writer};
 use self::util::buffered_tx::BufferedSerialWriter;
+use crate::log;
+use bmi160::{
+    interface::I2cInterface, AccelerometerPowerMode, Bmi160, GyroscopePowerMode, SlaveAddr,
+};
 use cortex_m::interrupt::free;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA12, PA15},
-        gpiob::{PB2, PB3},
+        gpiob::{PB2, PB3, PB8, PB9},
         gpioc::PC15,
         gpiof::PF0,
-        Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull,
+        Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
     },
-    pac::{ADC, DMA, GPIOA, GPIOB, GPIOC, GPIOF, TIMER0, TIMER1, USART0, USART1},
+    i2c::{BlockingI2c, Mode},
+    pac::{ADC, DMA, DWT, GPIOA, GPIOB, GPIOC, GPIOF, I2C0, TIMER0, TIMER1, USART0, USART1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -30,6 +35,13 @@ use gd32f1x0_hal::{
 
 const USART_BAUD_RATE: u32 = 115200;
 const MOTOR_PWM_FREQ_HERTZ: u32 = 16000;
+
+// These settings are fairly arbitrary, but they seem to work.
+const I2C_FREQUENCY_HERTZ: u32 = 400_000;
+const I2C_START_TIMEOUT_US: u32 = 1000;
+const I2C_START_RETRIES: u8 = 3;
+const I2C_ADDR_TIMEOUT_US: u32 = 1000;
+const I2C_DATA_TIMEOUT_US: u32 = 1000;
 
 pub struct Leds {
     pub side: PA0<Output<PushPull>>,
@@ -43,6 +55,7 @@ pub struct Hoverboard {
     pub serial_remote_writer: BufferedSerialWriter<Tx<USART0>>,
     pub serial_rx: Rx<USART1>,
     pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
+    pub imu: Bmi160<I2cInterface<BlockingI2c<I2C0, PB8<Alternate<AF1>>, PB9<Alternate<AF1>>>>>,
     pub buzzer: Buzzer,
     pub power_latch: PB2<Output<PushPull>>,
     /// This will be high when the power button is pressed.
@@ -62,6 +75,7 @@ impl Hoverboard {
         gpiof: GPIOF,
         usart0: USART0,
         usart1: USART1,
+        i2c0: I2C0,
         timer0: TIMER0,
         timer1: TIMER1,
         dma: DMA,
@@ -69,6 +83,7 @@ impl Hoverboard {
         ahb: &mut AHB,
         apb1: &mut APB1,
         apb2: &mut APB2,
+        dwt: &mut DWT,
         clocks: Clocks,
         negate_motor: bool,
     ) -> Hoverboard {
@@ -119,7 +134,48 @@ impl Hoverboard {
             apb1,
         )
         .split();
-        let serial_writer = setup_usart1_buffered_writer(serial_tx);
+        let mut serial_writer = setup_usart1_buffered_writer(serial_tx);
+
+        // I2C0
+        let scl =
+            gpiob
+                .pb8
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::OpenDrain);
+        let sda =
+            gpiob
+                .pb9
+                .into_alternate(&mut gpiob.config, PullMode::Floating, OutputMode::OpenDrain);
+        dwt.enable_cycle_counter();
+        let i2c = BlockingI2c::i2c0(
+            i2c0,
+            scl,
+            sda,
+            Mode::Standard {
+                frequency: I2C_FREQUENCY_HERTZ.hz(),
+            },
+            clocks,
+            apb1,
+            I2C_START_TIMEOUT_US,
+            I2C_START_RETRIES,
+            I2C_ADDR_TIMEOUT_US,
+            I2C_DATA_TIMEOUT_US,
+        );
+        // It's actually a BMI120 (or a clone of it), but the BMI160 is close enough that it works.
+        let mut imu = Bmi160::new_with_i2c(i2c, SlaveAddr::Default);
+        if let Err(e) = imu.set_accel_power_mode(AccelerometerPowerMode::Normal) {
+            log!(
+                &mut serial_writer,
+                "Error setting accelerometer power mode: {:?}",
+                e
+            );
+        }
+        if let Err(e) = imu.set_gyro_power_mode(GyroscopePowerMode::Normal) {
+            log!(
+                &mut serial_writer,
+                "Error setting gyroscope power mode: {:?}",
+                e
+            );
+        }
 
         // DMA controller
         let dma = dma.split(ahb);
@@ -193,6 +249,7 @@ impl Hoverboard {
             serial_remote_writer,
             serial_rx,
             serial_writer,
+            imu,
             buzzer,
             power_latch: gpiob.pb2.into_push_pull_output(&mut gpiob.config),
             power_button: gpioc.pc15.into_floating_input(&mut gpioc.config),
