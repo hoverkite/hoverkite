@@ -12,7 +12,7 @@ jobs:
     name: Add to Kanban Board
     steps:
       - name: Add new issues and pull requests to kanban board
-        uses: srggrs/assign-one-project-github-action@1.2.1
+        uses: srggrs/assign-one-project-github-action@1.3.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
