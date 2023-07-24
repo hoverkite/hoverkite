@@ -7,7 +7,7 @@ version = "0.1.0"
 [dependencies]
 color-backtrace = "0.5.1"
 eyre = "0.6.8"
-gilrs = "0.9.0"
+gilrs = "0.10.2"
 homie-device = "0.6.0"
 log = "0.4.14"
 messages = { path = "../messages" }
