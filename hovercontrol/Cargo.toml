@@ -8,7 +8,7 @@ version = "0.1.0"
 color-backtrace = "0.6.0"
 eyre = "0.6.8"
 gilrs = "0.10.2"
-homie-device = "0.6.0"
+homie-device = "0.8.0"
 log = "0.4.19"
 messages = { path = "../messages" }
 nb = "1.1.0"
