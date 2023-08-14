@@ -23,4 +23,4 @@ stable-eyre = "0.2.2"
 # TODO: Remove "io-util" and "macros" once a new version of rumqttc is released which fixes
 # https://github.com/bytebeamio/rumqtt/issues/294.
 tokio = { version = "1.19.2", features = ["io-util", "macros", "rt", "rt-multi-thread"] }
-toml = "0.5.8"
+toml = "0.7.6"
