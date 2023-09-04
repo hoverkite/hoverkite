@@ -1,8 +1,10 @@
 use eyre::{Report, WrapErr};
-use rumqttc::{ClientConfig, MqttOptions, Transport};
+use rumqttc::{MqttOptions, Transport};
+use rustls::{ClientConfig, RootCertStore};
 use serde_derive::Deserialize;
-use std::fs::read_to_string;
+use std::{fs::read_to_string, time::Duration};
 
+const KEEP_ALIVE: Duration = Duration::from_secs(5);
 const CONFIG_FILENAME: &str = "hovercontrol.toml";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -44,15 +46,23 @@ pub fn get_mqtt_options(config: MqttConfig, device_id: &str) -> MqttOptions {
 
     let mut mqtt_options = MqttOptions::new(client_name, config.host, config.port);
 
-    mqtt_options.set_keep_alive(5);
+    mqtt_options.set_keep_alive(KEEP_ALIVE);
     if let (Some(username), Some(password)) = (config.username, config.password) {
         mqtt_options.set_credentials(username, password);
     }
 
     if config.use_tls {
-        let mut client_config = ClientConfig::new();
-        client_config.root_store =
-            rustls_native_certs::load_native_certs().expect("could not load platform certs");
+        let mut root_store = RootCertStore::empty();
+        for cert in
+            rustls_native_certs::load_native_certs().expect("Failed to load platform certificates.")
+        {
+            root_store.add(&rustls::Certificate(cert.0)).unwrap();
+        }
+
+        let client_config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
         mqtt_options.set_transport(Transport::tls_with_config(client_config.into()));
     }
     mqtt_options
