@@ -31,9 +31,9 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "bmi160"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "768b9d4065e62e7db91f03f258febcb4aa92b29376775a938605263c2d9facce"
+checksum = "a0188540dc455081ecd206a2edf45928f6485820776c76f0f9e83ef205f4487e"
 dependencies = [
  "embedded-hal",
 ]
