@@ -40,11 +40,12 @@ dependencies = [
 
 [[package]]
 name = "bxcan"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a1dc3b545836005ba85f3de0fc115409485b72fc034b7bfa506eae10826bb64"
+checksum = "40ac3d0c0a542d0ab5521211f873f62706a7136df415676f676d347e5a41dd80"
 dependencies = [
  "bitflags",
+ "embedded-hal",
  "nb 1.1.0",
  "vcell",
 ]
@@ -57,9 +58,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cortex-m"
-version = "0.7.3"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ac919ef424449ec8c08d515590ce15d9262c0ca5f0da5b0c901e971a3b783b3"
+checksum = "8ec610d8f49840a5b376c69663b6369e71f4b34484b9b2eb29fb918d92516cb9"
 dependencies = [
  "bare-metal",
  "bitfield",
@@ -109,9 +110,9 @@ dependencies = [
 
 [[package]]
 name = "embedded-dma"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c8c02e4347a0267ca60813c952017f4c5948c232474c6010a381a337f1bda4"
+checksum = "994f7e5b5cb23521c22304927195f236813053eb9c065dd2226a32ba64695446"
 dependencies = [
  "stable_deref_trait",
 ]
@@ -128,9 +129,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4092ed78f657076cac22c3bf5479b7ef90a7149d6df96e280a061a56e9e136a7"
+checksum = "7f484ed96a7b3129d72792c31eb9d22e8e3164d668dcbfd05ce8e5786799a946"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -139,9 +140,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.6.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a785425922616f30f0cde321c1c13e47ef3903c621aafd8696cf37f7435f61"
+checksum = "0e94f33a60f7c7a4a38010bf4801b182cf294a8f1236e3cf528bb1f0fe995571"
 dependencies = [
  "bxcan",
  "cast",
