@@ -348,9 +348,9 @@ dependencies = [
 
 [[package]]
 name = "gilrs"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62fd19844d0eb919aca41d3e4ea0e0b6bf60e1e827558b101c269015b8f5f27a"
+checksum = "9e9eec02069fcbd7abe00a28adf216547774889129a777cb5e53fdfb75d59f09"
 dependencies = [
  "fnv",
  "gilrs-core",
