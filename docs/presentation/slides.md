@@ -51,6 +51,18 @@ as useful documentation and inspiration. They also have some
 [circuit diagrams and pinouts](https://github.com/gearsincorg/Hoverboards-for-assistive-devices/blob/master/Hoverboard/Documents/Schematic_CoolAndFun.pdf)
 which were very useful.
 
+---
+
+![The front of the board](board_front.jpg)
+
+---
+
+![The back of the board](board_back.jpg)
+
+---
+
+# Hoverboard boards
+
 Each half has an almost-identical "TT-SD2.2" board with:
 
 - A GD32F130C8 microcontroller.
@@ -79,7 +91,8 @@ onto the SWD port and second serial port.
 Connect an ST-Link V2 SWD debugger, and we're in! First step, disable the watchdog timer:
 
 ```sh
-openocd -f interface/stlink-v2.cfg -f target/stm32f1x.cfg -c init -c "reset halt; stm32f1x options_write 0 SWWDG"
+openocd -f interface/stlink-v2.cfg -f target/stm32f1x.cfg -c init \
+  -c "reset halt; stm32f1x options_write 0 SWWDG"
 ```
 
 ---
