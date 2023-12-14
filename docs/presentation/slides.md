@@ -7,8 +7,9 @@ Andrew Walbran
 # Outline
 
 - Generating power with a kite
-- Hoverboard
+- Hardware
 - Firmware
+- Controlling it
 - Next steps
 
 ---
@@ -22,3 +23,65 @@ Kite has two strings wound on reels connected to motors, which can also act as g
 3. Steer kite to edge of wind window.
 4. Wind string back in, using less energy than was generated on the way out.
 5. Repeat.
+
+---
+
+# Hardware
+
+What hardware do we need?
+
+1. Two motors
+2. Spools to wind the strings on
+3. Motor controllers
+4. A microcontroller and other electronics to manage the motors
+5. A big battery to power it all
+
+Let's take the tires off a hoverboard!
+
+---
+
+# Hoverboard
+
+David bought a "Zinc Smart GT Pro" hoverboard.
+
+These boards have been hacked to make
+[DIY mobility devices](https://hackaday.io/project/170932-hoverboards-for-assistive-devices). Their
+[firmware](https://github.com/gearsincorg/Hoverboards-for-assistive-devices) is all in C, but served
+as useful documentation and inspiration. They also have some
+[circuit diagrams and pinouts](https://github.com/gearsincorg/Hoverboards-for-assistive-devices/blob/master/Hoverboard/Documents/Schematic_CoolAndFun.pdf)
+which were very useful.
+
+Each half has an almost-identical "TT-SD2.2" board with:
+
+- A GD32F130C8 microcontroller.
+- 6 power MOSFETs to drive the three phase brushless DC motor, and 3 hall effect sensors to sense
+  its position.
+- A BMI160 6-axis IMU (accelerometer & gyroscope).
+- Opto-interruptors to sense someone standing on the hoverboard.
+- Two UARTs.
+- Some LEDs.
+- Battery voltage measurement.
+- Motor current measurement.
+- A power button.
+- An (unpopulated) SWD header.
+
+One half also has a piezo speaker, a battery charger connection, and a Bluetooth module. The only
+connections between the two halves are power, and a serial connection between the UARTs for
+communication.
+
+---
+
+# Hardware hacking
+
+We removed the tires from the hoverboard wheels so they could serve as spools, and soldered headers
+onto the SWD port and second serial port.
+
+Connect an ST-Link V2 SWD debugger, and we're in! First step, disable the watchdog timer:
+
+```sh
+openocd -f interface/stlink-v2.cfg -f target/stm32f1x.cfg -c init -c "reset halt; stm32f1x options_write 0 SWWDG"
+```
+
+---
+
+# Time to write some firmware
