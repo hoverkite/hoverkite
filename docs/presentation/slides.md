@@ -185,3 +185,26 @@ testing crates, and generating a bunch of useful [HTML pages](https://gd32-rust.
 The datasheet has pinouts and specifications (RAM and flash size, numbers of various peripherals)
 for all the different variants of the GD32F130 family, along with packaging and electrical
 characteristics. GD32F150 and so on have their own datasheets.
+
+---
+
+# HAL time
+
+Forked from `stm32f1xx-hal`, as some peripherals are similar.
+
+???
+
+* Type state pattern is used a fair bit for setting up peripherals.
+* Lots of (declarative) macros, for similar types and implementations where generics don't work.
+
+---
+
+# BLDC motor control
+
+---
+
+# Talking to a a computer (and the other half)
+
+---
+
+# Whoops, I'm a maintainer now
