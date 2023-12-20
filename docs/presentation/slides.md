@@ -97,6 +97,16 @@ openocd -f interface/stlink-v2.cfg -f target/stm32f1x.cfg -c init \
 
 ---
 
+![The board connected to an STLink debugger](board_stlink.jpg)
+
+A USB serial adapter is handy too.
+
+???
+
+We stuck some tape on the piezo speaker as it was too loud.
+
+---
+
 # Time to write some firmware
 
 It would be easiest to write it in C with PlatformIO and the official GigaDevices headers, based on
