@@ -138,3 +138,50 @@ Nope. Some basic peripherals are more or less the same, but many are significant
 ---
 
 # Time to write a PAC
+
+Found `GD32F1x0.svd` on GigaDevice's website, along with the
+[datasheet](https://www.gigadevice.com.cn/Public/Uploads/uploadfile/files/20230314/GD32F130xxDatasheetRev3.7.pdf)
+(79 page PDF) and
+[user manual](https://www.gigadevice.com.cn/Public/Uploads/uploadfile/files/20230209/GD32F1x0_User_Manual_EN_Rev3.6.pdf)
+(702 page PDF).
+
+Added lots of patches with svdtools, e.g.:
+
+```yaml
+"I2C*":
+  CTL0:
+    SRESET:
+      NotReset: [0, "I2C peripheral not under reset"]
+      Reset: [1, "I2C peripheral under reset"]
+    SALT:
+      Release: [0, "SMBA pin released high"]
+      Drive: [1, "SMBA pin driven low"]
+    PECTRANS:
+      Disabled: [0, "No PEC transfer"]
+      Enabled: [1, "PEC transfer"]
+  SADDR1:
+    ADDRESS2: [0, 0x7F]
+    DUADEN:
+      Single: [0, "Single addressing mode"]
+      Dual: [1, "Dual addressing mode"]
+```
+
+Released [`gd32f1`](https://crates.io/crates/gd32f1), supporting GD32F130, FD32F150, GD32F170 and
+GD32F190.
+
+???
+
+User manual documents all the peripherals and their registers. The SVD file has some of the same
+information (namely the addresses of registers and field names), but has some mistakes and is
+missing many details (e.g. enum variant names, valid ranges for values). Adding these in results in
+a more usable generated PAC crate. Lots of tedious reading of user manual to write patches for
+peripherals I care about. The snippet above is a small part of the patch for the I2C peripherals.
+
+Initially tried sending patches to add support for the GD32F1x0 this to the existing `stm32-rs`
+project, but they said it was out of scope. Instead forked to new
+[gd32-rs](https://github.com/gd32-rust/gd32-rs) repository, keeping their setup for building and
+testing crates, and generating a bunch of HTML.
+
+The datasheet has pinouts and specifications (RAM and flash size, numbers of various peripherals)
+for all the different variants of the GD32F130 family, along with packaging and electrical
+characteristics. GD32F150 and so on have their own datasheets.
