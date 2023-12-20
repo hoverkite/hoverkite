@@ -180,7 +180,7 @@ peripherals I care about. The snippet above is a small part of the patch for the
 Initially tried sending patches to add support for the GD32F1x0 this to the existing `stm32-rs`
 project, but they said it was out of scope. Instead forked to new
 [gd32-rs](https://github.com/gd32-rust/gd32-rs) repository, keeping their setup for building and
-testing crates, and generating a bunch of HTML.
+testing crates, and generating a bunch of useful [HTML pages](https://gd32-rust.github.io/gd32-rs/).
 
 The datasheet has pinouts and specifications (RAM and flash size, numbers of various peripherals)
 for all the different variants of the GD32F130 family, along with packaging and electrical
