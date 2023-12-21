@@ -291,6 +291,20 @@ pub struct Hoverboard {
 
 # BLDC motor control
 
+| Position | Sensor values |
+| -------- | ------------- |
+| 0        | 0 0 1         |
+| 1        | 1 0 1         |
+| 2        | 1 0 0         |
+| 3        | 1 1 0         |
+| 4        | 0 1 0         |
+| 5        | 0 1 1         |
+
+???
+
+- We have three Hall effect sensors connected to digital inputs, and three motor windings connected
+  between pairs of MOSFETs.
+
 ---
 
 # Talking to a a computer (and the other half)
