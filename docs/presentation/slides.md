@@ -230,6 +230,65 @@ impl Watchdog for FreeWatchdog {
 
 ---
 
+# Initialisation
+
+```rust
+#[entry]
+fn main() -> ! {
+  let mut cp = cortex_m::Peripherals::take().unwrap();
+  let dp = pac::Peripherals::take().unwrap();
+
+  let mut rcu = dp.RCU.constrain();
+  let mut flash = dp.FMC.constrain();
+  let clocks = rcu.cfgr.sysclk(72.mhz()).adcclk(12.mhz()).freeze(&mut flash.ws);
+
+  let mut watchdog = FreeWatchdog::new(dp.FWDGT);
+  watchdog.start(WATCHDOG_MILLIS.ms());
+
+  let systick = SysTick::start(cp.SYST, &clocks);
+
+  let mut hoverboard = Hoverboard::new(dp.GPIOA, dp.TIMER0, &mut rcu.apb1,
+                                       clocks, ...);
+
+  // More initialisation...
+
+  loop {
+    watchdog.feed();
+
+    // Process events...
+  }
+}
+```
+
+???
+
+- `Peripherals::take()` returns a struct containing the PAC representations of all peripherals. If
+  you call it a second time it returns `None`, to prevent multiple references to the same registers
+  existing.
+
+---
+
+# Abstraction
+
+Let's make a wrapper for the peripherals on the hoverboard.
+
+```rust
+pub struct Hoverboard {
+  pub serial_rx: Rx<USART1>,
+  pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
+  pub imu: Bmi160<I2cInterface<
+      BlockingI2c<I2C0, PB8<Alternate<AF1>>, PB9<Alternate<AF1>>>>>,
+  pub buzzer: Buzzer,
+  pub power_latch: PB2<Output<PushPull>>,
+  /// This will be high when the power button is pressed.
+  pub power_button: PC15<Input<Floating>>,
+  pub leds: Leds,
+  // More fields...
+}
+```
+
+---
+
 # BLDC motor control
 
 ---
