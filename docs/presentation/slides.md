@@ -192,10 +192,41 @@ characteristics. GD32F150 and so on have their own datasheets.
 
 Forked from `stm32f1xx-hal`, as some peripherals are similar.
 
+```rust
+use crate::{pac::FWDGT, time::MilliSeconds};
+use embedded_hal::watchdog::{Watchdog, WatchdogEnable};
+
+pub struct FreeWatchdog {
+  fwdgt: FWDGT,
+}
+
+impl WatchdogEnable for FreeWatchdog {
+  type Time = MilliSeconds;
+
+  fn start<T: Into<Self::Time>>(&mut self, period: T) {
+    self.setup(period.into().0);
+
+    self.fwdgt.ctl.write(|w| w.cmd().start());
+  }
+}
+
+impl Watchdog for FreeWatchdog {
+  fn feed(&mut self) {
+    self.fwdgt.ctl.write(|w| w.cmd().reset());
+  }
+}
+```
+
 ???
 
-* Type state pattern is used a fair bit for setting up peripherals.
-* Lots of (declarative) macros, for similar types and implementations where generics don't work.
+- Free watchdog timer: this is probably the simplest module of the HAL.
+- Watchdog will reset the MCU if it is not fed for more than the given period of time.
+- `FWDGT` is the free watchdog peripheral from the PAC, which gives us access to the registers.
+- Taking ownership of `FWDGT` gives us unique access to the peripheral registers, as the PAC only
+  allows one instance of each peripheral to exist. (It doesn't implement `Clone`.)
+- I've omitted `FreeWatchdog::setup` and some other methods which were too long to fit on the slide.
+- Type state pattern is used a fair bit for setting up peripherals.
+- Lots of (declarative) macros, for similar types and implementations where generics don't work.
 
 ---
 
