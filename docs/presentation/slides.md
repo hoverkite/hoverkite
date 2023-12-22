@@ -302,21 +302,90 @@ pub struct Hoverboard {
 
 ---
 
-# BLDC motor control
+# BLDC motor driver
 
-| Position | Sensor values |
-| -------- | ------------- |
-| 0        | 0 0 1         |
-| 1        | 1 0 1         |
-| 2        | 1 0 0         |
-| 3        | 1 1 0         |
-| 4        | 0 1 0         |
-| 5        | 0 1 1         |
+![BLDC motor driver circuit](bldc_driver.svg)
 
 ???
 
-- We have three Hall effect sensors connected to digital inputs, and three motor windings connected
-  between pairs of MOSFETs.
+- Three motor windings connected between pairs of MOSFETs, like an H-bridge with an extra leg.
+- Each leg can be driven high, driven low, or undriven.
+
+---
+
+# BLDC motor control
+
+| Position | Sensor values | Forwards | Backwards |
+| -------- | ------------- | -------- | --------- |
+| 0        | `0 0 1`       | `0 + -`  | `0 - +`   |
+| 1        | `1 0 1`       | `- + 0`  | `+ - 0`   |
+| 2        | `1 0 0`       | `- 0 +`  | `+ 0 -`   |
+| 3        | `1 1 0`       | `0 - +`  | `0 + -`   |
+| 4        | `0 1 0`       | `+ - 0`  | `- + 0`   |
+| 5        | `0 1 1`       | `+ 0 -`  | `- 0 +`   |
+
+???
+
+- We have three Hall effect sensors connected to digital inputs, and three motor windings.
+- We drive all the motor connections from a single PWM unit, configured to use a different duty
+  cycle for each pair of outputs.
+- '0' here actually means a 50% duty cycle, '+' means > 50%, '-' means < 50%.
+- How much greater or less? That's how we control torque.
+
+---
+
+```rust
+impl Motor {
+  fn set_position_power(&mut self, power: i16, position: u8) {
+    // If power is below a threshold, turn it off entirely.
+    if power.abs() < MOTOR_POWER_DEAD_ZONE {
+      self.pwm.output_disable();
+      return;
+    }
+    self.pwm.automatic_output_enable();
+
+    let power: i16 = clamp(power, &(-1000..=1000));
+    let (y, b, g) = match position {
+      0 => (0, power, -power),
+      1 => (-power, power, 0),
+      2 => (-power, 0, power),
+      3 => (0, -power, power),
+      4 => (power, -power, 0),
+      5 => (power, 0, -power),
+      _ => (0, 0, 0),
+    };
+    let duty_max = self.pwm.get_max_duty();
+    let power_max = (duty_max / 2) as i32;
+    let y = y as i32 * power_max / 1000;
+    let b = b as i32 * power_max / 1000;
+    let g = g as i32 * power_max / 1000;
+    let y = clamp((y + power_max) as u16, &(10..=duty_max - 10));
+    let b = clamp((b + power_max) as u16, &(10..=duty_max - 10));
+    let g = clamp((g + power_max) as u16, &(10..=duty_max - 10));
+    self.set_duty_cycles(y, b, g);
+  }
+}
+```
+
+???
+
+- This is called regularly from an interrupt handler.
+- To stop driving the motor entirely, we disable the PWM unit to save power. This lets all the motor
+  connections float, so it can turn freely.
+
+---
+
+# Debugging electronics
+
+![PWM signals on an oscilloscope](scope.jpg)
+
+???
+
+- Blue and yellow are control signals for two halves of one channel running at 50% duty cycle.
+- Note the slight offset in timing; it's better to have the motor be undriven for a fraction of a
+  second than have a short circuit. The PWM hardware is configured to do this automatically.
+- Pink is another channel. Scale is different because the scope only has two analogue inputs, this
+  is a digital input.
 
 ---
 
