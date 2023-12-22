@@ -109,7 +109,7 @@ We stuck some tape on the piezo speaker as it was too loud.
 
 # Time to write some firmware
 
-It would be easiest to write it in C with PlatformIO and the official GigaDevices headers, based on
+It would be easiest to write it in C with PlatformIO and the official GigaDevice headers, based on
 the existing assistive devices code we found...
 
 --
