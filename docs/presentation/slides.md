@@ -416,7 +416,40 @@ hoverboard.set_motor_power(speed);
 
 ---
 
-# Talking to a a computer (and the other half)
+# Talking to a computer (and the other half)
+
+- Each side has two USARTs we can use.
+- For ease of use, we connect the 'primary' side to the computer, and the secondary side to the
+  primary side. The primary side relays commands to the secondary side.
+- Command crate shared between device and controller sides:
+
+```rust
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Command {
+  SetSideLed(bool),
+  SetOrangeLed(bool),
+  SetRedLed(bool),
+  SetGreenLed(bool),
+  AddBuzzerNote(Note),
+  ReportBattery,
+  ReportCharger,
+  SetMaxSpeed(SpeedLimits),
+  SetSpringConstant(u16),
+  SetTarget(i64),
+  RemoveTarget,
+  Recenter,
+  IncrementTarget,
+  DecrementTarget,
+  PowerOff,
+  TestMotor,
+}
+```
+
+???
+
+- This can be connected either to a laptop via a USB serial adapter, or directly to a Raspberry Pi.
+- Parsing is a big `match` expression, matching on a slice.
+- Parsing and serialisation code has plenty of tests, which can be run on the host.
 
 ---
 
