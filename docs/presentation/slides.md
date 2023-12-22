@@ -265,6 +265,9 @@ fn main() -> ! {
 - `Peripherals::take()` returns a struct containing the PAC representations of all peripherals. If
   you call it a second time it returns `None`, to prevent multiple references to the same registers
   existing.
+- `constrain()` comes from extension traits which essentially convert the PAC type into the HAL
+  type.
+- `SysTick` gives us a clock, so we can measure time durations.
 
 ---
 
@@ -286,6 +289,16 @@ pub struct Hoverboard {
   // More fields...
 }
 ```
+
+???
+
+- `Bmi160` comes from another library, which gives us access to the IMU over I2C.
+- `Leds` is a struct with appropriately named fields for the various LEDs connected to GPIO pins.
+- `Buzzer` is a small wrapper around the PWM module from the HAL, which uses a timer to drive the
+  piezo speaker at a given frequency.
+- There are more fields for the other USART, charge state, and some configuration.
+- There is also a struct representing the motor, but it is stored in a static variable inside a
+  `Mutex` because it needs to be accessed from interrupt handlers.
 
 ---
 
