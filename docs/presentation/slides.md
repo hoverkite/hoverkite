@@ -369,9 +369,11 @@ impl Motor {
 
 ???
 
-- This is called regularly from an interrupt handler.
+- This is called regularly from an interrupt handler at 16 kHz.
 - To stop driving the motor entirely, we disable the PWM unit to save power. This lets all the motor
   connections float, so it can turn freely.
+- Another layer on top of this keeps track of the absolute position of the motor, and applies
+  smoothing to move the power slowly towards a target power value to avoid jerky movement.
 
 ---
 
@@ -386,6 +388,31 @@ impl Motor {
   second than have a short circuit. The PWM hardware is configured to do this automatically.
 - Pink is another channel. Scale is different because the scope only has two analogue inputs, this
   is a digital input.
+
+---
+
+# Where to?
+
+What we actually want to do is pull a kite string, so we care about position more than speed.
+
+```rust
+if let Some(target_position) = target_position {
+  let difference = target_position - position;
+  speed = clamp(difference * spring_constant, &speed_limits.into());
+} else {
+  speed = 0;
+}
+
+hoverboard.set_motor_power(speed);
+```
+
+???
+
+- Yet another layer sets the target power based on the absolute position and a target position. The
+  power is set to the difference times a configured spring constant, capped at a configured power
+  limit.
+- Experimentally, trying to turn the wheel does indeed feel like a spring!
+- We also set the LEDs based on the position difference, to give a visual indication of what's happening.
 
 ---
 
