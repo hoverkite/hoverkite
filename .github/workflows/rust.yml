@@ -82,11 +82,11 @@ jobs:
       - name: Build for coverage
         run: cargo build --all-features
         env:
-          RUSTFLAGS: "-Zinstrument-coverage"
+          RUSTFLAGS: "-Cinstrument_coverage"
       - name: Run tests with coverage
         run: cargo test --all-features
         env:
-          RUSTFLAGS: "-Zinstrument-coverage"
+          RUSTFLAGS: "-Cinstrument_coverage"
           LLVM_PROFILE_FILE: "test-coverage-%p-%m.profraw"
       - name: Convert coverage
         run: ./grcov . -s . --binary-path target/debug/ -t lcov --branch --ignore-not-existing -o target/debug/lcov.info
