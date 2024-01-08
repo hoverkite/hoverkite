@@ -79,10 +79,6 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
-      - name: Build for coverage
-        run: cargo build --all-features
-        env:
-          RUSTFLAGS: "-Cinstrument_coverage"
       - name: Run tests with coverage
         run: cargo llvm-cov test --all-features --codecov --output-path codecov-report.json
       - name: Upload coverage to codecov.io
