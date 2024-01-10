@@ -9,6 +9,9 @@ Andrew Walbran
 - Generating power with a kite
 - Hardware
 - Firmware
+- PAC and HAL crates
+- Motor control
+- Communicating over serial
 - Controlling it
 - Next steps
 
