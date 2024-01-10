@@ -450,6 +450,20 @@ pub enum Command {
 - This can be connected either to a laptop via a USB serial adapter, or directly to a Raspberry Pi.
 - Parsing is a big `match` expression, matching on a slice.
 - Parsing and serialisation code has plenty of tests, which can be run on the host.
+- The eventual plan is to have a webcam plugged into a Raspberry Pi or laptop, with some computer
+  vision code seeing where the kite is in the sky and which way it is pointing, and use that to run
+  a control system.
+- For now, we have some code to use a game controller plugged into the laptop or Raspberry Pi to
+  control it manually.
+
+---
+
+![Telemetry in Grafana](telemetry.png)
+
+???
+
+- Telemetry is sent over MQTT, from where it can be monitored and logged to InfluxDB for later
+  analysis.
 
 ---
 
