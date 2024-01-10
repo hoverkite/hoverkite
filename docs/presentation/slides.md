@@ -468,3 +468,25 @@ pub enum Command {
 ---
 
 # Whoops, I'm a maintainer now
+
+| PAC                                                                                                      | Supported devices                      |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `gd32c1`                                                                                                 | GD32C103, GD32C113                     |
+| [![crates.io](https://img.shields.io/crates/v/gd32e1.svg?label=gd32e1)](https://crates.io/crates/gd32e1) | GD32E103                               |
+| [![crates.io](https://img.shields.io/crates/v/gd32e2.svg?label=gd32e2)](https://crates.io/crates/gd32e2) | GD32E230, GD32E231                     |
+| [![crates.io](https://img.shields.io/crates/v/gd32e5.svg?label=gd32e5)](https://crates.io/crates/gd32e5) | GD32E503, GD32E505, GD32E507, GD32E508 |
+| [![crates.io](https://img.shields.io/crates/v/gd32f1.svg?label=gd32f1)](https://crates.io/crates/gd32f1) | GD32F130, GD32F150, GD32F170, GD32F190 |
+| [![crates.io](https://img.shields.io/crates/v/gd32f2.svg?label=gd32f2)](https://crates.io/crates/gd32f2) | GD32F205, GD32F207                     |
+| `gd32f3`                                                                                                 | GD32F303, GD32F305, GD32F307           |
+
+| HAL                                                                                                                        | Supported devices                      |
+| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `gd32e103-hal`                                                                                                             | GD32E103                               |
+| [![crates.io](https://img.shields.io/crates/v/gd32f1x0-hal.svg?label=gd32f1x0-hal)](https://crates.io/crates/gd32f1x0-hal) | GD32F130, GD32F150, GD32F170, GD32F190 |
+
+???
+
+- Other people are apparently also using GD32 microcontrollers with Rust.
+- I've been sent PRs to add PACs supporting the GD32C1xx, GD32E10x, GD32E23x, GD32E50x, GD32F20x and
+  GD32F30x families.
+- Someone started work on a GD32E103 HAL crate.
