@@ -461,6 +461,18 @@ pub enum Command {
 
 ---
 
+![Set up at Hampstead Heath](field.jpg)
+
+Ready to go
+
+---
+
+![Flying at Hampstead Heath](flying.jpg)
+
+In the air
+
+---
+
 ![Telemetry in Grafana](telemetry.png)
 
 ???
