@@ -35,7 +35,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0188540dc455081ecd206a2edf45928f6485820776c76f0f9e83ef205f4487e"
 dependencies = [
- "embedded-hal",
+ "embedded-hal 0.2.7",
 ]
 
 [[package]]
@@ -45,7 +45,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ac3d0c0a542d0ab5521211f873f62706a7136df415676f676d347e5a41dd80"
 dependencies = [
  "bitflags",
- "embedded-hal",
+ "embedded-hal 0.2.7",
  "nb 1.1.0",
  "vcell",
 ]
@@ -64,7 +64,7 @@ checksum = "8ec610d8f49840a5b376c69663b6369e71f4b34484b9b2eb29fb918d92516cb9"
 dependencies = [
  "bare-metal",
  "bitfield",
- "embedded-hal",
+ "embedded-hal 0.2.7",
  "volatile-register",
 ]
 
@@ -128,6 +128,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-hal"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
+
+[[package]]
 name = "gd32f1"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -149,7 +155,7 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "embedded-dma",
- "embedded-hal",
+ "embedded-hal 0.2.7",
  "gd32f1",
  "nb 1.1.0",
  "void",
@@ -163,7 +169,7 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "cortex-m-semihosting",
- "embedded-hal",
+ "embedded-hal 1.0.0",
  "gd32f1x0-hal",
  "messages",
  "nb 1.1.0",
@@ -176,7 +182,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "displaydoc",
- "embedded-hal",
+ "embedded-hal 0.2.7",
  "nb 1.1.0",
 ]
 
