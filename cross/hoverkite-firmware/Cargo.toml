@@ -10,7 +10,7 @@ cortex-m = "0.7.3"
 cortex-m-rt = "0.7.3"
 cortex-m-semihosting = "0.5.0"
 embedded-hal = "0.2.6"
-bmi160 = "0.1.2"
+bmi160 = "1.0.0"
 nb = "1.1.0"
 panic-halt = "0.2.0"
 gd32f1x0-hal = { version = "0.7.1", features = ["rt", "gd32f130x8"] }
