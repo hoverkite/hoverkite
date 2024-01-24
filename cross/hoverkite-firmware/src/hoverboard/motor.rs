@@ -1,4 +1,6 @@
 use crate::util::clamp;
+use embedded_hal::digital::InputPin;
+use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA10, PA8, PA9},
@@ -8,7 +10,6 @@ use gd32f1x0_hal::{
         Alternate, Floating, Input, AF2,
     },
     pac::TIMER0,
-    prelude::*,
     pwm::{Alignment, BreakMode, Channel, IdleState, Polarity, Pwm},
     rcu::{Clocks, APB2},
     time::Hertz,
@@ -45,7 +46,7 @@ impl HallSensors {
     /// an invalid configuration.
     ///
     /// The position will be in the range 0-5, inclusive.
-    pub fn position(&self) -> Option<u8> {
+    pub fn position(&mut self) -> Option<u8> {
         let hall_a = self.hall_a.is_high().unwrap();
         let hall_b = self.hall_b.is_high().unwrap();
         let hall_c = self.hall_c.is_high().unwrap();

@@ -1,3 +1,4 @@
+use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA1, PA3},

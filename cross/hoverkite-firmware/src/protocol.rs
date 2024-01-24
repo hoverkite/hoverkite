@@ -3,10 +3,10 @@ use crate::hoverboard::util::circular_buffer::CircularBuffer;
 use crate::hoverboard::Hoverboard;
 use crate::poweroff;
 use core::{fmt::Debug, ops::Deref};
-use embedded_hal::blocking::serial::Write;
+use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_io::Write;
 use gd32f1x0_hal::{
     pac::{self, usart0},
-    prelude::*,
     serial::{Rx, Tx},
 };
 #[allow(unused_imports)]
@@ -33,7 +33,7 @@ pub const THIS_SIDE: Side = Side::Right;
 #[cfg(feature = "secondary")]
 pub const THIS_SIDE: Side = Side::Left;
 
-pub fn send_position<W: Write<u8>>(serial: &mut W, position: i64)
+pub fn send_position<W: Write>(serial: &mut W, position: i64)
 where
     W::Error: Debug,
 {
@@ -45,7 +45,7 @@ where
     .unwrap();
 }
 
-fn send_battery_readings<W: Write<u8>>(
+fn send_battery_readings<W: Write>(
     serial: &mut W,
     battery_voltage: u16,
     backup_battery_voltage: u16,
@@ -65,7 +65,7 @@ fn send_battery_readings<W: Write<u8>>(
     .unwrap();
 }
 
-fn send_charge_state<W: Write<u8>>(serial: &mut W, charger_connected: bool)
+fn send_charge_state<W: Write>(serial: &mut W, charger_connected: bool)
 where
     W::Error: Debug,
 {
