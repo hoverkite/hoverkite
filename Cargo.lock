@@ -145,13 +145,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "embedded-hal"
-version = "0.2.7"
+name = "embedded-io"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35949884794ad573cf46071e41c9b60efb0cb311e3ca01f7af807af1debc66ff"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
+name = "embedded-io-adapters"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03facd2b544d24916f312a6026c1b548b8af012f788a554d498afdc8ef9c775"
 dependencies = [
- "nb 0.1.3",
- "void",
+ "embedded-io",
 ]
 
 [[package]]
@@ -392,7 +397,7 @@ dependencies = [
  "homie-device",
  "log",
  "messages",
- "nb 1.1.0",
+ "nb",
  "pretty_env_logger",
  "rumqttc",
  "rustls",
@@ -582,10 +587,11 @@ dependencies = [
  "arrayvec",
  "color-backtrace",
  "displaydoc",
- "embedded-hal",
+ "embedded-io",
+ "embedded-io-adapters",
  "eyre",
  "log",
- "nb 1.1.0",
+ "nb",
  "pretty_env_logger",
  "serialport",
  "slice-deque",
@@ -620,15 +626,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 dependencies = [
  "getrandom",
-]
-
-[[package]]
-name = "nb"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "801d31da0513b6ec5214e9bf433a77966320625a37860f910be265be6e18d06f"
-dependencies = [
- "nb 1.1.0",
 ]
 
 [[package]]
@@ -1279,12 +1276,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "void"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "wasi"
