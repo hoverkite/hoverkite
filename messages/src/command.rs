@@ -1,6 +1,4 @@
 use crate::util::{ascii_to_bool, bool_to_ascii};
-#[cfg(feature = "std")]
-use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use core::convert::TryInto;
 use core::fmt::{self, Display, Formatter};
@@ -83,44 +81,44 @@ impl Command {
     // FIXME: this goes away once the blanket impl exists.
     #[cfg(feature = "std")]
     pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
-        self.write_to(&mut WriteCompat(writer))
+        self.write_to(&mut embedded_io_adapters::std::FromStd::new(writer))
     }
 
     pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
-        W: embedded_hal::blocking::serial::Write<u8>,
+        W: embedded_io::Write,
     {
         match self {
-            Self::SetSideLed(on) => writer.bwrite_all(&[b'l', bool_to_ascii(*on)])?,
-            Self::SetOrangeLed(on) => writer.bwrite_all(&[b'o', bool_to_ascii(*on)])?,
-            Self::SetRedLed(on) => writer.bwrite_all(&[b'r', bool_to_ascii(*on)])?,
-            Self::SetGreenLed(on) => writer.bwrite_all(&[b'g', bool_to_ascii(*on)])?,
+            Self::SetSideLed(on) => writer.write_all(&[b'l', bool_to_ascii(*on)])?,
+            Self::SetOrangeLed(on) => writer.write_all(&[b'o', bool_to_ascii(*on)])?,
+            Self::SetRedLed(on) => writer.write_all(&[b'r', bool_to_ascii(*on)])?,
+            Self::SetGreenLed(on) => writer.write_all(&[b'g', bool_to_ascii(*on)])?,
             Self::AddBuzzerNote(note) => {
-                writer.bwrite_all(b"f")?;
-                writer.bwrite_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
-                writer.bwrite_all(&note.duration_ms.to_le_bytes())?;
+                writer.write_all(b"f")?;
+                writer.write_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
+                writer.write_all(&note.duration_ms.to_le_bytes())?;
             }
             Self::SetMaxSpeed(max_speed) => {
-                writer.bwrite_all(b"S")?;
-                writer.bwrite_all(&max_speed.negative.to_le_bytes())?;
-                writer.bwrite_all(&max_speed.positive.to_le_bytes())?;
+                writer.write_all(b"S")?;
+                writer.write_all(&max_speed.negative.to_le_bytes())?;
+                writer.write_all(&max_speed.positive.to_le_bytes())?;
             }
             Self::SetSpringConstant(spring_constant) => {
-                writer.bwrite_all(b"K")?;
-                writer.bwrite_all(&spring_constant.to_le_bytes())?;
+                writer.write_all(b"K")?;
+                writer.write_all(&spring_constant.to_le_bytes())?;
             }
             Self::SetTarget(target) => {
-                writer.bwrite_all(b"T")?;
-                writer.bwrite_all(&target.to_le_bytes())?;
+                writer.write_all(b"T")?;
+                writer.write_all(&target.to_le_bytes())?;
             }
-            Self::Recenter => writer.bwrite_all(b"e")?,
-            Self::ReportBattery => writer.bwrite_all(b"b")?,
-            Self::ReportCharger => writer.bwrite_all(b"c")?,
-            Self::RemoveTarget => writer.bwrite_all(b"n")?,
-            Self::IncrementTarget => writer.bwrite_all(b"+")?,
-            Self::DecrementTarget => writer.bwrite_all(b"-")?,
-            Self::PowerOff => writer.bwrite_all(b"p")?,
-            Self::TestMotor => writer.bwrite_all(b"t")?,
+            Self::Recenter => writer.write_all(b"e")?,
+            Self::ReportBattery => writer.write_all(b"b")?,
+            Self::ReportCharger => writer.write_all(b"c")?,
+            Self::RemoveTarget => writer.write_all(b"n")?,
+            Self::IncrementTarget => writer.write_all(b"+")?,
+            Self::DecrementTarget => writer.write_all(b"-")?,
+            Self::PowerOff => writer.write_all(b"p")?,
+            Self::TestMotor => writer.write_all(b"t")?,
         };
         Ok(())
     }
@@ -213,16 +211,15 @@ impl DirectedCommand {
 
     pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
-        W: embedded_hal::blocking::serial::Write<u8>,
+        W: embedded_io::Write,
     {
-        writer.bwrite_all(&[self.side.to_byte()])?;
+        writer.write_all(&[self.side.to_byte()])?;
         self.command.write_to(writer)
     }
 
-    // FIXME: This goes away once the blanket impl exists.
     #[cfg(feature = "std")]
     pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
-        self.write_to(&mut WriteCompat(writer))
+        self.write_to(&mut embedded_io_adapters::std::FromStd::new(writer))
     }
 }
 

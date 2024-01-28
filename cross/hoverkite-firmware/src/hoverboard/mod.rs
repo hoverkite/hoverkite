@@ -17,6 +17,7 @@ use bmi160::{
     interface::I2cInterface, AccelerometerPowerMode, Bmi160, GyroscopePowerMode, SlaveAddr,
 };
 use cortex_m::interrupt::free;
+use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA12, PA15},

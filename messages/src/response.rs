@@ -1,6 +1,4 @@
 use crate::util::{ascii_to_bool, bool_to_ascii};
-#[cfg(feature = "std")]
-use crate::WriteCompat;
 use crate::{ProtocolError, Side};
 use arrayvec::ArrayString;
 use core::mem::size_of;
@@ -66,32 +64,32 @@ impl Response {
 
     pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
-        W: embedded_hal::blocking::serial::Write<u8>,
+        W: embedded_io::Write,
     {
         match self {
             Self::Log(message) => {
-                writer.bwrite_all(b"\"")?;
-                writer.bwrite_all(message.as_bytes())?;
-                writer.bwrite_all(b"\n")
+                writer.write_all(b"\"")?;
+                writer.write_all(message.as_bytes())?;
+                writer.write_all(b"\n")
             }
             Self::Position(position) => {
-                writer.bwrite_all(b"I")?;
-                writer.bwrite_all(&position.to_le_bytes())
+                writer.write_all(b"I")?;
+                writer.write_all(&position.to_le_bytes())
             }
             Self::BatteryReadings {
                 battery_voltage,
                 backup_battery_voltage,
                 motor_current,
             } => {
-                writer.bwrite_all(b"B")?;
-                writer.bwrite_all(&battery_voltage.to_le_bytes())?;
-                writer.bwrite_all(&backup_battery_voltage.to_le_bytes())?;
-                writer.bwrite_all(&motor_current.to_le_bytes())
+                writer.write_all(b"B")?;
+                writer.write_all(&battery_voltage.to_le_bytes())?;
+                writer.write_all(&backup_battery_voltage.to_le_bytes())?;
+                writer.write_all(&motor_current.to_le_bytes())
             }
             Self::ChargeState { charger_connected } => {
-                writer.bwrite_all(&[b'C', bool_to_ascii(*charger_connected)])
+                writer.write_all(&[b'C', bool_to_ascii(*charger_connected)])
             }
-            Self::PowerOff => writer.bwrite_all(b"p"),
+            Self::PowerOff => writer.write_all(b"p"),
         }
     }
 
@@ -159,14 +157,14 @@ pub struct SideResponse {
 impl SideResponse {
     #[cfg(feature = "std")]
     pub fn write_to_std(&self, writer: impl std::io::Write) -> std::io::Result<()> {
-        self.write_to(&mut WriteCompat(writer))
+        self.write_to(&mut embedded_io_adapters::std::FromStd::new(writer))
     }
 
     pub fn write_to<W>(&self, writer: &mut W) -> Result<(), W::Error>
     where
-        W: embedded_hal::blocking::serial::Write<u8>,
+        W: embedded_io::Write,
     {
-        writer.bwrite_all(&[self.side.to_byte()])?;
+        writer.write_all(&[self.side.to_byte()])?;
         self.response.write_to(writer)
     }
 

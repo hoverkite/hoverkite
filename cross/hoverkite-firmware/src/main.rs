@@ -20,7 +20,9 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
 #[cfg(feature = "secondary")]
 use core::num::NonZeroU32;
 use cortex_m_rt::entry;
-use embedded_hal::serial::Read;
+use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal_02::watchdog::{Watchdog, WatchdogEnable};
+use embedded_io::{Read, ReadReady};
 #[cfg(feature = "secondary")]
 use gd32f1x0_hal::time::Hertz;
 use gd32f1x0_hal::{pac, prelude::*, watchdog::FreeWatchdog};
@@ -150,33 +152,45 @@ fn main() -> ! {
         watchdog.feed();
 
         // Read from the command USART if data is available.
-        match hoverboard.command_rx().read() {
-            Ok(char) => {
-                command_buffer[command_len] = char;
-                command_len += 1;
-                if process_command(
-                    &command_buffer[0..command_len],
-                    &mut hoverboard,
-                    &mut speed_limits,
-                    &mut target_position,
-                    &mut spring_constant,
-                    &mut note_queue,
-                ) {
-                    command_len = 0;
-                } else if command_len >= command_buffer.len() {
-                    log!(hoverboard.response_tx(), "Command too long");
+        if hoverboard.command_rx().read_ready().unwrap() {
+            match hoverboard
+                .command_rx()
+                .read(&mut command_buffer[command_len..command_len + 1])
+            {
+                Ok(1) => {
+                    command_len += 1;
+                    if process_command(
+                        &command_buffer[0..command_len],
+                        &mut hoverboard,
+                        &mut speed_limits,
+                        &mut target_position,
+                        &mut spring_constant,
+                        &mut note_queue,
+                    ) {
+                        command_len = 0;
+                    } else if command_len >= command_buffer.len() {
+                        log!(hoverboard.response_tx(), "Command too long");
+                        command_len = 0;
+                    }
+                }
+                Ok(read_length) => {
+                    log!(
+                        hoverboard.response_tx(),
+                        "Read unexpected number of bytes {}, dropping {} bytes",
+                        read_length,
+                        command_len,
+                    );
                     command_len = 0;
                 }
-            }
-            Err(nb::Error::WouldBlock) => {}
-            Err(nb::Error::Other(e)) => {
-                log!(
-                    hoverboard.response_tx(),
-                    "Read error {:?}, dropping {} bytes",
-                    e,
-                    command_len
-                );
-                command_len = 0;
+                Err(e) => {
+                    log!(
+                        hoverboard.response_tx(),
+                        "Read error {:?}, dropping {} bytes",
+                        e,
+                        command_len,
+                    );
+                    command_len = 0;
+                }
             }
         }
 

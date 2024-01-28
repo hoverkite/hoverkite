@@ -8,29 +8,9 @@ mod response;
 mod util;
 
 pub use command::{Command, DirectedCommand, Note, SpeedLimits};
+pub use embedded_io::ErrorType;
 pub use error::ProtocolError;
 pub use response::{Response, SideResponse};
-
-/// A compatibility shim that unifies std::io::Write and embedded_hal::blocking::serial::Write
-// TODO: propose the following impl to embedded_hal crate:
-//
-// #[cfg(feature = "std")]
-// impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for W {...}
-#[cfg(feature = "std")]
-pub struct WriteCompat<W: std::io::Write>(pub W);
-
-#[cfg(feature = "std")]
-impl<W: std::io::Write> embedded_hal::blocking::serial::Write<u8> for WriteCompat<W> {
-    type Error = std::io::Error;
-
-    fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), Self::Error> {
-        self.0.write_all(buffer)
-    }
-
-    fn bflush(&mut self) -> Result<(), Self::Error> {
-        self.0.flush()
-    }
-}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {

@@ -7,11 +7,14 @@ edition = "2018"
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false }
 displaydoc = { version = "0.2.4", default-features = false }
-embedded-hal = "0.2.7"
+embedded-io = "0.6.1"
+embedded-io-adapters = { version = "0.6.1", features = [
+    "std",
+], optional = true }
 log = { version = "0.4.20", optional = true }
 nb = "1.1.0"
 serialport = { version = "4.3.0", optional = true }
-slice-deque = { version = "0.3.0", optional = true}
+slice-deque = { version = "0.3.0", optional = true }
 
 [dev-dependencies]
 abc-parser = "0.3.0"
@@ -24,4 +27,10 @@ test-case = "3.3.1"
 
 [features]
 default = ["std"]
-std = ["log", "serialport", "slice-deque"]
+std = [
+    "log",
+    "serialport",
+    "slice-deque",
+    "embedded-io/std",
+    "embedded-io-adapters",
+]
