@@ -160,16 +160,15 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dbe0130cbdb73357f7b666cf910157fabf2185d2ddeb040c782be0ef95a81a6"
+checksum = "5a34819d0d5fbf3827c699bc955ed7895713fe9afa21dc88e3d28e7e944a18b1"
 dependencies = [
  "bxcan",
  "cast",
  "cortex-m",
  "cortex-m-rt",
  "embedded-dma",
- "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-io",
  "gd32f1",
@@ -185,7 +184,6 @@ dependencies = [
  "cortex-m",
  "cortex-m-rt",
  "cortex-m-semihosting",
- "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-io",
  "gd32f1x0-hal",
