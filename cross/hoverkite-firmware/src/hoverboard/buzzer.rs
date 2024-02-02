@@ -1,4 +1,3 @@
-use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA1, PA3},
@@ -42,7 +41,8 @@ impl Buzzer {
     pub fn set_frequency(&mut self, frequency: Option<impl Into<Hertz>>) {
         if let Some(frequency) = frequency {
             self.pwm.set_period(frequency.into());
-            self.pwm.set_duty(Channel::C2, self.pwm.get_max_duty() / 2);
+            self.pwm
+                .set_duty_cycle(Channel::C2, self.pwm.max_duty_cycle() / 2);
             self.pwm.enable(Channel::C2);
         } else {
             self.pwm.disable(Channel::C2);

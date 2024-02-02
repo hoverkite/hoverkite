@@ -17,7 +17,6 @@ use bmi160::{
     interface::I2cInterface, AccelerometerPowerMode, Bmi160, GyroscopePowerMode, SlaveAddr,
 };
 use cortex_m::interrupt::free;
-use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA12, PA15},
@@ -320,10 +319,10 @@ impl Hoverboard {
             let shared = shared.as_mut().unwrap();
             let pwm = &mut shared.motor.pwm;
 
-            let duty_max = pwm.get_max_duty() as u32;
-            pwm.set_duty(Channel::C0, (duty_max * y_percent as u32 / 100) as u16);
-            pwm.set_duty(Channel::C1, (duty_max * b_percent as u32 / 100) as u16);
-            pwm.set_duty(Channel::C2, (duty_max * g_percent as u32 / 100) as u16);
+            let duty_max = pwm.max_duty_cycle() as u32;
+            pwm.set_duty_cycle(Channel::C0, (duty_max * y_percent as u32 / 100) as u16);
+            pwm.set_duty_cycle(Channel::C1, (duty_max * b_percent as u32 / 100) as u16);
+            pwm.set_duty_cycle(Channel::C2, (duty_max * g_percent as u32 / 100) as u16);
             pwm.automatic_output_enable();
         })
     }

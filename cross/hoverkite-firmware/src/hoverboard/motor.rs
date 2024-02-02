@@ -1,6 +1,5 @@
 use crate::util::clamp;
 use embedded_hal::digital::InputPin;
-use embedded_hal_02::Pwm as _;
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA10, PA8, PA9},
@@ -103,7 +102,7 @@ fn setup_pwm(
     let channels = [Channel::C0, Channel::C1, Channel::C2];
     // Configure output channels and set duty cycle to 0 on all channels.
     for channel in &channels {
-        pwm.set_duty(*channel, 0);
+        pwm.set_duty_cycle(*channel, 0);
         pwm.set_polarity(*channel, Polarity::NotInverted);
         pwm.set_complementary_polarity(*channel, Polarity::Inverted);
         pwm.set_idle_state(*channel, IdleState::Low);
@@ -171,7 +170,7 @@ impl Motor {
             5 => (power, 0, -power),
             _ => (0, 0, 0),
         };
-        let duty_max = self.pwm.get_max_duty();
+        let duty_max = self.pwm.max_duty_cycle();
         let power_max = (duty_max / 2) as i32;
         let y = y as i32 * power_max / 1000;
         let b = b as i32 * power_max / 1000;
@@ -183,9 +182,9 @@ impl Motor {
     }
 
     fn set_duty_cycles(&mut self, y: u16, b: u16, g: u16) {
-        self.pwm.set_duty(Channel::C0, y);
-        self.pwm.set_duty(Channel::C1, b);
-        self.pwm.set_duty(Channel::C2, g);
+        self.pwm.set_duty_cycle(Channel::C0, y);
+        self.pwm.set_duty_cycle(Channel::C1, b);
+        self.pwm.set_duty_cycle(Channel::C2, g);
     }
 
     /// This should be called at regular intervals from the timer interrupt.

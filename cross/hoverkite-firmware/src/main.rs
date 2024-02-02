@@ -21,7 +21,6 @@ use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch
 use core::num::NonZeroU32;
 use cortex_m_rt::entry;
 use embedded_hal::digital::{InputPin, OutputPin};
-use embedded_hal_02::watchdog::{Watchdog, WatchdogEnable};
 use embedded_io::{Read, ReadReady};
 #[cfg(feature = "secondary")]
 use gd32f1x0_hal::time::Hertz;
