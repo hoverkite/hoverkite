@@ -24,12 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46afbd2983a5d5a7bd740ccb198caf5b82f45c40c09c0eed36052d91cb92e719"
 
 [[package]]
-name = "bitflags"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
-
-[[package]]
 name = "bmi160"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -37,24 +31,6 @@ checksum = "1260b092ee304c677ac89fc7619e6fa6e68d16b5c307e4cff8e82648a93dedbf"
 dependencies = [
  "embedded-hal 1.0.0",
 ]
-
-[[package]]
-name = "bxcan"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40ac3d0c0a542d0ab5521211f873f62706a7136df415676f676d347e5a41dd80"
-dependencies = [
- "bitflags",
- "embedded-hal 0.2.7",
- "nb 1.1.0",
- "vcell",
-]
-
-[[package]]
-name = "cast"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cortex-m"
@@ -160,12 +136,10 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a34819d0d5fbf3827c699bc955ed7895713fe9afa21dc88e3d28e7e944a18b1"
+checksum = "c8d06ca501641e2bb5bd1b8cf62478eb003c8dcf0779097324fe8408ca4b752b"
 dependencies = [
- "bxcan",
- "cast",
  "cortex-m",
  "cortex-m-rt",
  "embedded-dma",
@@ -173,7 +147,6 @@ dependencies = [
  "embedded-io",
  "gd32f1",
  "nb 1.1.0",
- "void",
 ]
 
 [[package]]
