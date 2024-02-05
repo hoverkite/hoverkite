@@ -14,7 +14,7 @@ embedded-io = "0.6.1"
 bmi160 = "1.0.0"
 nb = "1.1.0"
 panic-halt = "0.2.0"
-gd32f1x0-hal = { version = "0.9.0", features = ["rt", "gd32f130x8"] }
+gd32f1x0-hal = { version = "0.9.1", features = ["rt", "gd32f130x8"] }
 messages = { path = "../../messages", default-features = false }
 
 [features]
