@@ -26,16 +26,16 @@ impl Display for Note {
     }
 }
 
-/// Speed (or really, torque) limits for the motor.
+/// Torque limits for the motor.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct SpeedLimits {
-    /// The lowest negative speed, inclusive.
+pub struct TorqueLimits {
+    /// The lowest negative torque, inclusive.
     pub negative: i16,
-    /// The highest positive speed, inclusive.
+    /// The highest positive torque, inclusive.
     pub positive: i16,
 }
 
-impl SpeedLimits {
+impl TorqueLimits {
     /// Swap the limits, so e.g. -42..66 becomes -66..42.
     pub fn invert(self) -> Self {
         Self {
@@ -45,14 +45,14 @@ impl SpeedLimits {
     }
 }
 
-impl Display for SpeedLimits {
+impl Display for TorqueLimits {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}..{}", self.negative, self.positive)
     }
 }
 
-impl From<SpeedLimits> for RangeInclusive<i16> {
-    fn from(limits: SpeedLimits) -> Self {
+impl From<TorqueLimits> for RangeInclusive<i16> {
+    fn from(limits: TorqueLimits) -> Self {
         limits.negative..=limits.positive
     }
 }
@@ -66,7 +66,7 @@ pub enum Command {
     AddBuzzerNote(Note),
     ReportBattery,
     ReportCharger,
-    SetMaxSpeed(SpeedLimits),
+    SetMaxTorque(TorqueLimits),
     SetSpringConstant(u16),
     SetTarget(i64),
     RemoveTarget,
@@ -98,10 +98,10 @@ impl Command {
                 writer.write_all(&note.frequency.map_or(0, NonZeroU32::get).to_le_bytes())?;
                 writer.write_all(&note.duration_ms.to_le_bytes())?;
             }
-            Self::SetMaxSpeed(max_speed) => {
+            Self::SetMaxTorque(max_torque) => {
                 writer.write_all(b"S")?;
-                writer.write_all(&max_speed.negative.to_le_bytes())?;
-                writer.write_all(&max_speed.positive.to_le_bytes())?;
+                writer.write_all(&max_torque.negative.to_le_bytes())?;
+                writer.write_all(&max_torque.positive.to_le_bytes())?;
             }
             Self::SetSpringConstant(spring_constant) => {
                 writer.write_all(b"K")?;
@@ -155,7 +155,7 @@ impl Command {
                 }
                 let negative = i16::from_le_bytes(rest[..2].try_into().unwrap());
                 let positive = i16::from_le_bytes(rest[2..4].try_into().unwrap());
-                Self::SetMaxSpeed(SpeedLimits { negative, positive })
+                Self::SetMaxTorque(TorqueLimits { negative, positive })
             }
             [b'K', ref rest @ ..] => {
                 if rest.len() < size_of::<u16>() {
@@ -228,13 +228,13 @@ impl DirectedCommand {
 mod tests {
     use super::*;
 
-    mod speed_limits {
+    mod torque_limits {
         use super::*;
 
         #[test]
         fn display() {
             assert_eq!(
-                SpeedLimits {
+                TorqueLimits {
                     negative: -42,
                     positive: 66
                 }
@@ -245,7 +245,7 @@ mod tests {
 
         #[test]
         fn to_range_inclusive() {
-            let range: RangeInclusive<i16> = SpeedLimits {
+            let range: RangeInclusive<i16> = TorqueLimits {
                 negative: -42,
                 positive: 66,
             }
@@ -344,7 +344,7 @@ mod tests {
         #[test_case(SetGreenLed(false))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
+        #[test_case(SetMaxTorque(TorqueLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]
@@ -370,7 +370,7 @@ mod tests {
         #[test_case(SetGreenLed(false))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
+        #[test_case(SetMaxTorque(TorqueLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]
@@ -399,7 +399,7 @@ mod tests {
         #[test_case(SetGreenLed(false))]
         #[test_case(AddBuzzerNote(Note { frequency: NonZeroU32::new(123), duration_ms: 456 }))]
         #[test_case(AddBuzzerNote(Note { frequency: None, duration_ms: 456 }))]
-        #[test_case(SetMaxSpeed(SpeedLimits { negative: -30, positive: 42 }))]
+        #[test_case(SetMaxTorque(TorqueLimits { negative: -30, positive: 42 }))]
         #[test_case(SetSpringConstant(42))]
         #[test_case(SetTarget(-42))]
         #[test_case(Recenter)]

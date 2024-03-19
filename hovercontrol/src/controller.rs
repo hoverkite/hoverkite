@@ -2,7 +2,7 @@ use crate::homie::Homie;
 use eyre::{Report, WrapErr};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use messages::client::{Hoverkite, MIN_TIME_BETWEEN_TARGET_UPDATES};
-use messages::{Command, Response, Side, SideResponse, SpeedLimits};
+use messages::{Command, Response, Side, SideResponse, TorqueLimits};
 use std::thread;
 use std::time::Duration;
 
@@ -11,12 +11,12 @@ const SLEEP_DURATION: Duration = Duration::from_millis(2);
 pub const DEFAULT_SCALE: f32 = 50.0;
 pub const MAX_SCALE: f32 = 100.0;
 
-pub const DEFAULT_MAX_SPEED: SpeedLimits = SpeedLimits {
+pub const DEFAULT_MAX_TORQUE: TorqueLimits = TorqueLimits {
     negative: -200,
     positive: 30,
 };
-pub const MAX_MAX_SPEED: i16 = 300;
-const MAX_SPEED_STEP: i16 = 10;
+pub const MAX_MAX_TORQUE: i16 = 300;
+const MAX_TORQUE_STEP: i16 = 10;
 
 pub const DEFAULT_SPRING_CONSTANT: u16 = 10;
 pub const MAX_SPRING_CONSTANT: u16 = 50;
@@ -33,7 +33,7 @@ pub struct Controller {
     centre_left: i64,
     centre_right: i64,
     scale: f32,
-    max_speed: SpeedLimits,
+    max_torque: TorqueLimits,
     spring_constant: u16,
 }
 
@@ -48,13 +48,13 @@ impl Controller {
             centre_left: 0,
             centre_right: 0,
             scale: DEFAULT_SCALE,
-            max_speed: DEFAULT_MAX_SPEED,
+            max_torque: DEFAULT_MAX_TORQUE,
             spring_constant: DEFAULT_SPRING_CONSTANT,
         }
     }
 
     pub fn run(&mut self) -> Result<(), Report> {
-        self.send_max_speed()?;
+        self.send_max_torque()?;
         thread::sleep(MIN_TIME_BETWEEN_TARGET_UPDATES);
         self.send_spring_constant()?;
 
@@ -125,15 +125,15 @@ impl Controller {
                 self.homie.send_scale(self.scale);
             }
             EventType::ButtonPressed(Button::DPadUp, _code) => {
-                if -self.max_speed.negative < MAX_MAX_SPEED {
-                    self.max_speed.negative -= MAX_SPEED_STEP;
-                    self.send_max_speed()?;
+                if -self.max_torque.negative < MAX_MAX_TORQUE {
+                    self.max_torque.negative -= MAX_TORQUE_STEP;
+                    self.send_max_torque()?;
                 }
             }
             EventType::ButtonPressed(Button::DPadDown, _code) => {
-                if -self.max_speed.negative > MAX_SPEED_STEP {
-                    self.max_speed.negative += MAX_SPEED_STEP;
-                    self.send_max_speed()?;
+                if -self.max_torque.negative > MAX_TORQUE_STEP {
+                    self.max_torque.negative += MAX_TORQUE_STEP;
+                    self.send_max_torque()?;
                 }
             }
             EventType::ButtonPressed(Button::LeftTrigger, _code) => {
@@ -207,10 +207,11 @@ impl Controller {
         Ok(())
     }
 
-    fn send_max_speed(&mut self) -> Result<(), Report> {
-        self.hoverkite.set_max_speed(Side::Left, self.max_speed)?;
-        self.hoverkite.set_max_speed(Side::Right, self.max_speed)?;
-        self.homie.send_max_speed(self.max_speed);
+    fn send_max_torque(&mut self) -> Result<(), Report> {
+        self.hoverkite.set_max_torque(Side::Left, self.max_torque)?;
+        self.hoverkite
+            .set_max_torque(Side::Right, self.max_torque)?;
+        self.homie.send_max_torque(self.max_torque);
         Ok(())
     }
 

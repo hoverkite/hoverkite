@@ -399,14 +399,15 @@ impl Motor {
 What we actually want to do is pull a kite string, so we care about position more than speed.
 
 ```rust
+let torque;
 if let Some(target_position) = target_position {
   let difference = target_position - position;
-  speed = clamp(difference * spring_constant, &speed_limits.into());
+  torque = clamp(difference * spring_constant, &torque_limits.into());
 } else {
-  speed = 0;
+  torque = 0;
 }
 
-hoverboard.set_motor_power(speed);
+hoverboard.set_motor_power(torque);
 ```
 
 ???
@@ -436,7 +437,7 @@ pub enum Command {
   AddBuzzerNote(Note),
   ReportBattery,
   ReportCharger,
-  SetMaxSpeed(SpeedLimits),
+  SetMaxTorque(TorqueLimits),
   SetSpringConstant(u16),
   SetTarget(i64),
   RemoveTarget,
