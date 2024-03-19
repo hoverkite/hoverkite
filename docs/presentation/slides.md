@@ -6,7 +6,7 @@ Andrew Walbran
 
 # Outline
 
-- Generating power with a kite
+- Motivation
 - Hardware
 - Firmware
 - PAC and HAL crates
@@ -38,6 +38,8 @@ What hardware do we need?
 3. Motor controllers
 4. A microcontroller and other electronics to manage the motors
 5. A big battery to power it all
+
+--
 
 Let's take the tires off a hoverboard!
 
@@ -118,6 +120,10 @@ the existing assistive devices code we found...
 --
 
 Let's not do that.
+
+--
+
+# 🦀
 
 ---
 
@@ -478,8 +484,8 @@ In the air
 
 ???
 
-- Telemetry is sent over MQTT, from where it can be monitored and logged to InfluxDB for later
-  analysis.
+- Telemetry is sent from the desktop app over MQTT to a local stats server, from where it can be
+  monitored and logged to InfluxDB for later analysis.
 
 ---
 
@@ -506,3 +512,7 @@ In the air
 - I've been sent PRs to add PACs supporting the GD32C1xx, GD32E10x, GD32E23x, GD32E50x, GD32F20x and
   GD32F30x families.
 - Someone started work on a GD32E103 HAL crate.
+
+---
+
+# Questions?
