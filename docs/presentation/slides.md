@@ -523,6 +523,8 @@ In the air
 | [![crates.io](https://img.shields.io/crates/v/gd32f2.svg?label=gd32f2)](https://crates.io/crates/gd32f2) | GD32F205, GD32F207                     |
 | `gd32f3`                                                                                                 | GD32F303, GD32F305, GD32F307           |
 
+&nbsp;
+
 | HAL                                                                                                                        | Supported devices                      |
 | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
 | `gd32e103-hal`                                                                                                             | GD32E103                               |
