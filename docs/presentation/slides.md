@@ -49,6 +49,10 @@ Let's take the tires off a hoverboard!
 
 David bought a "Zinc Smart GT Pro" hoverboard.
 
+![A hoverboard in its box](hoverboard_box.jpg)
+
+???
+
 These boards have been hacked to make
 [DIY mobility devices](https://hackaday.io/project/170932-hoverboards-for-assistive-devices). Their
 [firmware](https://github.com/gearsincorg/Hoverboards-for-assistive-devices) is all in C, but served
@@ -90,23 +94,25 @@ communication.
 
 # Hardware hacking
 
-We removed the tires from the hoverboard wheels so they could serve as spools, and soldered headers
-onto the SWD port and second serial port.
+We removed the tires from the hoverboard wheels so they could serve as spools.
 
-Connect an ST-Link V2 SWD debugger, and we're in! First step, disable the watchdog timer:
+![A hoverboard with rope in place of its tires](hoverboard_spools.jpg)
+
+---
+
+![The board connected to an STLink debugger](board_stlink.jpg)
+
+Solder headers onto the SWD port and second serial port, connect an ST-Link V2 SWD debugger, and
+we're in! First step, disable the watchdog timer:
 
 ```sh
 openocd -f interface/stlink-v2.cfg -f target/stm32f1x.cfg -c init \
   -c "reset halt; stm32f1x options_write 0 SWWDG"
 ```
 
----
-
-![The board connected to an STLink debugger](board_stlink.jpg)
+???
 
 A USB serial adapter is handy too.
-
-???
 
 We stuck some tape on the piezo speaker as it was too loud.
 
