@@ -339,8 +339,11 @@ pub struct Hoverboard {
 
 # BLDC motor control
 
+.float-right[![BLDC motor diagram](bldc_motor.svg)]
+
 | Position | Sensor values | Forwards | Backwards |
 | -------- | ------------- | -------- | --------- |
+|          | `a b c`       | `Y B G`  | `Y B G`   |
 | 0        | `0 0 1`       | `0 + -`  | `0 - +`   |
 | 1        | `1 0 1`       | `- + 0`  | `+ - 0`   |
 | 2        | `1 0 0`       | `- 0 +`  | `+ 0 -`   |
@@ -355,6 +358,10 @@ pub struct Hoverboard {
   cycle for each pair of outputs.
 - '0' here actually means a 50% duty cycle, '+' means > 50%, '-' means < 50%.
 - How much greater or less? That's how we control torque.
+- The diagram assumes that a Hall effect sensor will give a 1 if a north pole of the rotor is near
+  it. I have no idea if this is actually correct, but whatever it does is equivalent to this.
+- There are actually a lot more than three windings, and more than 6 steps to make a complete
+  revolution. They are however in three groups, so this simplified version is equivalent.
 
 ---
 
