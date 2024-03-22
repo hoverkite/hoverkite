@@ -77,7 +77,7 @@ impl Controller {
     }
 
     fn handle_response(&self, response: &SideResponse) {
-        print_response(&response);
+        print_response(response);
 
         // Send stats from the response to Homie, if appropriate.
         match response.response {

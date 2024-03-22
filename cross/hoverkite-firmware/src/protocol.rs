@@ -21,7 +21,7 @@ macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
             ::messages::SideResponse {
-                side: crate::protocol::THIS_SIDE,
+                side: $crate::protocol::THIS_SIDE,
                 response: ::messages::Response::log_from_fmt(format_args!($($arg)*))
             }.write_to($dst).unwrap()
 		}

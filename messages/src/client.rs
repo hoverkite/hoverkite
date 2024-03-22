@@ -176,7 +176,7 @@ fn read_port(
         buffer.extend(&temp[0..bytes_read]);
     }
 
-    match SideResponse::parse(&buffer) {
+    match SideResponse::parse(buffer) {
         Ok((response, len)) => {
             buffer.drain(..len);
             return Ok(Some(response));
