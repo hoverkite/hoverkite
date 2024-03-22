@@ -1,12 +1,12 @@
 use crate::config::{get_mqtt_options, MqttConfig};
 use crate::controller::{
-    DEFAULT_MAX_SPEED, DEFAULT_SCALE, DEFAULT_SPRING_CONSTANT, MAX_MAX_SPEED, MAX_SCALE,
+    DEFAULT_MAX_TORQUE, DEFAULT_SCALE, DEFAULT_SPRING_CONSTANT, MAX_MAX_TORQUE, MAX_SCALE,
     MAX_SPRING_CONSTANT, SPRING_CONSTANT_STEP,
 };
 use eyre::Report;
 use homie_device::{HomieDevice, Node, Property};
 use log::{error, trace};
-use messages::{Side, SpeedLimits};
+use messages::{Side, TorqueLimits};
 use tokio::runtime::Runtime;
 
 const HOMIE_PREFIX: &str = "homie";
@@ -42,9 +42,9 @@ impl Homie {
         self.send_property(node_id(side), "position", position);
     }
 
-    pub fn send_max_speed(&self, max_speed: SpeedLimits) {
-        self.send_property("general", "max_speed", max_speed.positive);
-        self.send_property("general", "min_speed", max_speed.negative);
+    pub fn send_max_torque(&self, max_torque: TorqueLimits) {
+        self.send_property("general", "max_torque", max_torque.positive);
+        self.send_property("general", "min_torque", max_torque.negative);
     }
 
     pub fn send_spring_constant(&self, spring_constant: u16) {
@@ -156,20 +156,20 @@ async fn make_homie_device(config: MqttConfig) -> Result<HomieDevice, Report> {
                     Some(SPRING_CONSTANT_STEP.into()..MAX_SPRING_CONSTANT.into()),
                 ),
                 Property::integer(
-                    "min_speed",
-                    "Min speed",
+                    "min_torque",
+                    "Min torque",
                     false,
                     true,
                     None,
-                    Some((-MAX_MAX_SPEED).into()..0),
+                    Some((-MAX_MAX_TORQUE).into()..0),
                 ),
                 Property::integer(
-                    "max_speed",
-                    "Max speed",
+                    "max_torque",
+                    "Max torque",
                     false,
                     true,
                     None,
-                    Some(0..MAX_MAX_SPEED.into()),
+                    Some(0..MAX_MAX_TORQUE.into()),
                 ),
                 Property::float(
                     "scale",
@@ -188,10 +188,10 @@ async fn make_homie_device(config: MqttConfig) -> Result<HomieDevice, Report> {
         .publish_value("general", "spring_constant", DEFAULT_SPRING_CONSTANT)
         .await?;
     homie
-        .publish_value("general", "min_speed", DEFAULT_MAX_SPEED.negative)
+        .publish_value("general", "min_torque", DEFAULT_MAX_TORQUE.negative)
         .await?;
     homie
-        .publish_value("general", "max_speed", DEFAULT_MAX_SPEED.positive)
+        .publish_value("general", "max_torque", DEFAULT_MAX_TORQUE.positive)
         .await?;
     homie
         .publish_value("general", "scale", DEFAULT_SCALE)

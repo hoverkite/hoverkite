@@ -11,7 +11,7 @@ use gd32f1x0_hal::{
 };
 #[allow(unused_imports)]
 use messages::{
-    Command, DirectedCommand, Note, ProtocolError, Response, Side, SideResponse, SpeedLimits,
+    Command, DirectedCommand, Note, ProtocolError, Response, Side, SideResponse, TorqueLimits,
 };
 #[allow(unused_imports)]
 use nb::Error::{Other, WouldBlock};
@@ -21,7 +21,7 @@ macro_rules! log {
     ($dst:expr, $($arg:tt)*) => (
 		{
             ::messages::SideResponse {
-                side: crate::protocol::THIS_SIDE,
+                side: $crate::protocol::THIS_SIDE,
                 response: ::messages::Response::log_from_fmt(format_args!($($arg)*))
             }.write_to($dst).unwrap()
 		}
@@ -115,7 +115,7 @@ fn forward_command(hoverboard: &mut Hoverboard, _command: &DirectedCommand) {
 pub fn process_command<const L: usize>(
     command: &[u8],
     hoverboard: &mut Hoverboard,
-    speed_limits: &mut SpeedLimits,
+    torque_limits: &mut TorqueLimits,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
     note_queue: &mut CircularBuffer<Note, L>,
@@ -140,7 +140,7 @@ pub fn process_command<const L: usize>(
         handle_command(
             message.command,
             hoverboard,
-            speed_limits,
+            torque_limits,
             target_position,
             spring_constant,
             note_queue,
@@ -154,7 +154,7 @@ pub fn process_command<const L: usize>(
 pub fn handle_command<const L: usize>(
     command: Command,
     hoverboard: &mut Hoverboard,
-    speed_limits: &mut SpeedLimits,
+    torque_limits: &mut TorqueLimits,
     target_position: &mut Option<i64>,
     spring_constant: &mut i64,
     note_queue: &mut CircularBuffer<Note, L>,
@@ -218,9 +218,9 @@ pub fn handle_command<const L: usize>(
             let charger_connected = hoverboard.charge_state.is_low().unwrap();
             send_charge_state(hoverboard.response_tx(), charger_connected);
         }
-        Command::SetMaxSpeed(limits) => {
-            log!(hoverboard.response_tx(), "Max speed {:?}", limits);
-            *speed_limits = limits;
+        Command::SetMaxTorque(limits) => {
+            log!(hoverboard.response_tx(), "Max torque {:?}", limits);
+            *torque_limits = limits;
         }
         Command::SetSpringConstant(spring) => {
             log!(hoverboard.response_tx(), "Spring constant {}", spring);

@@ -1,4 +1,4 @@
-use super::{Command, DirectedCommand, Note, Side, SideResponse, SpeedLimits};
+use super::{Command, DirectedCommand, Note, Side, SideResponse, TorqueLimits};
 use log::{error, trace};
 use serialport::SerialPort;
 use slice_deque::SliceDeque;
@@ -73,10 +73,14 @@ impl Hoverkite {
         Ok(())
     }
 
-    /// Sets the maximum 'speed' (really more like torque) on both sides.
-    pub fn set_max_speed(&mut self, side: Side, max_speed: SpeedLimits) -> Result<(), io::Error> {
-        println!("{:?} max speed: {}", side, max_speed);
-        let command = Command::SetMaxSpeed(max_speed);
+    /// Sets the maximum torque on both sides.
+    pub fn set_max_torque(
+        &mut self,
+        side: Side,
+        max_torque: TorqueLimits,
+    ) -> Result<(), io::Error> {
+        println!("{:?} max torque: {}", side, max_torque);
+        let command = Command::SetMaxTorque(max_torque);
         self.send_command(side, command)?;
         Ok(())
     }
@@ -172,7 +176,7 @@ fn read_port(
         buffer.extend(&temp[0..bytes_read]);
     }
 
-    match SideResponse::parse(&buffer) {
+    match SideResponse::parse(buffer) {
         Ok((response, len)) => {
             buffer.drain(..len);
             return Ok(Some(response));

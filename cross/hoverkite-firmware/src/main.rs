@@ -8,7 +8,7 @@ mod util;
 
 #[cfg(feature = "primary")]
 use messages::Command;
-use messages::SpeedLimits;
+use messages::TorqueLimits;
 #[cfg(feature = "secondary")]
 use messages::{Note, Response, SideResponse};
 // pick a panicking behavior
@@ -139,9 +139,8 @@ fn main() -> ! {
     let mut proxy_response_buffer = [0; 100];
     #[cfg(feature = "primary")]
     let mut proxy_response_length = 0;
-    let mut speed;
     let mut target_position: Option<i64> = None;
-    let mut speed_limits = SpeedLimits {
+    let mut torque_limits = TorqueLimits {
         negative: -200,
         positive: 200,
     };
@@ -161,7 +160,7 @@ fn main() -> ! {
                     if process_command(
                         &command_buffer[0..command_len],
                         &mut hoverboard,
-                        &mut speed_limits,
+                        &mut torque_limits,
                         &mut target_position,
                         &mut spring_constant,
                         &mut note_queue,
@@ -229,9 +228,10 @@ fn main() -> ! {
         }
 
         // Try to move towards the target position.
+        let torque;
         if let Some(target_position) = target_position {
             let difference = target_position - position;
-            speed = clamp(difference * spring_constant, &speed_limits.into());
+            torque = clamp(difference * spring_constant, &torque_limits.into());
 
             // Set LEDs based on position difference
             if difference.abs() < 3 {
@@ -253,7 +253,7 @@ fn main() -> ! {
                 hoverboard.leds.side.set_high().unwrap();
             }
         } else {
-            speed = 0;
+            torque = 0;
 
             hoverboard.leds.green.set_low().unwrap();
             hoverboard.leds.orange.set_low().unwrap();
@@ -262,7 +262,7 @@ fn main() -> ! {
         }
 
         // Drive the motor.
-        hoverboard.set_motor_power(speed);
+        hoverboard.set_motor_power(torque);
 
         let current_time = systick.millis_since_start();
         if current_time > next_note_time {

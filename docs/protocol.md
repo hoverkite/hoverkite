@@ -18,7 +18,7 @@ on the command.
 | f       | u32, u32   | Play frequency on buzzer for the given number of milliseconds. |
 | b       | none       | Dump battery voltages.                                         |
 | c       | none       | Dump whether charger is connected.                             |
-| S       | i16, i16   | Set maximum speed (negative and positive).                     |
+| S       | i16, i16   | Set maximum torque (negative and positive).                    |
 | K       | u16        | Set spring constant.                                           |
 | n       | none       | Remove target position.                                        |
 | T       | i64        | Set target position.                                           |

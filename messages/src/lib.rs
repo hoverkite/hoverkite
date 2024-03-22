@@ -7,7 +7,7 @@ mod error;
 mod response;
 mod util;
 
-pub use command::{Command, DirectedCommand, Note, SpeedLimits};
+pub use command::{Command, DirectedCommand, Note, TorqueLimits};
 pub use embedded_io::ErrorType;
 pub use error::ProtocolError;
 pub use response::{Response, SideResponse};
