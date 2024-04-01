@@ -124,9 +124,9 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
 name = "gd32f1"
-version = "0.8.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d54492fd6a72edec4a016e825a4bca166ab4519440840c76b4148f4e65597cc8"
+checksum = "2eb728df95bc4a2e59020223c9e3a96a74c3e8a5a0c93e61d494b297666a2e4f"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -136,9 +136,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8d06ca501641e2bb5bd1b8cf62478eb003c8dcf0779097324fe8408ca4b752b"
+checksum = "b62d1aee5d756047ca1d20be263beda1f13f69c4e64aa10dac55dfe890b57265"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
