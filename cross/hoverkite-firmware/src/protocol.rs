@@ -269,26 +269,26 @@ pub trait HoverboardExt {
 
 #[cfg(feature = "primary")]
 impl HoverboardExt for Hoverboard {
-    type CommandUsart = pac::USART0;
+    type CommandUsart = pac::Usart0;
 
-    fn command_rx(&mut self) -> &mut Rx<pac::USART0> {
+    fn command_rx(&mut self) -> &mut Rx<pac::Usart0> {
         &mut self.serial_remote_rx
     }
 
-    fn response_tx(&mut self) -> &mut BufferedSerialWriter<Tx<pac::USART0>> {
+    fn response_tx(&mut self) -> &mut BufferedSerialWriter<Tx<pac::Usart0>> {
         &mut self.serial_remote_writer
     }
 }
 
 #[cfg(feature = "secondary")]
 impl HoverboardExt for Hoverboard {
-    type CommandUsart = pac::USART1;
+    type CommandUsart = pac::Usart1;
 
-    fn command_rx(&mut self) -> &mut Rx<pac::USART1> {
+    fn command_rx(&mut self) -> &mut Rx<pac::Usart1> {
         &mut self.serial_rx
     }
 
-    fn response_tx(&mut self) -> &mut BufferedSerialWriter<Tx<pac::USART1>> {
+    fn response_tx(&mut self) -> &mut BufferedSerialWriter<Tx<pac::Usart1>> {
         &mut self.serial_writer
     }
 }

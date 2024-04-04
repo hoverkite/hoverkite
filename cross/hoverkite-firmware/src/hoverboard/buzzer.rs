@@ -4,7 +4,7 @@ use gd32f1x0_hal::{
         gpiob::PB10,
         Alternate, AF2,
     },
-    pac::TIMER1,
+    pac::Timer1,
     prelude::*,
     pwm::{Channel, Pwm},
     rcu::{Clocks, APB1},
@@ -22,12 +22,12 @@ type BuzzerPwmPins = (
 
 /// The buzzer on the secondary board. This should not be used on the primary board.
 pub struct Buzzer {
-    pwm: Pwm<TIMER1, BuzzerPwmPins>,
+    pwm: Pwm<Timer1, BuzzerPwmPins>,
 }
 
 impl Buzzer {
     pub(super) fn new(
-        timer1: TIMER1,
+        timer1: Timer1,
         buzzer_pin: PB10<Alternate<AF2>>,
         clocks: Clocks,
         apb1: &mut APB1,

@@ -6,18 +6,18 @@ use cortex_m::{
     peripheral::NVIC,
 };
 use gd32f1x0_hal::{
-    pac::{interrupt, usart0, Interrupt, USART0, USART1},
+    pac::{interrupt, usart0, Interrupt, Usart0, Usart1},
     serial::Tx,
 };
 
-static SERIAL0_BUFFER: Mutex<RefCell<BufferState<Tx<USART0>>>> =
+static SERIAL0_BUFFER: Mutex<RefCell<BufferState<Tx<Usart0>>>> =
     Mutex::new(RefCell::new(BufferState::new()));
-static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<USART1>>>> =
+static SERIAL1_BUFFER: Mutex<RefCell<BufferState<Tx<Usart1>>>> =
     Mutex::new(RefCell::new(BufferState::new()));
 
 pub fn setup_usart0_buffered_writer(
-    mut serial_remote_tx: Tx<USART0>,
-) -> BufferedSerialWriter<Tx<USART0>> {
+    mut serial_remote_tx: Tx<Usart0>,
+) -> BufferedSerialWriter<Tx<Usart0>> {
     serial_remote_tx.listen();
     free(move |cs| {
         SERIAL0_BUFFER
@@ -32,8 +32,8 @@ pub fn setup_usart0_buffered_writer(
 }
 
 pub fn setup_usart1_buffered_writer(
-    mut serial_remote_tx: Tx<USART1>,
-) -> BufferedSerialWriter<Tx<USART1>> {
+    mut serial_remote_tx: Tx<Usart1>,
+) -> BufferedSerialWriter<Tx<Usart1>> {
     serial_remote_tx.listen();
     free(move |cs| {
         SERIAL1_BUFFER

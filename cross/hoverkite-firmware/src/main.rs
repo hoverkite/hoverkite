@@ -69,31 +69,31 @@ fn main() -> ! {
     let mut cp = cortex_m::Peripherals::take().unwrap();
     let dp = pac::Peripherals::take().unwrap();
 
-    let mut rcu = dp.RCU.constrain();
-    let mut flash = dp.FMC.constrain();
+    let mut rcu = dp.rcu.constrain();
+    let mut flash = dp.fmc.constrain();
     let clocks = rcu
         .cfgr
         .sysclk(72.mhz())
         .adcclk(12.mhz())
         .freeze(&mut flash.ws);
 
-    let mut watchdog = FreeWatchdog::new(dp.FWDGT);
+    let mut watchdog = FreeWatchdog::new(dp.fwdgt);
     watchdog.start(WATCHDOG_MILLIS.ms());
 
     let systick = SysTick::start(cp.SYST, &clocks);
 
     let mut hoverboard = Hoverboard::new(
-        dp.GPIOA,
-        dp.GPIOB,
-        dp.GPIOC,
-        dp.GPIOF,
-        dp.USART0,
-        dp.USART1,
-        dp.I2C0,
-        dp.TIMER0,
-        dp.TIMER1,
-        dp.DMA,
-        dp.ADC,
+        dp.gpioa,
+        dp.gpiob,
+        dp.gpioc,
+        dp.gpiof,
+        dp.usart0,
+        dp.usart1,
+        dp.i2c0,
+        dp.timer0,
+        dp.timer1,
+        dp.dma,
+        dp.adc,
         &mut rcu.ahb,
         &mut rcu.apb1,
         &mut rcu.apb2,
