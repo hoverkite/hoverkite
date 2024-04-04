@@ -16,7 +16,7 @@ use crate::log;
 use bmi160::{
     interface::I2cInterface, AccelerometerPowerMode, Bmi160, GyroscopePowerMode, SlaveAddr,
 };
-use cortex_m::interrupt::free;
+use cortex_m::{interrupt::free, peripheral::DWT};
 use gd32f1x0_hal::{
     gpio::{
         gpioa::{PA0, PA12, PA15},
@@ -26,7 +26,7 @@ use gd32f1x0_hal::{
         Alternate, Floating, Input, Output, OutputMode, PullMode, PullUp, PushPull, AF1,
     },
     i2c::{BlockingI2c, Mode},
-    pac::{ADC, DMA, DWT, GPIOA, GPIOB, GPIOC, GPIOF, I2C0, TIMER0, TIMER1, USART0, USART1},
+    pac::{Adc, Dma, Gpioa, Gpiob, Gpioc, Gpiof, I2c0, Timer0, Timer1, Usart0, Usart1},
     prelude::*,
     pwm::Channel,
     rcu::{Clocks, AHB, APB1, APB2},
@@ -51,11 +51,11 @@ pub struct Leds {
 }
 
 pub struct Hoverboard {
-    pub serial_remote_rx: Rx<USART0>,
-    pub serial_remote_writer: BufferedSerialWriter<Tx<USART0>>,
-    pub serial_rx: Rx<USART1>,
-    pub serial_writer: BufferedSerialWriter<Tx<USART1>>,
-    pub imu: Bmi160<I2cInterface<BlockingI2c<I2C0, PB8<Alternate<AF1>>, PB9<Alternate<AF1>>>>>,
+    pub serial_remote_rx: Rx<Usart0>,
+    pub serial_remote_writer: BufferedSerialWriter<Tx<Usart0>>,
+    pub serial_rx: Rx<Usart1>,
+    pub serial_writer: BufferedSerialWriter<Tx<Usart1>>,
+    pub imu: Bmi160<I2cInterface<BlockingI2c<I2c0, PB8<Alternate<AF1>>, PB9<Alternate<AF1>>>>>,
     pub buzzer: Buzzer,
     pub power_latch: PB2<Output<PushPull>>,
     /// This will be high when the power button is pressed.
@@ -69,17 +69,17 @@ pub struct Hoverboard {
 
 impl Hoverboard {
     pub fn new(
-        gpioa: GPIOA,
-        gpiob: GPIOB,
-        gpioc: GPIOC,
-        gpiof: GPIOF,
-        usart0: USART0,
-        usart1: USART1,
-        i2c0: I2C0,
-        timer0: TIMER0,
-        timer1: TIMER1,
-        dma: DMA,
-        adc: ADC,
+        gpioa: Gpioa,
+        gpiob: Gpiob,
+        gpioc: Gpioc,
+        gpiof: Gpiof,
+        usart0: Usart0,
+        usart1: Usart1,
+        i2c0: I2c0,
+        timer0: Timer0,
+        timer1: Timer1,
+        dma: Dma,
+        adc: Adc,
         ahb: &mut AHB,
         apb1: &mut APB1,
         apb2: &mut APB2,

@@ -33,7 +33,7 @@ fn TIMER0_BRK_UP_TRG_COM() {
 }
 
 #[interrupt]
-fn DMA_CHANNEL0() {
+fn DMA_Channel0() {
     free(|cs| {
         if let Some(shared) = &mut *SHARED.borrow(cs).borrow_mut() {
             // Fetch ADC readings from the DMA buffer.
@@ -57,6 +57,6 @@ pub fn unmask_interrupts(motor: Motor, adc_dma: AdcDmaState) {
 
     unsafe {
         NVIC::unmask(Interrupt::TIMER0_BRK_UP_TRG_COM);
-        NVIC::unmask(Interrupt::DMA_CHANNEL0);
+        NVIC::unmask(Interrupt::DMA_Channel0);
     }
 }

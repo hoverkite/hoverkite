@@ -7,7 +7,7 @@ use gd32f1x0_hal::{
         gpioa::{PA4, PA6},
         Analog,
     },
-    pac::{adc::ctl1::CTN_A, ADC},
+    pac::{self, adc::ctl1::Ctn},
     prelude::*,
     rcu::{Clocks, APB2},
 };
@@ -40,7 +40,7 @@ pub enum AdcDmaState {
 
 impl AdcDmaState {
     pub fn setup(
-        adc: ADC,
+        adc: pac::Adc,
         battery_voltage: PA4<Analog>,
         motor_current: PA6<Analog>,
         apb2: &mut APB2,
@@ -57,7 +57,7 @@ impl AdcDmaState {
         sequence.add_pin(motor_current).ok().unwrap();
         sequence.add_pin(VBat).ok().unwrap();
         let adc = adc.with_regular_sequence(sequence);
-        let adc_dma = adc.with_scan_dma(dma_channel, CTN_A::SINGLE, None);
+        let adc_dma = adc.with_scan_dma(dma_channel, Ctn::Single, None);
         let adc_dma_buffer = singleton!(: [u16; 3] = [0; 3]).unwrap();
         AdcDmaState::NotStarted(adc_dma, adc_dma_buffer)
     }

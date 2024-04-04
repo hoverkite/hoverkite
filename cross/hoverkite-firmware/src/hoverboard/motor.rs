@@ -8,7 +8,7 @@ use gd32f1x0_hal::{
         gpiof::PF1,
         Alternate, Floating, Input, AF2,
     },
-    pac::TIMER0,
+    pac::Timer0,
     pwm::{Alignment, BreakMode, Channel, IdleState, Polarity, Pwm},
     rcu::{Clocks, APB2},
     time::Hertz,
@@ -62,7 +62,7 @@ impl HallSensors {
 }
 
 pub struct Motor {
-    pub pwm: Pwm<TIMER0, OptionalPins>,
+    pub pwm: Pwm<Timer0, OptionalPins>,
     hall_sensors: HallSensors,
     /// The absolute position of the motor.
     pub position: i64,
@@ -88,12 +88,12 @@ pub type Pins = (YellowPins, BluePins, GreenPins);
 type OptionalPins = (Option<YellowPins>, Option<BluePins>, Option<GreenPins>);
 
 fn setup_pwm(
-    timer: TIMER0,
+    timer: Timer0,
     frequency: Hertz,
     clocks: Clocks,
     pins: Pins,
     apb: &mut APB2,
-) -> Pwm<TIMER0, OptionalPins> {
+) -> Pwm<Timer0, OptionalPins> {
     let pins = (Some(pins.0), Some(pins.1), Some(pins.2));
     let mut pwm = Timer::timer0(timer, &clocks, apb).pwm(pins, frequency);
 
@@ -131,7 +131,7 @@ fn setup_pwm(
 
 impl Motor {
     pub fn new(
-        timer: TIMER0,
+        timer: Timer0,
         pwm_frequency: Hertz,
         clocks: Clocks,
         pins: Pins,
