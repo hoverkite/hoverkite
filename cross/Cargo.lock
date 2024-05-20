@@ -136,9 +136,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62d1aee5d756047ca1d20be263beda1f13f69c4e64aa10dac55dfe890b57265"
+checksum = "e5b5a36fbe3611e7268bfb8845f60e5efa7d37bc8f1129f9ffd0c8c8d75343b4"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
