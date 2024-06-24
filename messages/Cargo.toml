@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 arrayvec = { version = "0.7.4", default-features = false }
-displaydoc = { version = "0.2.4", default-features = false }
+displaydoc = { version = "0.2.5", default-features = false }
 embedded-io = "0.6.1"
 embedded-io-adapters = { version = "0.6.1", features = [
     "std",
