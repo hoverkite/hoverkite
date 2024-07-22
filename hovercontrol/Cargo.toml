@@ -21,4 +21,4 @@ serde = "1.0.204"
 serialport = "4.4.0"
 stable-eyre = "0.2.2"
 tokio = { version = "1.38.0", features = ["rt", "rt-multi-thread"] }
-toml = "0.8.14"
+toml = "0.8.15"
