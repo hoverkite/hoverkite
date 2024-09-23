@@ -63,12 +63,7 @@ impl Controller {
                 self.handle_response(&response);
             }
 
-            if let Some(Event {
-                id: _,
-                event,
-                time: _,
-            }) = self.gilrs.next_event()
-            {
+            if let Some(Event { event, .. }) = self.gilrs.next_event() {
                 self.handle_event(event)?;
             } else {
                 thread::sleep(SLEEP_DURATION);
