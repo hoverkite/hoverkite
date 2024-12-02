@@ -18,7 +18,7 @@ rustls = "0.21.11"
 rustls-native-certs = "0.6.3"
 serde_derive = "1.0.188"
 serde = "1.0.215"
-serialport = "4.6.0"
+serialport = "4.6.1"
 stable-eyre = "0.2.2"
 tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread"] }
 toml = "0.8.19"
