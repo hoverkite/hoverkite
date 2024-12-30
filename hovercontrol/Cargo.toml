@@ -17,7 +17,7 @@ rumqttc = "0.22.0"
 rustls = "0.21.11"
 rustls-native-certs = "0.6.3"
 serde_derive = "1.0.188"
-serde = "1.0.216"
+serde = "1.0.217"
 serialport = "4.6.1"
 stable-eyre = "0.2.2"
 tokio = { version = "1.42.0", features = ["rt", "rt-multi-thread"] }
