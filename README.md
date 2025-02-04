@@ -1,6 +1,6 @@
 # HoverKite
 
-[![Hoverkite Test Video](https://img.youtube.com/vi/v4giks0vXq8/0.jpg)](https://youtube.com/shorts/v4giks0vXq8?feature=share)
+[![Hoverkite Test Video](https://img.youtube.com/vi/v4giks0vXq8/0.jpg)](https://youtube.com/watch?v=v4giks0vXq8)
 
 HoverKite is a hare-brained scheme to fly a kite using a camera, a raspberry pi, and custom firmware
 on a hoverboard.
