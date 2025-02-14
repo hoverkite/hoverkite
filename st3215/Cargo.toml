@@ -1,0 +1,6 @@
+[package]
+name = "st3215"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
