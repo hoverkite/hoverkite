@@ -176,6 +176,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io-async"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ff09972d4073aa8c299395be75161d582e7629cd663171d62af73c8d50dba3f"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1093,6 +1102,9 @@ dependencies = [
 [[package]]
 name = "st3215"
 version = "0.1.0"
+dependencies = [
+ "embedded-io-async",
+]
 
 [[package]]
 name = "stable-eyre"
