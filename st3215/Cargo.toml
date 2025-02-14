@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 embedded-io-async = "0.6.1"
+
+[dev-dependencies]
+futures-test = "0.3.31"
+embedded-io-async = {features = ["std"], version = "0.6.1"}
