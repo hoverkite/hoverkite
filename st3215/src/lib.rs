@@ -8,16 +8,19 @@ pub struct InstructionPacket {
 }
 
 impl InstructionPacket {
-    fn length(&self) -> u8 {
-        2 + self.instruction.parameters().len() as u8
+    fn parameters(&self) -> &[u8] {
+        self.instruction.parameters()
+    }
+    fn effective_data_length(&self) -> u8 {
+        2 + self.parameters().len() as u8
     }
     pub(crate) fn checksum(&self) -> u8 {
         let mut sum = self
             .id
             .0
-            .wrapping_add(self.length())
+            .wrapping_add(self.effective_data_length())
             .wrapping_add(self.instruction.code());
-        for byte in self.instruction.parameters() {
+        for byte in self.parameters() {
             sum = sum.wrapping_add(*byte);
         }
         !sum
@@ -28,19 +31,23 @@ impl InstructionPacket {
                 0xff,
                 0xff,
                 self.id.0,
-                self.length(),
+                self.effective_data_length(),
                 self.instruction.code(),
             ])
             .await?;
         // TODO: work out what happens if something else tries to write to the stream while we're paused here.
         // I guess this is why the "client owns the stream" model is so popular?
-        stream.write_all(self.instruction.parameters()).await?;
+        stream.write_all(self.parameters()).await?;
         stream.write_all(&[self.checksum()]).await?;
         Ok(())
     }
 }
 
 pub struct ServoIdOrBroadcast(pub u8);
+
+impl ServoIdOrBroadcast {
+    const BROADCAST: Self = Self(254);
+}
 
 /** ID No. 254 is a broadcast ID */
 #[repr(transparent)]
@@ -98,9 +105,9 @@ impl Instruction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReplyPacket {
     id: ServoId,
-    length: u8,
     current_state: CurrentState,
     parameters: ArrayVec<[u8; 256]>,
 }
@@ -117,7 +124,6 @@ impl ReplyPacket {
 
         let mut res = Self {
             id,
-            length,
             current_state: CurrentState::Normal,
             // FIXME: refactor this to use maybeuninit or some smol vec impl for a tiny speedup?
             parameters: ArrayVec::new(),
@@ -138,19 +144,20 @@ impl ReplyPacket {
         let mut sum = self
             .id
             .0
-            .wrapping_add(self.length.wrapping_add(2))
+            .wrapping_add((self.parameters().len() as u8).wrapping_add(2))
             .wrapping_add(self.current_state.as_u8());
-        for byte in &self.parameters[..self.length as usize] {
+        for byte in &self.parameters {
             sum = sum.wrapping_add(*byte);
         }
         !sum
     }
     pub fn parameters(&self) -> &[u8] {
-        &self.parameters[..self.length as usize]
+        &self.parameters
     }
 }
 
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurrentState {
     Normal = 0,
 }
@@ -182,23 +189,30 @@ mod tests {
         assert_eq!(TEST_SERVO_ID, ServoId::new(1).unwrap());
     }
 
-    /** example from `1.3.1 Query status instruction PING` */
+    /**
+     * Example 1 reads the working state of the steering gear with ID number 1.
+     * (example from `1.3.1 Query status instruction PING`)
+     * */
     #[futures_test::test]
-    async fn query_status_instruction_ping_1_3_1() {
+    async fn example_1_query_status_instruction_ping_1_3_1() {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(1),
             instruction: Instruction::Ping,
         };
         let mut stream: Vec<u8> = Vec::new();
-        assert_eq!(packet.length(), 0x02);
+        assert_eq!(packet.effective_data_length(), 0x02);
+        assert_eq!(packet.parameters(), &[]);
         assert_eq!(packet.checksum(), 0xfB);
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x02, 0x01, 0xfB]);
     }
 
-    /** example from `1.3.2 READ DATA` */
+    /**
+     * Example 2 Read the current position of the servo with ID 1
+     * (example from `1.3.2 READ DATA`, first part)
+     */
     #[futures_test::test]
-    async fn read_data_1_3_2_instruction() {
+    async fn example_2_read_data_instruction() {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(1),
             instruction: Instruction::ReadData {
@@ -206,35 +220,98 @@ mod tests {
             },
         };
         let mut stream: Vec<u8> = Vec::new();
-        assert_eq!(packet.length(), 0x04);
+        assert_eq!(packet.effective_data_length(), 0x04);
+        assert_eq!(packet.parameters(), &[0x38, 0x02]);
         assert_eq!(packet.checksum(), 0xbe);
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x04, 0x02, 0x38, 0x02, 0xbe]);
     }
 
-    /** example from `1.3.2 READ DATA` */
+    /**
+     * Example 2 Read the current position of the servo with ID 1
+     * (example from `1.3.2 READ DATA`, second part)
+     */
     #[futures_test::test]
-    async fn read_data_1_3_2_response() {
+    async fn example_2_read_data_response() {
         let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x04, 0x00, 0x18, 0x05, 0xDD];
         let mut stream: &[u8] = &received_data_frame;
         let packet = ReplyPacket::read(&mut stream).await.unwrap();
 
-        assert_eq!(packet.parameters(), &[0x18, 0x05]);
+        assert_eq!(
+            packet,
+            ReplyPacket {
+                id: ServoId::new(1).unwrap(),
+                current_state: CurrentState::Normal,
+                parameters: array_vec![0x18, 0x05],
+            }
+        );
     }
 
-    /** example from `1.3.3 WRITE DATA` */
+    /**
+     * Example 3 sets an ID of any number to 1
+     * (example from `1.3.3 WRITE DATA`)
+     */
     #[futures_test::test]
-    async fn read_data_1_3_3_instruction() {
+    async fn example_3_broadcast_set_id() {
         let packet = InstructionPacket {
-            id: ServoIdOrBroadcast(0xFE),
+            id: ServoIdOrBroadcast::BROADCAST,
             instruction: Instruction::WriteData {
+                // FIXME: split this into "head address" and array of values
                 parameters: array_vec!(0x05, 0x01),
             },
         };
         let mut stream: Vec<u8> = Vec::new();
-        // assert_eq!(packet.length(), 0x04);
-        // assert_eq!(packet.checksum(), 0xbe);
+        assert_eq!(packet.effective_data_length(), 0x04);
+        assert_eq!(packet.parameters(), [0x05, 0x01]);
+        assert_eq!(packet.checksum(), 0xf4);
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0xfe, 0x04, 0x03, 0x05, 0x01, 0xf4]);
+    }
+
+    /**
+     * Example 4 controls the ID1 servo to rotate to 2048 at a speed of 1000 seconds.
+     * (first part)
+     */
+    #[futures_test::test]
+    async fn example_4_control_servo_instruction() {
+        let packet = InstructionPacket {
+            id: ServoIdOrBroadcast(1),
+            instruction: Instruction::WriteData {
+                // FIXME: split this into "head address" and array of values
+                parameters: array_vec!(0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03),
+            },
+        };
+        let mut stream: Vec<u8> = Vec::new();
+        assert_eq!(packet.effective_data_length(), 0x09);
+        assert_eq!(
+            packet.parameters(),
+            [0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
+        );
+        // assert_eq!(packet.checksum(), 0xbe);
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(
+            stream,
+            vec![0xff, 0xff, 0x01, 0x09, 0x03, 0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03, 0xd5]
+        );
+    }
+
+    /**
+     * Example 4 controls the ID1 servo to rotate to 2048 at a speed of 1000 seconds.
+     * (second part)
+     */
+    #[futures_test::test]
+    async fn example_4_control_servo_response() {
+        let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x02, 0x00, 0xFC];
+        let mut stream: &[u8] = &received_data_frame;
+        let packet = ReplyPacket::read(&mut stream).await.unwrap();
+
+        assert_eq!(
+            packet,
+            ReplyPacket {
+                id: ServoId::new(1).unwrap(),
+                current_state: CurrentState::Normal,
+                parameters: array_vec![],
+            }
+        );
     }
 }
