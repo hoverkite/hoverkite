@@ -24,7 +24,7 @@ fn parse_hex_arg(args: &Vec<String>, index: usize, name: &str) -> u8 {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 5 {
+    if args.len() < 4 {
         eprintln!(
             "Usage: {} <serial_port_path> <servo_id> <head_address> [<length>]",
             args[0]
@@ -65,6 +65,18 @@ fn main() {
     let mut serial_port = embedded_io_adapters::std::FromStd::new(serial_port);
 
     let response = st3215::ReplyPacket::read(&mut serial_port).expect("Failed to read response");
-
     println!("{:?}", response);
+    match length {
+        1 => {
+            let value = response.parameters()[0];
+            println!("{:#}", value);
+        }
+        2 => {
+            let value = u16::from_le_bytes([response.parameters()[0], response.parameters()[1]]);
+            println!("{:#}", value);
+        }
+        _ => {
+            println!("{:?}", response.parameters());
+        }
+    }
 }
