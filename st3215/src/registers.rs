@@ -243,7 +243,7 @@ pub enum RegisterAddress {
      * maximum_value: 254
      * unit: no
      */
-    PProportionalityCoefficient = 21,
+    ProportionalityCoefficient = 21,
 
     /**
      * D Differential coefficient
@@ -257,7 +257,7 @@ pub enum RegisterAddress {
      * maximum_value: 254
      * unit: no
      */
-    DDifferentialCoefficient = 22,
+    DifferentialCoefficient = 22,
 
     /**
      * I Integral coefficient
@@ -271,7 +271,7 @@ pub enum RegisterAddress {
      * maximum_value: 254
      * unit: no
      */
-    IIntegralCoefficient = 23,
+    IntegralCoefficient = 23,
 
     /**
      * Minimum startup force
@@ -702,9 +702,9 @@ impl RegisterAddress {
             18 => Some(Self::Phase),
             19 => Some(Self::UnloadingCondition),
             20 => Some(Self::LEDAlarmCondition),
-            21 => Some(Self::PProportionalityCoefficient),
-            22 => Some(Self::DDifferentialCoefficient),
-            23 => Some(Self::IIntegralCoefficient),
+            21 => Some(Self::ProportionalityCoefficient),
+            22 => Some(Self::DifferentialCoefficient),
+            23 => Some(Self::IntegralCoefficient),
             24 => Some(Self::MinimumStartupForce),
             26 => Some(Self::ClockwiseInsensitiveArea),
             27 => Some(Self::CounterclockwiseInsensitiveRegion),
@@ -757,9 +757,9 @@ impl RegisterAddress {
             Self::Phase => 1,
             Self::UnloadingCondition => 1,
             Self::LEDAlarmCondition => 1,
-            Self::PProportionalityCoefficient => 1,
-            Self::DDifferentialCoefficient => 1,
-            Self::IIntegralCoefficient => 1,
+            Self::ProportionalityCoefficient => 1,
+            Self::DifferentialCoefficient => 1,
+            Self::IntegralCoefficient => 1,
             Self::MinimumStartupForce => 2,
             Self::ClockwiseInsensitiveArea => 1,
             Self::CounterclockwiseInsensitiveRegion => 1,

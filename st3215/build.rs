@@ -59,6 +59,7 @@ DEC HEX		Low Front High behind							If the function address uses two bytes of d
 struct RegisterDescription {
     memory_address: &'static str,
     function: &'static str,
+    variant_name: String,
     bytes: &'static str,
     initial_value: &'static str,
     storage_area: &'static str,
@@ -114,6 +115,11 @@ mod codegen {
                     // ignore field 1: it's just the hex representation of the memory address, but they make a bunch of mistakes so it's utterly garbage
                     memory_address: fields[0],
                     function: fields[2],
+                    variant_name: fields[2]
+                        .split(' ')
+                        .skip_while(|word| word.len() == 1)
+                        .map(|word| word[0..1].to_uppercase() + &word[1..])
+                        .collect::<String>(),
                     bytes: fields[3],
                     initial_value: fields[4],
                     storage_area: fields[5],
@@ -131,15 +137,10 @@ mod codegen {
         // RegisterAddress enum
         result.push_str("pub enum RegisterAddress {");
         for register in &registers {
-            let struct_name = register
-                .function
-                .split(' ')
-                .map(|word| word[0..1].to_uppercase() + &word[1..])
-                .collect::<String>();
-
-
+            
             let memory_address = register.memory_address;
             let function = register.function;
+            let variant_name = &register.variant_name;
             let analysis_of_values = register.analysis_of_values.replace("\\n", "\n     * ");
             let initial_value = register.initial_value;
             let storage_area = register.storage_area;
@@ -162,7 +163,7 @@ mod codegen {
                          * maximum_value: {maximum_value}
                          * unit: {unit}
                          */
-                        {struct_name} = {memory_address},
+                        {variant_name} = {memory_address},
                     "#
                 ))
                 .replace("\n     *\n     *\n     *", "\n     *"),
@@ -189,13 +190,9 @@ mod codegen {
         );
         for register in &registers {
             let memory_address = register.memory_address;
-            let struct_name = register
-                .function
-                .split(' ')
-                .map(|word| word[0..1].to_uppercase() + &word[1..])
-                .collect::<String>();
+            let variant_name = &register.variant_name;
             result.push_str(&format!(
-                "            {memory_address} => Some(Self::{struct_name}),\n"
+                "            {memory_address} => Some(Self::{variant_name}),\n"
             ));
         }
         result.push_str(
@@ -221,12 +218,8 @@ mod codegen {
         );
         for register in &registers {
             let bytes = register.bytes;
-            let struct_name = register
-                .function
-                .split(' ')
-                .map(|word| word[0..1].to_uppercase() + &word[1..])
-                .collect::<String>();
-            result.push_str(&format!("            Self::{struct_name} => {bytes},\n"));
+            let variant_name = &register.variant_name;
+            result.push_str(&format!("            Self::{variant_name} => {bytes},\n"));
         }
         result.push_str(
             &dedent_last(
