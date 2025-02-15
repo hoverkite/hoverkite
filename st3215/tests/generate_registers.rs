@@ -75,10 +75,6 @@ trait Register {
     type Value;
     
     const MEMORY_ADDRESS: u8;
-    // TODO:
-    // const initial_value: Option<Self::Value>;
-    // const minimum_value: Option<Self::Value>;
-    // const maximum_value: Option<Self::Value>;
 }
 
 "#;
