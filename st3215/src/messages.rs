@@ -58,6 +58,18 @@ pub struct ServoIdOrBroadcast(pub u8);
 
 impl ServoIdOrBroadcast {
     pub(crate) const BROADCAST: Self = Self(254);
+
+    pub fn from_hex_string(input: &str) -> Option<Self> {
+        if input == "BROADCAST" {
+            return Some(Self::BROADCAST);
+        }
+        assert!(
+            input.starts_with("0x"),
+            "Input must start with '0x'. Received: {}",
+            input
+        );
+        u8::from_str_radix(&input[2..], 16).map(Self).ok()
+    }
 }
 
 /** ID No. 254 is a broadcast ID */
@@ -99,20 +111,20 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub(crate) fn read_register(register: Register) -> Self {
+    pub fn read_register(register: Register) -> Self {
         Self::ReadData {
             head_address: register.to_memory_address(),
             length: register.length(),
         }
     }
-    pub(crate) fn write_register_u8(register: Register, value: u8) -> Self {
+    pub fn write_register_u8(register: Register, value: u8) -> Self {
         assert!(register.length() == 1);
         Self::WriteData {
             head_address: register.to_memory_address(),
             data: ArrayVec::from_iter([value]),
         }
     }
-    pub(crate) fn write_register_u16(register: Register, value: u16) -> Self {
+    pub fn write_register_u16(register: Register, value: u16) -> Self {
         assert!(register.length() == 2);
         Self::WriteData {
             head_address: register.to_memory_address(),
@@ -314,10 +326,7 @@ impl ServoStatusErrors {
     pub(crate) const NORMAL: Self = Self::empty();
 
     pub(crate) fn from_u8(value: u8) -> Result<Self, u8> {
-        match value {
-            0 => Ok(Self::NORMAL),
-            _ => Err(value),
-        }
+        Self::from_bits(value).ok_or(value)
     }
     pub(crate) fn as_u8(&self) -> u8 {
         self.bits()
