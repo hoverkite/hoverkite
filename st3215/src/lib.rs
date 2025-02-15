@@ -6,6 +6,7 @@ pub struct InstructionPacket {
     pub id: ServoIdOrBroadcast,
     pub instruction: Instruction,
 }
+pub mod registers;
 
 impl InstructionPacket {
     fn effective_data_length(&self) -> u8 {

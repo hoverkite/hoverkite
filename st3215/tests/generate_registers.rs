@@ -69,13 +69,30 @@ struct RegisterDescription {
     analysis_of_values: &'static str,
 }
 
-const PREFIX: &str = r#"
+const PREFIX: &str = r#"/** Auto-generated code. Do not modify. */
+
+trait Register {
+    type Value;
+    
+    const MEMORY_ADDRESS: u8;
+    // TODO:
+    // const initial_value: Option<Self::Value>;
+    // const minimum_value: Option<Self::Value>;
+    // const maximum_value: Option<Self::Value>;
+}
+
 "#;
 const SUFFIX: &str = r#""#;
 
 #[cfg(test)]
 mod codegen {
     use super::*;
+
+    fn dedent(s: &str) -> String {
+        let first_indent = s.lines().skip(1).next().unwrap().chars().take_while(|c| c.is_whitespace()).collect::<String>();
+
+        s.replace(&(String::from("\n") + &first_indent), "\n").trim_end_matches(' ').to_string().replace(" \n", "\n")
+    }
 
     fn format_code() -> String {
         let mut result = String::new();
@@ -99,8 +116,40 @@ mod codegen {
         });
 
         for register in registers {
-            println!("{:?}", register);
-            result.push_str(&format!("/*\n{register:#?}\n*/\n"));
+            let struct_name = register.function.split(' ').map(|word| { word[0..1].to_uppercase() + &word[1..] }).collect::<String>();
+            let value_type = match register.bytes {
+                "1" => "u8",
+                "2" => "u16",
+                _ => panic!("Unsupported byte count: {}", register.bytes),
+            };
+            let memory_address = register.memory_address;
+            let function = register.function;
+            let analysis_of_values = register.analysis_of_values;
+            let initial_value = register.initial_value;
+            let storage_area = register.storage_area;
+            let authority = register.authority;
+            let minimum_value = register.minimum_value;
+            let maximum_value = register.maximum_value;
+            let unit = register.unit;
+            result.push_str(&dedent(&format!(r#"
+                /**
+                 * {function}
+                 * 
+                 * {analysis_of_values}
+                 * 
+                 * initial_value: {initial_value}
+                 * storage_area: {storage_area}
+                 * authority: {authority}
+                 * minimum_value: {minimum_value}
+                 * maximum_value: {maximum_value}
+                 * unit: {unit}
+                 */
+                struct {struct_name};
+                impl Register for {struct_name} {{
+                    type Value = {value_type};
+                    const MEMORY_ADDRESS: u8 = {memory_address};
+                }}
+            "#)).replace("\n *\n *\n *", "\n *"));
         }
 
         result.push_str(SUFFIX);
@@ -111,6 +160,8 @@ mod codegen {
      * This is inspired by https://llogiq.github.io/2024/03/28/easy.html
      *
      * I much prefer this approach over the procedural macro approach.
+     *
+     * Note that generated code must be formatted in a way that rustfmt agrees with.
      */
     #[test]
     fn generate_registers() {
