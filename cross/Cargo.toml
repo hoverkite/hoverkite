@@ -1,6 +1,10 @@
 [workspace]
+
+resolver = "2"
+
 members = [
-    "hoverkite-firmware"
+    "hoverkite-firmware",
+    "kitebox",
 ]
 
 [profile.release]
