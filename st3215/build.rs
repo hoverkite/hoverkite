@@ -133,11 +133,9 @@ mod codegen {
             })
             .collect();
 
-
         // Register enum
         result.push_str("pub enum Register {");
         for register in &registers {
-            
             let memory_address = register.memory_address;
             let function = register.function;
             let variant_name = &register.variant_name;
@@ -221,7 +219,9 @@ mod codegen {
         for register in &registers {
             let variant_name = &register.variant_name;
             let memory_address = register.memory_address;
-            result.push_str(&format!("            Self::{variant_name} => {memory_address},\n"));
+            result.push_str(&format!(
+                "            Self::{variant_name} => {memory_address},\n"
+            ));
         }
         result.push_str(
             &dedent_last(
@@ -259,7 +259,7 @@ mod codegen {
         );
 
         // } for impl Register
-        result.push_str(&dedent(r#"}"#));
+        result.push_str(&dedent("}\n"));
 
         result
     }

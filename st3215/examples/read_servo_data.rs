@@ -1,6 +1,6 @@
 use core::panic;
 use serialport::SerialPortSettings;
-use st3215::{Instruction, InstructionPacket, ServoIdOrBroadcast};
+use st3215::{registers::Register, Instruction, InstructionPacket, ServoIdOrBroadcast};
 use std::env;
 
 fn parse_hex(input: &str) -> u8 {
@@ -38,9 +38,7 @@ fn main() {
     let head_address = parse_hex(&args[3]);
     // let length = parse_hex(&args[4]);
 
-    let length = if let Some(register) =
-        st3215::registers::Register::from_memory_address(head_address)
-    {
+    let length = if let Some(register) = Register::from_memory_address(head_address) {
         register.length()
     } else {
         parse_hex_arg(&args, 4, "length")
