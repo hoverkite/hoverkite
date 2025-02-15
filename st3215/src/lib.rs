@@ -403,4 +403,54 @@ mod tests {
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xFF, 0xFF, 0xFE, 0x02, 0x05, 0xFA]);
     }
+
+    /**
+     * Example7 Writing position 0X0800 time 0X0000 and speed 0X03E8 for ID1-ID4 with four
+     * servo header addresses 0X2A (low byte in front, high node in back)。
+     */
+    #[futures_test::test]
+    async fn example_7_sync_write() {
+        let packet = InstructionPacket {
+            id: ServoIdOrBroadcast::BROADCAST,
+            instruction: Instruction::SyncWrite {
+                parameters: array_vec![
+                    0x2A, // head address
+                    0x06, // length of each servo's data
+                    0x01, // first servo number
+                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                    0x02, // second servo number
+                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                    0x03, // third servo number
+                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                    0x04, // forth servo number
+                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03 // data
+                ],
+            },
+        };
+        let mut stream: Vec<u8> = Vec::new();
+        assert_eq!(
+            packet.instruction.parameters_as_buf().as_slice(),
+            [
+                0x2A, // head address
+                0x06, // length of each servo's data
+                0x01, // first servo number
+                0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                0x02, // second servo number
+                0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                0x03, // third servo number
+                0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+                0x04, // forth servo number
+                0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
+            ]
+        );
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(
+            stream,
+            vec![
+                0xFF, 0xFF, 0xFE, 0x20, 0x83, 0x2A, 0x06, 0x01, 0x00, 0x08, 0x00, 0x00, 0xE8, 0x03,
+                0x02, 0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, 0x03, 0x00, 0x08, 0x00, 0x00, 0xE8, 0x03,
+                0x04, 0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, 0x58,
+            ]
+        );
+    }
 }
