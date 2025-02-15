@@ -488,4 +488,40 @@ mod tests {
             ]
         );
     }
+
+    /**
+     * There isn't a name for the example for reset, but they do have send and receive data.
+     */
+    #[futures_test::test]
+    async fn reset_write() {
+        let packet = InstructionPacket {
+            // FIXME: it probably doesn't make sense to send reset as a broadcast message.
+            // Should we try to find a way to forbid it or make it unrepresentable?
+            id: ServoIdOrBroadcast(0),
+            instruction: Instruction::Reset,
+        };
+        let mut stream: Vec<u8> = Vec::new();
+
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(stream, vec![0xFF, 0xFF, 0x00, 0x02, 0x06, 0xF7,]);
+    }
+    /**
+     * returned data frame from a reset instruction. Note that the servo id has changed to 1
+     * because this is the default?
+     */
+    #[futures_test::test]
+    async fn reset_response() {
+        let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x02, 0x00, 0xFC];
+        let mut stream: &[u8] = &received_data_frame;
+        let packet = ReplyPacket::read(&mut stream).await.unwrap();
+
+        assert_eq!(
+            packet,
+            ReplyPacket {
+                id: ServoId::new(1).unwrap(),
+                current_state: CurrentState::Normal,
+                parameters: array_vec![],
+            }
+        );
+    }
 }
