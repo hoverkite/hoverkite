@@ -206,6 +206,33 @@ mod codegen {
             .trim_start_matches("\n"),
         );
 
+        // FIXME: there are crates that can derive this.
+        // Decide whether we're happy to take the compile-time hit.
+        // to_memory_address()
+        result.push_str(
+            &dedent(
+                r#"
+            
+                pub fn to_memory_address(&self) -> u8 {
+                    match self {
+            "#,
+            )[1..],
+        );
+        for register in &registers {
+            let variant_name = &register.variant_name;
+            let memory_address = register.memory_address;
+            result.push_str(&format!("            Self::{variant_name} => {memory_address},\n"));
+        }
+        result.push_str(
+            &dedent_last(
+                r#"
+                }
+            }
+        "#,
+            )
+            .trim_start_matches("\n"),
+        );
+
         // length()
         result.push_str(
             &dedent(
