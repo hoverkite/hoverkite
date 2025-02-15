@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 use embedded_io_async::{Read, ReadExactError, Write};
+use tinyvec::ArrayVec;
 
 pub struct InstructionPacket {
     id: ServoIdOrBroadcast,
@@ -51,13 +52,13 @@ pub enum Instruction {
     /** Query the Characters in the Control Table (0x02) */
     ReadData {parameters: [u8; 2]},
     /** Write characters into the control table (0x03) */
-    WriteData {parameters: [u8; 256]}, // >= 1
+    WriteData {parameters: ArrayVec<[u8; 256]>}, // >= 1
     /** Similar to WRITE DATA, the control character does not act immediately after writing until the ACTION instruction arrives. (0x04) */
-    RegWriteData {parameters: [u8; 256]}, // Not less than 2
+    RegWriteData {parameters: ArrayVec<[u8; 256]>}, // Not less than 2
     /** Actions that trigger REG WRITE writes (0x05) */
     Action,
     /** For simultaneous control of multiple servos (0x83) */
-    SyncWrite {parameters: [u8; 256]}, // Not less than 2
+    SyncWrite {parameters: ArrayVec<[u8; 256]>}, // Not less than 2
     /** Reset control table to factory value (0x06) */
     Reset,
 }
@@ -90,7 +91,7 @@ pub struct ReplyPacket {
     id: ServoId,
     length: u8,
     current_state: CurrentState,
-    parameters: [u8; 256],
+    parameters: ArrayVec<[u8; 256]>,
 }
 
 impl ReplyPacket {
@@ -109,9 +110,10 @@ impl ReplyPacket {
             length,
             current_state: CurrentState::Normal,
             // FIXME: refactor this to use maybeuninit or some smol vec impl for a tiny speedup?
-            parameters: [0u8; 256],
+            parameters: ArrayVec::new(),
         };
-        stream.read_exact(&mut res.parameters[..length as usize])
+        res.parameters.resize(length as usize, 0);
+        stream.read_exact(&mut res.parameters[..])
             .await?;
 
         let mut checksum = [0u8; 1];
@@ -158,6 +160,7 @@ impl CurrentState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tinyvec::array_vec;
 
     // I expect that most people will create a bunch of static constants like this, so they will
     // never need to have an unwrap() that can panic at runtime. Let's see if that pans out.
@@ -178,7 +181,7 @@ mod tests {
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.length(), 0x02);
         assert_eq!(packet.checksum(), 0xfB);
-        packet.write(&mut stream).await;
+        packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x02, 0x01, 0xfB]);
     }
 
@@ -192,7 +195,7 @@ mod tests {
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.length(), 0x04);
         assert_eq!(packet.checksum(), 0xbe);
-        packet.write(&mut stream).await;
+        packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x04, 0x02, 0x38, 0x02, 0xbe]);
     }
 
@@ -205,5 +208,21 @@ mod tests {
 
         assert_eq!(packet.parameters(), &[0x18, 0x05]);
     }
+
+
+    /** example from `1.3.3 WRITE DATA` */
+    #[futures_test::test]
+    async fn read_data_1_3_3_instruction() {
+        let packet = InstructionPacket {
+            id: ServoIdOrBroadcast(0xFE),
+            instruction: Instruction::WriteData { parameters: array_vec!(0x05, 0x01)},
+        };
+        let mut stream: Vec<u8> = Vec::new();
+        // assert_eq!(packet.length(), 0x04);
+        // assert_eq!(packet.checksum(), 0xbe);
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(stream, vec![0xff, 0xff, 0xfe, 0x04, 0x03, 0x05, 0x01, 0xf4]);
+    }
+
 
 }
