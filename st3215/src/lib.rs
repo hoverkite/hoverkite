@@ -1,15 +1,20 @@
 #![allow(dead_code, unused_variables)]
-use embedded_io_async::{Read, ReadExactError, Write};
+use embedded_io_async::{ReadExactError, Write};
 use tinyvec::ArrayVec;
 
 pub struct InstructionPacket {
-    id: ServoIdOrBroadcast,
-    instruction: Instruction,
+    pub id: ServoIdOrBroadcast,
+    pub instruction: Instruction,
 }
 
 impl InstructionPacket {
     fn effective_data_length(&self) -> u8 {
         2 + self.instruction.parameters_len()
+    }
+    pub fn to_buf(&self) -> ArrayVec<[u8; 256]> {
+        let mut res = ArrayVec::new();
+        self.write_to_buf(&mut res);
+        res
     }
     pub fn write_to_buf(
         &self,
@@ -189,12 +194,39 @@ impl SyncWriteParameters {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReplyPacket {
     id: ServoId,
-    current_state: CurrentState,
+    servo_status_errors: ServoStatusErrors,
     parameters: ArrayVec<[u8; 256]>,
 }
 
 impl ReplyPacket {
-    pub async fn read<R: Read>(mut stream: R) -> Result<Self, ReadExactError<R::Error>> {
+    pub fn read<R: embedded_io::Read>(mut stream: R) -> Result<Self, ReadExactError<R::Error>> {
+        let mut buffer = [0u8; 5];
+        stream.read_exact(&mut buffer)?;
+        debug_assert!(buffer[0] == 0xff);
+        debug_assert!(buffer[1] == 0xff);
+        let id = ServoId::new(buffer[2]).unwrap();
+        let length = buffer[3].saturating_sub(2);
+        let current_state = ServoStatusErrors::from_u8(buffer[4]).unwrap();
+
+        let mut res = Self {
+            id,
+            servo_status_errors: current_state,
+            parameters: ArrayVec::new(),
+        };
+        res.parameters.resize(length as usize, 0);
+        stream.read_exact(&mut res.parameters[..])?;
+
+        let mut checksum = [0u8; 1];
+        stream.read_exact(&mut checksum)?;
+
+        // FIXME: add an error variant for this instead of panicking
+        assert_eq!(res.checksum(), checksum[0]);
+        Ok(res)
+    }
+
+    pub async fn read_async<R: embedded_io_async::Read>(
+        mut stream: R,
+    ) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 5];
         stream.read_exact(&mut buffer).await?;
         debug_assert!(buffer[0] == 0xff);
@@ -205,7 +237,7 @@ impl ReplyPacket {
 
         let mut res = Self {
             id,
-            current_state: CurrentState::Normal,
+            servo_status_errors: ServoStatusErrors::NORMAL,
             // FIXME: refactor this to use maybeuninit or some smol vec impl for a tiny speedup?
             parameters: ArrayVec::new(),
         };
@@ -226,7 +258,7 @@ impl ReplyPacket {
             .id
             .0
             .wrapping_add((self.parameters().len() as u8).wrapping_add(2))
-            .wrapping_add(self.current_state.as_u8());
+            .wrapping_add(self.servo_status_errors.as_u8());
         for byte in &self.parameters {
             sum = sum.wrapping_add(*byte);
         }
@@ -237,22 +269,27 @@ impl ReplyPacket {
     }
 }
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CurrentState {
-    Normal = 0,
+bitflags::bitflags! {
+    pub struct ServoStatusErrors: u8 {
+        const VOLTAGE = 1 ;
+        const ANGLE = 2 ;
+        const OVERHEAT = 4 ;
+        const OVERELE = 8 ;
+        const OVERLOAD = 32;
+    }
 }
-impl CurrentState {
-    fn from_u8(value: u8) -> Option<Self> {
+
+impl ServoStatusErrors {
+    const NORMAL: Self = Self::empty();
+
+    fn from_u8(value: u8) -> Result<Self, u8> {
         match value {
-            0 => Some(Self::Normal),
-            _ => None,
+            0 => Ok(Self::NORMAL),
+            _ => Err(value),
         }
     }
     fn as_u8(&self) -> u8 {
-        match self {
-            Self::Normal => 0,
-        }
+        self.bits()
     }
 }
 
@@ -318,13 +355,13 @@ mod tests {
     async fn example_2_read_data_response() {
         let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x04, 0x00, 0x18, 0x05, 0xDD];
         let mut stream: &[u8] = &received_data_frame;
-        let packet = ReplyPacket::read(&mut stream).await.unwrap();
+        let packet = ReplyPacket::read_async(&mut stream).await.unwrap();
 
         assert_eq!(
             packet,
             ReplyPacket {
                 id: ServoId::new(1).unwrap(),
-                current_state: CurrentState::Normal,
+                servo_status_errors: ServoStatusErrors::NORMAL,
                 parameters: array_vec![0x18, 0x05],
             }
         );
@@ -389,13 +426,13 @@ mod tests {
     async fn example_4_control_servo_response() {
         let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x02, 0x00, 0xFC];
         let mut stream: &[u8] = &received_data_frame;
-        let packet = ReplyPacket::read(&mut stream).await.unwrap();
+        let packet = ReplyPacket::read_async(&mut stream).await.unwrap();
 
         assert_eq!(
             packet,
             ReplyPacket {
                 id: ServoId::new(1).unwrap(),
-                current_state: CurrentState::Normal,
+                servo_status_errors: ServoStatusErrors::NORMAL,
                 parameters: array_vec![],
             }
         );
@@ -520,13 +557,13 @@ mod tests {
     async fn reset_response() {
         let received_data_frame: Vec<u8> = vec![0xff, 0xff, 0x01, 0x02, 0x00, 0xFC];
         let mut stream: &[u8] = &received_data_frame;
-        let packet = ReplyPacket::read(&mut stream).await.unwrap();
+        let packet = ReplyPacket::read_async(&mut stream).await.unwrap();
 
         assert_eq!(
             packet,
             ReplyPacket {
                 id: ServoId::new(1).unwrap(),
-                current_state: CurrentState::Normal,
+                servo_status_errors: ServoStatusErrors::NORMAL,
                 parameters: array_vec![],
             }
         );
