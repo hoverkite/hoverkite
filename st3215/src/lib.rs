@@ -86,7 +86,7 @@ pub enum Instruction {
     /** Actions that trigger REG WRITE writes (0x05) */
     Action,
     /** For simultaneous control of multiple servos (0x83) */
-    SyncWrite { parameters: ArrayVec<[u8; 256]> }, // Not less than 2
+    SyncWrite { parameters: SyncWriteParameters },
     /** Reset control table to factory value (0x06) */
     Reset,
 }
@@ -118,7 +118,11 @@ impl Instruction {
                 buf.extend_from_slice(data)
             }
             Instruction::Action => {}
-            Instruction::SyncWrite { parameters } => buf.extend_from_slice(parameters),
+            Instruction::SyncWrite { parameters } => {
+                buf.push(parameters.head_address);
+                buf.push(parameters.length);
+                buf.extend_from_slice(&parameters.servo_data);
+            }
             Instruction::Reset => {}
         }
     }
@@ -137,9 +141,42 @@ impl Instruction {
                 data: values,
             } => values.len() as u8 + 1,
             Instruction::Action => 0,
-            Instruction::SyncWrite { parameters } => parameters.len() as u8,
+            Instruction::SyncWrite { parameters } => parameters.wire_length() as u8,
             Instruction::Reset => 0,
         }
+    }
+}
+
+pub struct SyncWriteParameters {
+    head_address: u8,
+    // length of data for each servo
+    length: u8,
+    // There is internal structure to this. It will be a sequence of servo id followed by data.
+    // In std-land I might type it as a Vec<(ServoId, Vec<u8>)>, but If I translate that into
+    // ArrayVec, that would be ArrayVec<[(ServoId, ArrayVec<[u8; 256]>); 256]>, which is ~65kB
+    servo_data: ArrayVec<[u8; 256]>,
+}
+
+impl SyncWriteParameters {
+    pub fn wire_length(&self) -> usize {
+        self.servo_data.len() + 2
+    }
+    pub fn new_manycast(head_address: u8, servo_ids: &[ServoId], data: &[u8]) -> Self {
+        let mut servo_data = ArrayVec::new();
+        for servo_id in servo_ids {
+            servo_data.push(servo_id.0);
+            servo_data.extend_from_slice(data);
+        }
+        Self {
+            head_address,
+            length: data.len() as u8,
+            servo_data,
+        }
+    }
+    pub fn add_servo(&mut self, servo_id: ServoId, data: &[u8]) {
+        assert!(data.len() == self.length as usize);
+        self.servo_data.push(servo_id.0);
+        self.servo_data.extend_from_slice(data);
     }
 }
 
@@ -413,18 +450,16 @@ mod tests {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast::BROADCAST,
             instruction: Instruction::SyncWrite {
-                parameters: array_vec![
-                    0x2A, // head address
-                    0x06, // length of each servo's data
-                    0x01, // first servo number
-                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
-                    0x02, // second servo number
-                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
-                    0x03, // third servo number
-                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, // data
-                    0x04, // forth servo number
-                    0x00, 0x08, 0x00, 0x00, 0xE8, 0x03 // data
-                ],
+                parameters: SyncWriteParameters::new_manycast(
+                    0x2A,
+                    &[
+                        ServoId::new(0x01).unwrap(),
+                        ServoId::new(0x02).unwrap(),
+                        ServoId::new(0x03).unwrap(),
+                        ServoId::new(0x04).unwrap(),
+                    ],
+                    &[0x00, 0x08, 0x00, 0x00, 0xE8, 0x03],
+                ),
             },
         };
         let mut stream: Vec<u8> = Vec::new();
