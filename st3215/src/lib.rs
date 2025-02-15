@@ -12,15 +12,26 @@ impl InstructionPacket {
         2 + self.instruction.parameters().len() as u8
     }
     pub(crate) fn checksum(&self) -> u8 {
-        let mut sum = self.id.0.wrapping_add(self.length()).wrapping_add(self.instruction.code());
+        let mut sum = self
+            .id
+            .0
+            .wrapping_add(self.length())
+            .wrapping_add(self.instruction.code());
         for byte in self.instruction.parameters() {
             sum = sum.wrapping_add(*byte);
         }
         !sum
-
     }
     pub async fn write<W: Write>(&self, mut stream: W) -> Result<(), W::Error> {
-        stream.write_all(&[0xff, 0xff, self.id.0, self.length(), self.instruction.code()]).await?;
+        stream
+            .write_all(&[
+                0xff,
+                0xff,
+                self.id.0,
+                self.length(),
+                self.instruction.code(),
+            ])
+            .await?;
         // TODO: work out what happens if something else tries to write to the stream while we're paused here.
         // I guess this is why the "client owns the stream" model is so popular?
         stream.write_all(self.instruction.parameters()).await?;
@@ -50,15 +61,15 @@ pub enum Instruction {
     /** Query the working status (0x01) */
     Ping,
     /** Query the Characters in the Control Table (0x02) */
-    ReadData {parameters: [u8; 2]},
+    ReadData { parameters: [u8; 2] },
     /** Write characters into the control table (0x03) */
-    WriteData {parameters: ArrayVec<[u8; 256]>}, // >= 1
+    WriteData { parameters: ArrayVec<[u8; 256]> }, // >= 1
     /** Similar to WRITE DATA, the control character does not act immediately after writing until the ACTION instruction arrives. (0x04) */
-    RegWriteData {parameters: ArrayVec<[u8; 256]>}, // Not less than 2
+    RegWriteData { parameters: ArrayVec<[u8; 256]> }, // Not less than 2
     /** Actions that trigger REG WRITE writes (0x05) */
     Action,
     /** For simultaneous control of multiple servos (0x83) */
-    SyncWrite {parameters: ArrayVec<[u8; 256]>}, // Not less than 2
+    SyncWrite { parameters: ArrayVec<[u8; 256]> }, // Not less than 2
     /** Reset control table to factory value (0x06) */
     Reset,
 }
@@ -66,8 +77,8 @@ impl Instruction {
     fn code(&self) -> u8 {
         match self {
             Instruction::Ping => 0x01,
-            Instruction::ReadData {..} => 0x02,
-            Instruction::WriteData {..} => 0x03,
+            Instruction::ReadData { .. } => 0x02,
+            Instruction::WriteData { .. } => 0x03,
             Instruction::RegWriteData { .. } => 0x04,
             Instruction::Action => 0x05,
             Instruction::SyncWrite { .. } => 0x83,
@@ -77,11 +88,11 @@ impl Instruction {
     fn parameters(&self) -> &[u8] {
         match self {
             Instruction::Ping => &[],
-            Instruction::ReadData {parameters} => parameters,
-            Instruction::WriteData {parameters} => parameters,
-            Instruction::RegWriteData {parameters} => parameters,
+            Instruction::ReadData { parameters } => parameters,
+            Instruction::WriteData { parameters } => parameters,
+            Instruction::RegWriteData { parameters } => parameters,
             Instruction::Action => &[],
-            Instruction::SyncWrite {parameters} => parameters,
+            Instruction::SyncWrite { parameters } => parameters,
             Instruction::Reset => &[],
         }
     }
@@ -95,10 +106,9 @@ pub struct ReplyPacket {
 }
 
 impl ReplyPacket {
-    pub async fn read<R: Read>(mut stream: R) -> Result<Self,ReadExactError< R::Error>> {
+    pub async fn read<R: Read>(mut stream: R) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 5];
-        stream.read_exact(&mut buffer)
-            .await?;
+        stream.read_exact(&mut buffer).await?;
         debug_assert!(buffer[0] == 0xff);
         debug_assert!(buffer[1] == 0xff);
         let id = ServoId::new(buffer[2]).unwrap();
@@ -113,22 +123,23 @@ impl ReplyPacket {
             parameters: ArrayVec::new(),
         };
         res.parameters.resize(length as usize, 0);
-        stream.read_exact(&mut res.parameters[..])
-            .await?;
+        stream.read_exact(&mut res.parameters[..]).await?;
 
         let mut checksum = [0u8; 1];
-        stream.read_exact(&mut checksum)
-            .await?;
-        
+        stream.read_exact(&mut checksum).await?;
+
         // FIXME: add an error variant for this instead of panicking
         assert_eq!(res.checksum(), checksum[0]);
         Ok(res)
-
     }
     fn checksum(&self) -> u8 {
         // FIXME: it might be better to dump everything off the wire into a buffer and checksum that,
         // rather than parsing and then partiallu un-parsing to checksum.
-        let mut sum = self.id.0.wrapping_add(self.length.wrapping_add(2)).wrapping_add(self.current_state.as_u8());
+        let mut sum = self
+            .id
+            .0
+            .wrapping_add(self.length.wrapping_add(2))
+            .wrapping_add(self.current_state.as_u8());
         for byte in &self.parameters[..self.length as usize] {
             sum = sum.wrapping_add(*byte);
         }
@@ -152,7 +163,7 @@ impl CurrentState {
     }
     fn as_u8(&self) -> u8 {
         match self {
-            Self::Normal => 0,    
+            Self::Normal => 0,
         }
     }
 }
@@ -190,7 +201,9 @@ mod tests {
     async fn read_data_1_3_2_instruction() {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(1),
-            instruction: Instruction::ReadData {parameters: [0x38, 0x02]},
+            instruction: Instruction::ReadData {
+                parameters: [0x38, 0x02],
+            },
         };
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.length(), 0x04);
@@ -209,13 +222,14 @@ mod tests {
         assert_eq!(packet.parameters(), &[0x18, 0x05]);
     }
 
-
     /** example from `1.3.3 WRITE DATA` */
     #[futures_test::test]
     async fn read_data_1_3_3_instruction() {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(0xFE),
-            instruction: Instruction::WriteData { parameters: array_vec!(0x05, 0x01)},
+            instruction: Instruction::WriteData {
+                parameters: array_vec!(0x05, 0x01),
+            },
         };
         let mut stream: Vec<u8> = Vec::new();
         // assert_eq!(packet.length(), 0x04);
@@ -223,6 +237,4 @@ mod tests {
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0xfe, 0x04, 0x03, 0x05, 0x01, 0xf4]);
     }
-
-
 }
