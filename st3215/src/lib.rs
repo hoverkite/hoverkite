@@ -74,7 +74,10 @@ pub enum Instruction {
     /** Query the Characters in the Control Table (0x02) */
     ReadData { parameters: [u8; 2] },
     /** Write characters into the control table (0x03) */
-    WriteData { parameters: ArrayVec<[u8; 256]> }, // >= 1
+    WriteData {
+        head_address: u8,
+        data: ArrayVec<[u8; 256]>,
+    }, // >= 1
     /** Similar to WRITE DATA, the control character does not act immediately after writing until the ACTION instruction arrives. (0x04) */
     RegWriteData { parameters: ArrayVec<[u8; 256]> }, // Not less than 2
     /** Actions that trigger REG WRITE writes (0x05) */
@@ -106,7 +109,13 @@ impl Instruction {
         match self {
             Instruction::Ping => {}
             Instruction::ReadData { parameters } => buf.extend_from_slice(parameters),
-            Instruction::WriteData { parameters } => buf.extend_from_slice(parameters),
+            Instruction::WriteData {
+                head_address,
+                data: values,
+            } => {
+                buf.push(*head_address);
+                buf.extend_from_slice(values)
+            }
             Instruction::RegWriteData { parameters } => buf.extend_from_slice(parameters),
             Instruction::Action => {}
             Instruction::SyncWrite { parameters } => buf.extend_from_slice(parameters),
@@ -119,7 +128,10 @@ impl Instruction {
         match self {
             Instruction::Ping => 0,
             Instruction::ReadData { parameters } => parameters.len() as u8,
-            Instruction::WriteData { parameters } => parameters.len() as u8,
+            Instruction::WriteData {
+                head_address,
+                data: values,
+            } => values.len() as u8 + 1,
             Instruction::RegWriteData { parameters } => parameters.len() as u8,
             Instruction::Action => 0,
             Instruction::SyncWrite { parameters } => parameters.len() as u8,
@@ -281,7 +293,8 @@ mod tests {
             id: ServoIdOrBroadcast::BROADCAST,
             instruction: Instruction::WriteData {
                 // FIXME: split this into "head address" and array of values
-                parameters: array_vec!(0x05, 0x01),
+                head_address: 0x05,
+                data: array_vec!(0x01),
             },
         };
         let mut stream: Vec<u8> = Vec::new();
@@ -303,8 +316,8 @@ mod tests {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(1),
             instruction: Instruction::WriteData {
-                // FIXME: split this into "head address" and array of values
-                parameters: array_vec!(0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03),
+                head_address: 0x2a,
+                data: array_vec!(0x00, 0x08, 0x00, 0x00, 0xe8, 0x03),
             },
         };
         let mut stream: Vec<u8> = Vec::new();
