@@ -37,6 +37,8 @@ impl InstructionPacket {
             .await?;
         // TODO: work out what happens if something else tries to write to the stream while we're paused here.
         // I guess this is why the "client owns the stream" model is so popular?
+        // I wonder if I should just write a single blocking write method that does all the writes
+        // in one go into a buffer, and then impl async write() on top of that.
         stream.write_all(self.parameters()).await?;
         stream.write_all(&[self.checksum()]).await?;
         Ok(())
