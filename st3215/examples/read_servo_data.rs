@@ -1,21 +1,10 @@
-use core::panic;
 use serialport::SerialPortSettings;
-use st3215::{registers::Register, Instruction, InstructionPacket, ServoIdOrBroadcast};
+use st3215::{
+    registers::Register, Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast,
+};
 use std::env;
 
 fn parse_hex(input: &str) -> u8 {
-    assert!(
-        input.starts_with("0x"),
-        "Input must start with '0x'. Received: {}",
-        input
-    );
-    u8::from_str_radix(&input[2..], 16).expect("Input must be a valid hexadecimal number")
-}
-
-fn parse_hex_arg(args: &Vec<String>, index: usize, name: &str) -> u8 {
-    let input = &args
-        .get(index)
-        .unwrap_or_else(|| panic!("{} argument missing", name));
     assert!(
         input.starts_with("0x"),
         "Input must start with '0x'. Received: {}",
@@ -28,7 +17,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 4 {
         eprintln!(
-            "Usage: {} <serial_port_path> <servo_id> <head_address> [<length>]",
+            "Usage: {} <serial_port_path> <servo_id> <head_address>",
             args[0]
         );
         std::process::exit(1);
@@ -38,17 +27,13 @@ fn main() {
     let head_address = parse_hex(&args[3]);
     // let length = parse_hex(&args[4]);
 
-    let length = if let Some(register) = Register::from_memory_address(head_address) {
-        register.length()
-    } else {
-        parse_hex_arg(&args, 4, "length")
-    };
+    let register = Register::from_memory_address(head_address).expect("Invalid head address");
 
     let packet = InstructionPacket {
         id: ServoIdOrBroadcast(servo_id),
         instruction: Instruction::ReadData {
             head_address,
-            length,
+            length: register.length(),
         },
     };
 
@@ -66,19 +51,11 @@ fn main() {
         .expect("Failed to write to serial port");
     let mut serial_port = embedded_io_adapters::std::FromStd::new(serial_port);
 
-    let response = st3215::ReplyPacket::read(&mut serial_port).expect("Failed to read response");
+    let response = ReplyPacket::read(&mut serial_port).expect("Failed to read response");
     println!("{:?}", response);
-    match length {
-        1 => {
-            let value = response.parameters()[0];
-            println!("{:#}", value);
-        }
-        2 => {
-            let value = u16::from_le_bytes([response.parameters()[0], response.parameters()[1]]);
-            println!("{:#}", value);
-        }
-        _ => {
-            println!("{:?}", response.parameters());
-        }
-    }
+    println!(
+        "{:?} is {:?}",
+        register,
+        response.interpret_as_register(register)
+    );
 }

@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 use embedded_io_async::{ReadExactError, Write};
+use registers::Register;
 use tinyvec::ArrayVec;
 
 pub struct InstructionPacket {
@@ -97,6 +98,26 @@ pub enum Instruction {
     Reset,
 }
 impl Instruction {
+    fn read_register(register: Register) -> Self {
+        Self::ReadData {
+            head_address: register.to_memory_address(),
+            length: register.length(),
+        }
+    }
+    fn write_register_u8(register: Register, value: u8) -> Self {
+        assert!(register.length() == 1);
+        Self::WriteData {
+            head_address: register.to_memory_address(),
+            data: ArrayVec::from_iter([value]),
+        }
+    }
+    fn write_register_u16(register: Register, value: u16) -> Self {
+        assert!(register.length() == 2);
+        Self::WriteData {
+            head_address: register.to_memory_address(),
+            data: ArrayVec::from_iter(value.to_le_bytes()),
+        }
+    }
     fn code(&self) -> u8 {
         match self {
             Instruction::Ping => 0x01,
@@ -267,6 +288,14 @@ impl ReplyPacket {
     }
     pub fn parameters(&self) -> &[u8] {
         &self.parameters
+    }
+    pub fn interpret_as_register(&self, register: Register) -> u16 {
+        assert!(self.parameters.len() == register.length() as usize);
+        match register.length() {
+            1 => self.parameters[0] as u16,
+            2 => u16::from_le_bytes([self.parameters[0], self.parameters[1]]),
+            _ => panic!("register length not supported"),
+        }
     }
 }
 

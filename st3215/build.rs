@@ -73,6 +73,7 @@ struct RegisterDescription {
 mod codegen {
     use super::*;
 
+    /** dedent to match indent of first line */
     fn dedent(s: &str) -> String {
         let first_indent = s
             .lines()
@@ -88,6 +89,10 @@ mod codegen {
             .to_string()
             .replace(" \n", "\n")
     }
+    fn dedent_strip(s: &str) -> String {
+        dedent(s).trim().to_string()
+    }
+    /** dedent to match indent of last line */
     fn dedent_last(s: &str) -> String {
         let last_indent = s
             .lines()
@@ -134,7 +139,12 @@ mod codegen {
             .collect();
 
         // Register enum
-        result.push_str("pub enum Register {");
+        result.push_str(&dedent_strip(
+            r#"
+            #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+            pub enum Register {
+            "#,
+        ));
         for register in &registers {
             let memory_address = register.memory_address;
             let function = register.function;

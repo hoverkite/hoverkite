@@ -1,5 +1,6 @@
 /** Auto-generated code. Do not modify. See build.rs for details. */
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Register {
     /**
      * Firmware major version number
