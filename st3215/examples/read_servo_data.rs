@@ -1,6 +1,7 @@
 use serialport::SerialPortSettings;
 use st3215::{
-    registers::Register, Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast,
+    messages::Instruction, messages::InstructionPacket, messages::ReplyPacket,
+    messages::ServoIdOrBroadcast, registers::Register,
 };
 use std::env;
 
