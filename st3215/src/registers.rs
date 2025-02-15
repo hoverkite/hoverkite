@@ -17,10 +17,10 @@ trait Register {
  * maximum_value: -1
  * unit:
  */
-struct FirmwareMajorVersionNumber;
+pub struct FirmwareMajorVersionNumber;
 impl Register for FirmwareMajorVersionNumber {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x00;
+    const MEMORY_ADDRESS: u8 = 0;
 }
 
 /**
@@ -33,10 +33,10 @@ impl Register for FirmwareMajorVersionNumber {
  * maximum_value: -1
  * unit:
  */
-struct FirmwareSubVersionNumber;
+pub struct FirmwareSubVersionNumber;
 impl Register for FirmwareSubVersionNumber {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x01;
+    const MEMORY_ADDRESS: u8 = 1;
 }
 
 /**
@@ -49,10 +49,10 @@ impl Register for FirmwareSubVersionNumber {
  * maximum_value: -1
  * unit:
  */
-struct ServoMainVersionNumber;
+pub struct ServoMainVersionNumber;
 impl Register for ServoMainVersionNumber {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x03;
+    const MEMORY_ADDRESS: u8 = 3;
 }
 
 /**
@@ -65,10 +65,10 @@ impl Register for ServoMainVersionNumber {
  * maximum_value: -1
  * unit:
  */
-struct ServoSubVersionNumber;
+pub struct ServoSubVersionNumber;
 impl Register for ServoSubVersionNumber {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x04;
+    const MEMORY_ADDRESS: u8 = 4;
 }
 
 /**
@@ -83,10 +83,10 @@ impl Register for ServoSubVersionNumber {
  * maximum_value: 253
  * unit: number
  */
-struct ID;
+pub struct ID;
 impl Register for ID {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x05;
+    const MEMORY_ADDRESS: u8 = 5;
 }
 
 /**
@@ -101,10 +101,10 @@ impl Register for ID {
  * maximum_value: 7
  * unit: no
  */
-struct BaudRate;
+pub struct BaudRate;
 impl Register for BaudRate {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x06;
+    const MEMORY_ADDRESS: u8 = 6;
 }
 
 /**
@@ -119,10 +119,10 @@ impl Register for BaudRate {
  * maximum_value: 254
  * unit: 2us
  */
-struct ReturnDelay;
+pub struct ReturnDelay;
 impl Register for ReturnDelay {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x07;
+    const MEMORY_ADDRESS: u8 = 7;
 }
 
 /**
@@ -137,10 +137,10 @@ impl Register for ReturnDelay {
  * maximum_value: 1
  * unit: no
  */
-struct ResponseStatusLevel;
+pub struct ResponseStatusLevel;
 impl Register for ResponseStatusLevel {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x08;
+    const MEMORY_ADDRESS: u8 = 8;
 }
 
 /**
@@ -155,10 +155,10 @@ impl Register for ResponseStatusLevel {
  * maximum_value: 4094
  * unit: step
  */
-struct MinimumAngleLimitation;
+pub struct MinimumAngleLimitation;
 impl Register for MinimumAngleLimitation {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x09;
+    const MEMORY_ADDRESS: u8 = 9;
 }
 
 /**
@@ -173,10 +173,10 @@ impl Register for MinimumAngleLimitation {
  * maximum_value: 4095
  * unit: step
  */
-struct MaximumAngleLimitation;
+pub struct MaximumAngleLimitation;
 impl Register for MaximumAngleLimitation {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x11;
+    const MEMORY_ADDRESS: u8 = 11;
 }
 
 /**
@@ -191,10 +191,10 @@ impl Register for MaximumAngleLimitation {
  * maximum_value: 100
  * unit: °C
  */
-struct MaximumTemperatureLimit;
+pub struct MaximumTemperatureLimit;
 impl Register for MaximumTemperatureLimit {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x13;
+    const MEMORY_ADDRESS: u8 = 13;
 }
 
 /**
@@ -209,10 +209,10 @@ impl Register for MaximumTemperatureLimit {
  * maximum_value: 254
  * unit: 0.1V
  */
-struct MaximumInputVoltage;
+pub struct MaximumInputVoltage;
 impl Register for MaximumInputVoltage {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x14;
+    const MEMORY_ADDRESS: u8 = 14;
 }
 
 /**
@@ -227,10 +227,10 @@ impl Register for MaximumInputVoltage {
  * maximum_value: 254
  * unit: 0.1V
  */
-struct MinimumInputVoltage;
+pub struct MinimumInputVoltage;
 impl Register for MinimumInputVoltage {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x15;
+    const MEMORY_ADDRESS: u8 = 15;
 }
 
 /**
@@ -245,10 +245,10 @@ impl Register for MinimumInputVoltage {
  * maximum_value: 1000
  * unit: 0.10%
  */
-struct MaximumTorque;
+pub struct MaximumTorque;
 impl Register for MaximumTorque {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x16;
+    const MEMORY_ADDRESS: u8 = 16;
 }
 
 /**
@@ -263,10 +263,10 @@ impl Register for MaximumTorque {
  * maximum_value: 254
  * unit: no
  */
-struct Phase;
+pub struct Phase;
 impl Register for Phase {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x18;
+    const MEMORY_ADDRESS: u8 = 18;
 }
 
 /**
@@ -281,10 +281,10 @@ impl Register for Phase {
  * maximum_value: 254
  * unit: no
  */
-struct UnloadingCondition;
+pub struct UnloadingCondition;
 impl Register for UnloadingCondition {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x19;
+    const MEMORY_ADDRESS: u8 = 19;
 }
 
 /**
@@ -299,10 +299,10 @@ impl Register for UnloadingCondition {
  * maximum_value: 254
  * unit: no
  */
-struct LEDAlarmCondition;
+pub struct LEDAlarmCondition;
 impl Register for LEDAlarmCondition {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x20;
+    const MEMORY_ADDRESS: u8 = 20;
 }
 
 /**
@@ -317,10 +317,10 @@ impl Register for LEDAlarmCondition {
  * maximum_value: 254
  * unit: no
  */
-struct PProportionalityCoefficient;
+pub struct PProportionalityCoefficient;
 impl Register for PProportionalityCoefficient {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x21;
+    const MEMORY_ADDRESS: u8 = 21;
 }
 
 /**
@@ -335,10 +335,10 @@ impl Register for PProportionalityCoefficient {
  * maximum_value: 254
  * unit: no
  */
-struct DDifferentialCoefficient;
+pub struct DDifferentialCoefficient;
 impl Register for DDifferentialCoefficient {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x22;
+    const MEMORY_ADDRESS: u8 = 22;
 }
 
 /**
@@ -353,10 +353,10 @@ impl Register for DDifferentialCoefficient {
  * maximum_value: 254
  * unit: no
  */
-struct IIntegralCoefficient;
+pub struct IIntegralCoefficient;
 impl Register for IIntegralCoefficient {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x23;
+    const MEMORY_ADDRESS: u8 = 23;
 }
 
 /**
@@ -371,10 +371,10 @@ impl Register for IIntegralCoefficient {
  * maximum_value: 1000
  * unit: 0.1%
  */
-struct MinimumStartupForce;
+pub struct MinimumStartupForce;
 impl Register for MinimumStartupForce {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x24;
+    const MEMORY_ADDRESS: u8 = 24;
 }
 
 /**
@@ -389,10 +389,10 @@ impl Register for MinimumStartupForce {
  * maximum_value: 32
  * unit: step
  */
-struct ClockwiseInsensitiveArea;
+pub struct ClockwiseInsensitiveArea;
 impl Register for ClockwiseInsensitiveArea {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x26;
+    const MEMORY_ADDRESS: u8 = 26;
 }
 
 /**
@@ -407,10 +407,10 @@ impl Register for ClockwiseInsensitiveArea {
  * maximum_value: 32
  * unit: step
  */
-struct CounterclockwiseInsensitiveRegion;
+pub struct CounterclockwiseInsensitiveRegion;
 impl Register for CounterclockwiseInsensitiveRegion {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x27;
+    const MEMORY_ADDRESS: u8 = 27;
 }
 
 /**
@@ -425,10 +425,10 @@ impl Register for CounterclockwiseInsensitiveRegion {
  * maximum_value: 511
  * unit: 6.5mA
  */
-struct ProtectionCurrent;
+pub struct ProtectionCurrent;
 impl Register for ProtectionCurrent {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x28;
+    const MEMORY_ADDRESS: u8 = 28;
 }
 
 /**
@@ -443,10 +443,10 @@ impl Register for ProtectionCurrent {
  * maximum_value: 100
  * unit: no
  */
-struct AngularResolution;
+pub struct AngularResolution;
 impl Register for AngularResolution {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x30;
+    const MEMORY_ADDRESS: u8 = 30;
 }
 
 /**
@@ -461,10 +461,10 @@ impl Register for AngularResolution {
  * maximum_value: 2047
  * unit: step
  */
-struct PositionCorrection;
+pub struct PositionCorrection;
 impl Register for PositionCorrection {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x31;
+    const MEMORY_ADDRESS: u8 = 31;
 }
 
 /**
@@ -479,10 +479,10 @@ impl Register for PositionCorrection {
  * maximum_value: 2
  * unit: no
  */
-struct OperationMode;
+pub struct OperationMode;
 impl Register for OperationMode {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x33;
+    const MEMORY_ADDRESS: u8 = 33;
 }
 
 /**
@@ -497,10 +497,10 @@ impl Register for OperationMode {
  * maximum_value: 254
  * unit: 1.0%
  */
-struct ProtectiveTorque;
+pub struct ProtectiveTorque;
 impl Register for ProtectiveTorque {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x34;
+    const MEMORY_ADDRESS: u8 = 34;
 }
 
 /**
@@ -515,10 +515,10 @@ impl Register for ProtectiveTorque {
  * maximum_value: 254
  * unit: 10ms
  */
-struct ProtectionTime;
+pub struct ProtectionTime;
 impl Register for ProtectionTime {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x35;
+    const MEMORY_ADDRESS: u8 = 35;
 }
 
 /**
@@ -533,10 +533,10 @@ impl Register for ProtectionTime {
  * maximum_value: 254
  * unit: 1.0%
  */
-struct OverloadTorque;
+pub struct OverloadTorque;
 impl Register for OverloadTorque {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x36;
+    const MEMORY_ADDRESS: u8 = 36;
 }
 
 /**
@@ -551,10 +551,10 @@ impl Register for OverloadTorque {
  * maximum_value: 254
  * unit: no
  */
-struct SpeedClosedLoopPProportionalCoefficient;
+pub struct SpeedClosedLoopPProportionalCoefficient;
 impl Register for SpeedClosedLoopPProportionalCoefficient {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x37;
+    const MEMORY_ADDRESS: u8 = 37;
 }
 
 /**
@@ -569,10 +569,10 @@ impl Register for SpeedClosedLoopPProportionalCoefficient {
  * maximum_value: 254
  * unit: 10ms
  */
-struct OverCurrentProtectionTime;
+pub struct OverCurrentProtectionTime;
 impl Register for OverCurrentProtectionTime {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x38;
+    const MEMORY_ADDRESS: u8 = 38;
 }
 
 /**
@@ -587,10 +587,10 @@ impl Register for OverCurrentProtectionTime {
  * maximum_value: 254
  * unit: no
  */
-struct VelocityClosedLoopIIntegralCoefficient;
+pub struct VelocityClosedLoopIIntegralCoefficient;
 impl Register for VelocityClosedLoopIIntegralCoefficient {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x39;
+    const MEMORY_ADDRESS: u8 = 39;
 }
 
 /**
@@ -605,10 +605,10 @@ impl Register for VelocityClosedLoopIIntegralCoefficient {
  * maximum_value: 2
  * unit: no
  */
-struct TorqueSwitch;
+pub struct TorqueSwitch;
 impl Register for TorqueSwitch {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x28;
+    const MEMORY_ADDRESS: u8 = 40;
 }
 
 /**
@@ -623,10 +623,10 @@ impl Register for TorqueSwitch {
  * maximum_value: 254
  * unit: 100step/s^2
  */
-struct Acceleration;
+pub struct Acceleration;
 impl Register for Acceleration {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x41;
+    const MEMORY_ADDRESS: u8 = 41;
 }
 
 /**
@@ -641,10 +641,10 @@ impl Register for Acceleration {
  * maximum_value: 32766
  * unit: step
  */
-struct TargetLocation;
+pub struct TargetLocation;
 impl Register for TargetLocation {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x42;
+    const MEMORY_ADDRESS: u8 = 42;
 }
 
 /**
@@ -657,10 +657,10 @@ impl Register for TargetLocation {
  * maximum_value: 1000
  * unit: 0.10%
  */
-struct RunningTime;
+pub struct RunningTime;
 impl Register for RunningTime {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x44;
+    const MEMORY_ADDRESS: u8 = 44;
 }
 
 /**
@@ -675,10 +675,10 @@ impl Register for RunningTime {
  * maximum_value: 254
  * unit: step/s
  */
-struct RunningSpeed;
+pub struct RunningSpeed;
 impl Register for RunningSpeed {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x46;
+    const MEMORY_ADDRESS: u8 = 46;
 }
 
 /**
@@ -693,10 +693,10 @@ impl Register for RunningSpeed {
  * maximum_value: 1000
  * unit: 1.0%
  */
-struct TorqueLimit;
+pub struct TorqueLimit;
 impl Register for TorqueLimit {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x48;
+    const MEMORY_ADDRESS: u8 = 48;
 }
 
 /**
@@ -711,10 +711,10 @@ impl Register for TorqueLimit {
  * maximum_value: 1
  * unit: no
  */
-struct LockMark;
+pub struct LockMark;
 impl Register for LockMark {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x55;
+    const MEMORY_ADDRESS: u8 = 55;
 }
 
 /**
@@ -729,10 +729,10 @@ impl Register for LockMark {
  * maximum_value: -1
  * unit: step
  */
-struct CurrentLocation;
+pub struct CurrentLocation;
 impl Register for CurrentLocation {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x56;
+    const MEMORY_ADDRESS: u8 = 56;
 }
 
 /**
@@ -747,10 +747,10 @@ impl Register for CurrentLocation {
  * maximum_value: -1
  * unit: step/s
  */
-struct CurrentSpeed;
+pub struct CurrentSpeed;
 impl Register for CurrentSpeed {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x58;
+    const MEMORY_ADDRESS: u8 = 58;
 }
 
 /**
@@ -765,10 +765,10 @@ impl Register for CurrentSpeed {
  * maximum_value: -1
  * unit: 0.1%
  */
-struct CurrentLoad;
+pub struct CurrentLoad;
 impl Register for CurrentLoad {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x60;
+    const MEMORY_ADDRESS: u8 = 60;
 }
 
 /**
@@ -783,10 +783,10 @@ impl Register for CurrentLoad {
  * maximum_value: -1
  * unit: 0.1V
  */
-struct CurrentVoltage;
+pub struct CurrentVoltage;
 impl Register for CurrentVoltage {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x62;
+    const MEMORY_ADDRESS: u8 = 62;
 }
 
 /**
@@ -801,10 +801,10 @@ impl Register for CurrentVoltage {
  * maximum_value: -1
  * unit: °C
  */
-struct CurrentTemperature;
+pub struct CurrentTemperature;
 impl Register for CurrentTemperature {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x63;
+    const MEMORY_ADDRESS: u8 = 63;
 }
 
 /**
@@ -819,10 +819,10 @@ impl Register for CurrentTemperature {
  * maximum_value: -1
  * unit: no
  */
-struct AsynchronousWriteFlag;
+pub struct AsynchronousWriteFlag;
 impl Register for AsynchronousWriteFlag {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x64;
+    const MEMORY_ADDRESS: u8 = 64;
 }
 
 /**
@@ -837,10 +837,10 @@ impl Register for AsynchronousWriteFlag {
  * maximum_value: -1
  * unit: no
  */
-struct ServoStatus;
+pub struct ServoStatus;
 impl Register for ServoStatus {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x65;
+    const MEMORY_ADDRESS: u8 = 65;
 }
 
 /**
@@ -855,10 +855,10 @@ impl Register for ServoStatus {
  * maximum_value: -1
  * unit: no
  */
-struct MobileSign;
+pub struct MobileSign;
 impl Register for MobileSign {
     type Value = u8;
-    const MEMORY_ADDRESS: u8 = 0x66;
+    const MEMORY_ADDRESS: u8 = 66;
 }
 
 /**
@@ -873,8 +873,170 @@ impl Register for MobileSign {
  * maximum_value: -1
  * unit: 6.5mA
  */
-struct CurrentCurrent;
+pub struct CurrentCurrent;
 impl Register for CurrentCurrent {
     type Value = u16;
-    const MEMORY_ADDRESS: u8 = 0x69;
+    const MEMORY_ADDRESS: u8 = 69;
+}
+pub enum RegisterAddress {
+    FirmwareMajorVersionNumber(FirmwareMajorVersionNumber),
+    FirmwareSubVersionNumber(FirmwareSubVersionNumber),
+    ServoMainVersionNumber(ServoMainVersionNumber),
+    ServoSubVersionNumber(ServoSubVersionNumber),
+    ID(ID),
+    BaudRate(BaudRate),
+    ReturnDelay(ReturnDelay),
+    ResponseStatusLevel(ResponseStatusLevel),
+    MinimumAngleLimitation(MinimumAngleLimitation),
+    MaximumAngleLimitation(MaximumAngleLimitation),
+    MaximumTemperatureLimit(MaximumTemperatureLimit),
+    MaximumInputVoltage(MaximumInputVoltage),
+    MinimumInputVoltage(MinimumInputVoltage),
+    MaximumTorque(MaximumTorque),
+    Phase(Phase),
+    UnloadingCondition(UnloadingCondition),
+    LEDAlarmCondition(LEDAlarmCondition),
+    PProportionalityCoefficient(PProportionalityCoefficient),
+    DDifferentialCoefficient(DDifferentialCoefficient),
+    IIntegralCoefficient(IIntegralCoefficient),
+    MinimumStartupForce(MinimumStartupForce),
+    ClockwiseInsensitiveArea(ClockwiseInsensitiveArea),
+    CounterclockwiseInsensitiveRegion(CounterclockwiseInsensitiveRegion),
+    ProtectionCurrent(ProtectionCurrent),
+    AngularResolution(AngularResolution),
+    PositionCorrection(PositionCorrection),
+    OperationMode(OperationMode),
+    ProtectiveTorque(ProtectiveTorque),
+    ProtectionTime(ProtectionTime),
+    OverloadTorque(OverloadTorque),
+    SpeedClosedLoopPProportionalCoefficient(SpeedClosedLoopPProportionalCoefficient),
+    OverCurrentProtectionTime(OverCurrentProtectionTime),
+    VelocityClosedLoopIIntegralCoefficient(VelocityClosedLoopIIntegralCoefficient),
+    TorqueSwitch(TorqueSwitch),
+    Acceleration(Acceleration),
+    TargetLocation(TargetLocation),
+    RunningTime(RunningTime),
+    RunningSpeed(RunningSpeed),
+    TorqueLimit(TorqueLimit),
+    LockMark(LockMark),
+    CurrentLocation(CurrentLocation),
+    CurrentSpeed(CurrentSpeed),
+    CurrentLoad(CurrentLoad),
+    CurrentVoltage(CurrentVoltage),
+    CurrentTemperature(CurrentTemperature),
+    AsynchronousWriteFlag(AsynchronousWriteFlag),
+    ServoStatus(ServoStatus),
+    MobileSign(MobileSign),
+    CurrentCurrent(CurrentCurrent),
+}
+
+impl RegisterAddress {
+    pub fn from_memory_address(memory_address: u8) -> Option<Self> {
+        match memory_address {
+            0 => Some(Self::FirmwareMajorVersionNumber(FirmwareMajorVersionNumber)),
+            1 => Some(Self::FirmwareSubVersionNumber(FirmwareSubVersionNumber)),
+            3 => Some(Self::ServoMainVersionNumber(ServoMainVersionNumber)),
+            4 => Some(Self::ServoSubVersionNumber(ServoSubVersionNumber)),
+            5 => Some(Self::ID(ID)),
+            6 => Some(Self::BaudRate(BaudRate)),
+            7 => Some(Self::ReturnDelay(ReturnDelay)),
+            8 => Some(Self::ResponseStatusLevel(ResponseStatusLevel)),
+            9 => Some(Self::MinimumAngleLimitation(MinimumAngleLimitation)),
+            11 => Some(Self::MaximumAngleLimitation(MaximumAngleLimitation)),
+            13 => Some(Self::MaximumTemperatureLimit(MaximumTemperatureLimit)),
+            14 => Some(Self::MaximumInputVoltage(MaximumInputVoltage)),
+            15 => Some(Self::MinimumInputVoltage(MinimumInputVoltage)),
+            16 => Some(Self::MaximumTorque(MaximumTorque)),
+            18 => Some(Self::Phase(Phase)),
+            19 => Some(Self::UnloadingCondition(UnloadingCondition)),
+            20 => Some(Self::LEDAlarmCondition(LEDAlarmCondition)),
+            21 => Some(Self::PProportionalityCoefficient(PProportionalityCoefficient)),
+            22 => Some(Self::DDifferentialCoefficient(DDifferentialCoefficient)),
+            23 => Some(Self::IIntegralCoefficient(IIntegralCoefficient)),
+            24 => Some(Self::MinimumStartupForce(MinimumStartupForce)),
+            26 => Some(Self::ClockwiseInsensitiveArea(ClockwiseInsensitiveArea)),
+            27 => Some(Self::CounterclockwiseInsensitiveRegion(CounterclockwiseInsensitiveRegion)),
+            28 => Some(Self::ProtectionCurrent(ProtectionCurrent)),
+            30 => Some(Self::AngularResolution(AngularResolution)),
+            31 => Some(Self::PositionCorrection(PositionCorrection)),
+            33 => Some(Self::OperationMode(OperationMode)),
+            34 => Some(Self::ProtectiveTorque(ProtectiveTorque)),
+            35 => Some(Self::ProtectionTime(ProtectionTime)),
+            36 => Some(Self::OverloadTorque(OverloadTorque)),
+            37 => Some(Self::SpeedClosedLoopPProportionalCoefficient(SpeedClosedLoopPProportionalCoefficient)),
+            38 => Some(Self::OverCurrentProtectionTime(OverCurrentProtectionTime)),
+            39 => Some(Self::VelocityClosedLoopIIntegralCoefficient(VelocityClosedLoopIIntegralCoefficient)),
+            40 => Some(Self::TorqueSwitch(TorqueSwitch)),
+            41 => Some(Self::Acceleration(Acceleration)),
+            42 => Some(Self::TargetLocation(TargetLocation)),
+            44 => Some(Self::RunningTime(RunningTime)),
+            46 => Some(Self::RunningSpeed(RunningSpeed)),
+            48 => Some(Self::TorqueLimit(TorqueLimit)),
+            55 => Some(Self::LockMark(LockMark)),
+            56 => Some(Self::CurrentLocation(CurrentLocation)),
+            58 => Some(Self::CurrentSpeed(CurrentSpeed)),
+            60 => Some(Self::CurrentLoad(CurrentLoad)),
+            62 => Some(Self::CurrentVoltage(CurrentVoltage)),
+            63 => Some(Self::CurrentTemperature(CurrentTemperature)),
+            64 => Some(Self::AsynchronousWriteFlag(AsynchronousWriteFlag)),
+            65 => Some(Self::ServoStatus(ServoStatus)),
+            66 => Some(Self::MobileSign(MobileSign)),
+            69 => Some(Self::CurrentCurrent(CurrentCurrent)),
+            _ => None,
+        }
+    }
+
+    pub fn length(&self) -> u8 {
+        match self {
+            Self::FirmwareMajorVersionNumber(_) => 1,
+            Self::FirmwareSubVersionNumber(_) => 1,
+            Self::ServoMainVersionNumber(_) => 1,
+            Self::ServoSubVersionNumber(_) => 1,
+            Self::ID(_) => 1,
+            Self::BaudRate(_) => 1,
+            Self::ReturnDelay(_) => 1,
+            Self::ResponseStatusLevel(_) => 1,
+            Self::MinimumAngleLimitation(_) => 2,
+            Self::MaximumAngleLimitation(_) => 2,
+            Self::MaximumTemperatureLimit(_) => 1,
+            Self::MaximumInputVoltage(_) => 1,
+            Self::MinimumInputVoltage(_) => 1,
+            Self::MaximumTorque(_) => 2,
+            Self::Phase(_) => 1,
+            Self::UnloadingCondition(_) => 1,
+            Self::LEDAlarmCondition(_) => 1,
+            Self::PProportionalityCoefficient(_) => 1,
+            Self::DDifferentialCoefficient(_) => 1,
+            Self::IIntegralCoefficient(_) => 1,
+            Self::MinimumStartupForce(_) => 2,
+            Self::ClockwiseInsensitiveArea(_) => 1,
+            Self::CounterclockwiseInsensitiveRegion(_) => 1,
+            Self::ProtectionCurrent(_) => 2,
+            Self::AngularResolution(_) => 1,
+            Self::PositionCorrection(_) => 2,
+            Self::OperationMode(_) => 1,
+            Self::ProtectiveTorque(_) => 1,
+            Self::ProtectionTime(_) => 1,
+            Self::OverloadTorque(_) => 1,
+            Self::SpeedClosedLoopPProportionalCoefficient(_) => 1,
+            Self::OverCurrentProtectionTime(_) => 1,
+            Self::VelocityClosedLoopIIntegralCoefficient(_) => 1,
+            Self::TorqueSwitch(_) => 1,
+            Self::Acceleration(_) => 1,
+            Self::TargetLocation(_) => 2,
+            Self::RunningTime(_) => 2,
+            Self::RunningSpeed(_) => 2,
+            Self::TorqueLimit(_) => 2,
+            Self::LockMark(_) => 1,
+            Self::CurrentLocation(_) => 2,
+            Self::CurrentSpeed(_) => 2,
+            Self::CurrentLoad(_) => 2,
+            Self::CurrentVoltage(_) => 1,
+            Self::CurrentTemperature(_) => 1,
+            Self::AsynchronousWriteFlag(_) => 1,
+            Self::ServoStatus(_) => 1,
+            Self::MobileSign(_) => 1,
+            Self::CurrentCurrent(_) => 2,
+        }
+    }
 }

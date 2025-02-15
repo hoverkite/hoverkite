@@ -1,8 +1,19 @@
 use serialport::SerialPortSettings;
 use st3215::{Instruction, InstructionPacket, ServoIdOrBroadcast};
+use core::panic;
 use std::env;
 
 fn parse_hex(input: &str) -> u8 {
+    assert!(
+        input.starts_with("0x"),
+        "Input must start with '0x'. Received: {}",
+        input
+    );
+    u8::from_str_radix(&input[2..], 16).expect("Input must be a valid hexadecimal number")
+}
+
+fn parse_hex_arg(args: &Vec<String>, index: usize, name: &str) -> u8 {
+    let input = &args.get(index).unwrap_or_else(|| panic!("{} argument missing", name));
     assert!(
         input.starts_with("0x"),
         "Input must start with '0x'. Received: {}",
@@ -15,7 +26,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 5 {
         eprintln!(
-            "Usage: {} <serial_port_path> <servo_id> <head_address> <length>",
+            "Usage: {} <serial_port_path> <servo_id> <head_address> [<length>]",
             args[0]
         );
         std::process::exit(1);
@@ -23,7 +34,13 @@ fn main() {
     let serial_port_path = &args[1];
     let servo_id = parse_hex(&args[2]);
     let head_address = parse_hex(&args[3]);
-    let length = parse_hex(&args[4]);
+    // let length = parse_hex(&args[4]);
+
+    let length = if let Some(register) = st3215::registers::RegisterAddress::from_memory_address(head_address) {
+        register.length()
+    } else {
+        parse_hex_arg(&args, 4, "length")
+    };
 
     let packet = InstructionPacket {
         id: ServoIdOrBroadcast(servo_id),
