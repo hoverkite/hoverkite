@@ -72,7 +72,7 @@ pub enum Instruction {
     /** Query the working status (0x01) */
     Ping,
     /** Query the Characters in the Control Table (0x02) */
-    ReadData { parameters: [u8; 2] },
+    ReadData { head_address: u8, length: u8 },
     /** Write characters into the control table (0x03) */
     WriteData {
         head_address: u8,
@@ -111,7 +111,10 @@ impl Instruction {
     fn write_parameters_to_buf(&self, buf: &mut ArrayVec<[u8; 256]>) {
         match self {
             Instruction::Ping => {}
-            Instruction::ReadData { parameters } => buf.extend_from_slice(parameters),
+            Instruction::ReadData {
+                head_address,
+                length,
+            } => buf.extend_from_slice(&[*head_address, *length]),
             Instruction::WriteData { head_address, data }
             | Instruction::RegWriteData { head_address, data } => {
                 buf.push(*head_address);
@@ -131,7 +134,10 @@ impl Instruction {
     fn parameters_len(&self) -> u8 {
         match self {
             Instruction::Ping => 0,
-            Instruction::ReadData { parameters } => parameters.len() as u8,
+            Instruction::ReadData {
+                head_address,
+                length,
+            } => 2,
             Instruction::WriteData {
                 head_address,
                 data: values,
@@ -290,7 +296,8 @@ mod tests {
         let packet = InstructionPacket {
             id: ServoIdOrBroadcast(1),
             instruction: Instruction::ReadData {
-                parameters: [0x38, 0x02],
+                head_address: 0x38,
+                length: 0x02,
             },
         };
         let mut stream: Vec<u8> = Vec::new();
