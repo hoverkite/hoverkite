@@ -8,39 +8,41 @@ pub struct InstructionPacket {
 }
 
 impl InstructionPacket {
-    fn parameters(&self) -> &[u8] {
-        self.instruction.parameters()
-    }
     fn effective_data_length(&self) -> u8 {
-        2 + self.parameters().len() as u8
+        2 + self.instruction.parameters_len()
     }
-    pub(crate) fn checksum(&self) -> u8 {
-        let mut sum = self
-            .id
-            .0
-            .wrapping_add(self.effective_data_length())
-            .wrapping_add(self.instruction.code());
-        for byte in self.parameters() {
-            sum = sum.wrapping_add(*byte);
-        }
-        !sum
+    pub fn write_to_buf(
+        &self,
+        // FIXME: how to make capacity a const generic parameter?
+        // When I try, it tells me that buf.len() doesn't exist as a method.
+        buf: &mut ArrayVec<[u8; 256]>,
+    ) {
+        let buf_start_len = buf.len();
+        // FIXME: these currently panic if the buffer is full. I should probably return an error instead.
+        buf.extend_from_slice(&[
+            0xff,
+            0xff,
+            self.id.0,
+            self.effective_data_length(),
+            // TODO: consider making the instruction write its code to buf instead of writing code
+            // and parameters separately.
+            self.instruction.code(),
+        ]);
+
+        self.instruction.write_parameters_to_buf(buf);
+
+        let checksum = !buf[(buf_start_len + 2)..]
+            .iter()
+            .fold(0u8, |acc, &byte| acc.wrapping_add(byte));
+        buf.push(checksum);
     }
+
     pub async fn write<W: Write>(&self, mut stream: W) -> Result<(), W::Error> {
-        stream
-            .write_all(&[
-                0xff,
-                0xff,
-                self.id.0,
-                self.effective_data_length(),
-                self.instruction.code(),
-            ])
-            .await?;
-        // TODO: work out what happens if something else tries to write to the stream while we're paused here.
-        // I guess this is why the "client owns the stream" model is so popular?
-        // I wonder if I should just write a single blocking write method that does all the writes
-        // in one go into a buffer, and then impl async write() on top of that.
-        stream.write_all(self.parameters()).await?;
-        stream.write_all(&[self.checksum()]).await?;
+        let mut buf = ArrayVec::new();
+        self.write_to_buf(&mut buf);
+
+        stream.write_all(&buf).await?;
+
         Ok(())
     }
 }
@@ -94,15 +96,34 @@ impl Instruction {
             Instruction::Reset => 0x06,
         }
     }
-    fn parameters(&self) -> &[u8] {
+    /** Convenance wrapper for testing. You probably want to use write_parameters_to_buf() instead. */
+    fn parameters_as_buf(&self) -> ArrayVec<[u8; 256]> {
+        let mut buf = ArrayVec::new();
+        self.write_parameters_to_buf(&mut buf);
+        buf
+    }
+    fn write_parameters_to_buf(&self, buf: &mut ArrayVec<[u8; 256]>) {
         match self {
-            Instruction::Ping => &[],
-            Instruction::ReadData { parameters } => parameters,
-            Instruction::WriteData { parameters } => parameters,
-            Instruction::RegWriteData { parameters } => parameters,
-            Instruction::Action => &[],
-            Instruction::SyncWrite { parameters } => parameters,
-            Instruction::Reset => &[],
+            Instruction::Ping => {}
+            Instruction::ReadData { parameters } => buf.extend_from_slice(parameters),
+            Instruction::WriteData { parameters } => buf.extend_from_slice(parameters),
+            Instruction::RegWriteData { parameters } => buf.extend_from_slice(parameters),
+            Instruction::Action => {}
+            Instruction::SyncWrite { parameters } => buf.extend_from_slice(parameters),
+            Instruction::Reset => {}
+        }
+    }
+
+    // TODO: this is a bit non-dry. Write a proptest that makes sure this matches parameters_as_buf().len()
+    fn parameters_len(&self) -> u8 {
+        match self {
+            Instruction::Ping => 0,
+            Instruction::ReadData { parameters } => parameters.len() as u8,
+            Instruction::WriteData { parameters } => parameters.len() as u8,
+            Instruction::RegWriteData { parameters } => parameters.len() as u8,
+            Instruction::Action => 0,
+            Instruction::SyncWrite { parameters } => parameters.len() as u8,
+            Instruction::Reset => 0,
         }
     }
 }
@@ -203,8 +224,7 @@ mod tests {
         };
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.effective_data_length(), 0x02);
-        assert_eq!(packet.parameters(), &[]);
-        assert_eq!(packet.checksum(), 0xfB);
+        assert_eq!(packet.instruction.parameters_as_buf().as_slice(), &[]);
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x02, 0x01, 0xfB]);
     }
@@ -223,8 +243,10 @@ mod tests {
         };
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.effective_data_length(), 0x04);
-        assert_eq!(packet.parameters(), &[0x38, 0x02]);
-        assert_eq!(packet.checksum(), 0xbe);
+        assert_eq!(
+            packet.instruction.parameters_as_buf().as_slice(),
+            &[0x38, 0x02]
+        );
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0x01, 0x04, 0x02, 0x38, 0x02, 0xbe]);
     }
@@ -264,8 +286,10 @@ mod tests {
         };
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.effective_data_length(), 0x04);
-        assert_eq!(packet.parameters(), [0x05, 0x01]);
-        assert_eq!(packet.checksum(), 0xf4);
+        assert_eq!(
+            packet.instruction.parameters_as_buf().as_slice(),
+            [0x05, 0x01]
+        );
         packet.write(&mut stream).await.unwrap();
         assert_eq!(stream, vec![0xff, 0xff, 0xfe, 0x04, 0x03, 0x05, 0x01, 0xf4]);
     }
@@ -286,10 +310,9 @@ mod tests {
         let mut stream: Vec<u8> = Vec::new();
         assert_eq!(packet.effective_data_length(), 0x09);
         assert_eq!(
-            packet.parameters(),
-            [0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
+            packet.instruction.parameters_as_buf().as_slice(),
+            [0x2au8, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
         );
-        // assert_eq!(packet.checksum(), 0xbe);
         packet.write(&mut stream).await.unwrap();
         assert_eq!(
             stream,
