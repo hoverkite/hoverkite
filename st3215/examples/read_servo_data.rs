@@ -1,6 +1,6 @@
+use core::panic;
 use serialport::SerialPortSettings;
 use st3215::{Instruction, InstructionPacket, ServoIdOrBroadcast};
-use core::panic;
 use std::env;
 
 fn parse_hex(input: &str) -> u8 {
@@ -13,7 +13,9 @@ fn parse_hex(input: &str) -> u8 {
 }
 
 fn parse_hex_arg(args: &Vec<String>, index: usize, name: &str) -> u8 {
-    let input = &args.get(index).unwrap_or_else(|| panic!("{} argument missing", name));
+    let input = &args
+        .get(index)
+        .unwrap_or_else(|| panic!("{} argument missing", name));
     assert!(
         input.starts_with("0x"),
         "Input must start with '0x'. Received: {}",
@@ -36,7 +38,9 @@ fn main() {
     let head_address = parse_hex(&args[3]);
     // let length = parse_hex(&args[4]);
 
-    let length = if let Some(register) = st3215::registers::RegisterAddress::from_memory_address(head_address) {
+    let length = if let Some(register) =
+        st3215::registers::RegisterAddress::from_memory_address(head_address)
+    {
         register.length()
     } else {
         parse_hex_arg(&args, 4, "length")

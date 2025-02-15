@@ -76,48 +76,73 @@ trait Register {
     
     const MEMORY_ADDRESS: u8;
 }
-
 "#;
 const SUFFIX: &str = r#""#;
 
-#[cfg(test)]
 mod codegen {
     use super::*;
 
     fn dedent(s: &str) -> String {
-        let first_indent = s.lines().skip(1).next().unwrap_or("").chars().take_while(|c| c.is_whitespace()).collect::<String>();
+        let first_indent = s
+            .lines()
+            .skip(1)
+            .next()
+            .unwrap_or("")
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
 
-        s.replace(&(String::from("\n") + &first_indent), "\n").trim_end_matches(' ').to_string().replace(" \n", "\n")
+        s.replace(&(String::from("\n") + &first_indent), "\n")
+            .trim_end_matches(' ')
+            .to_string()
+            .replace(" \n", "\n")
     }
     fn dedent_last(s: &str) -> String {
-        let last_indent = s.lines().last().unwrap_or("").chars().take_while(|c| c.is_whitespace()).collect::<String>();
+        let last_indent = s
+            .lines()
+            .last()
+            .unwrap_or("")
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
 
-        s.replace(&(String::from("\n") + &last_indent), "\n").trim_end_matches(' ').to_string().replace(" \n", "\n")
+        s.replace(&(String::from("\n") + &last_indent), "\n")
+            .trim_end_matches(' ')
+            .to_string()
+            .replace(" \n", "\n")
     }
 
-    fn format_code() -> String {
+    pub(super) fn format_code() -> String {
         let mut result = String::new();
         result.push_str(PREFIX);
-        let registers: Vec<_> = MEMORY_TABLE_TSV.lines().skip(3).map(|line| {
-            let fields: Vec<&str> = line.split('\t').collect();
-            let register = RegisterDescription {
-                // ignore field 1: it's just the hex representation of the memory address, but they make a bunch of mistakes so it's utterly garbage
-                memory_address: fields[0],
-                function: fields[2],
-                bytes: fields[3],
-                initial_value: fields[4],
-                storage_area: fields[5],
-                authority: fields[6],
-                minimum_value: fields[7],
-                maximum_value: fields[8],
-                unit: fields[9],
-                analysis_of_values: fields[10],
-            };
-            register
-        }).collect();
+        let registers: Vec<_> = MEMORY_TABLE_TSV
+            .lines()
+            .skip(3)
+            .map(|line| {
+                let fields: Vec<&str> = line.split('\t').collect();
+                let register = RegisterDescription {
+                    // ignore field 1: it's just the hex representation of the memory address, but they make a bunch of mistakes so it's utterly garbage
+                    memory_address: fields[0],
+                    function: fields[2],
+                    bytes: fields[3],
+                    initial_value: fields[4],
+                    storage_area: fields[5],
+                    authority: fields[6],
+                    minimum_value: fields[7],
+                    maximum_value: fields[8],
+                    unit: fields[9],
+                    analysis_of_values: fields[10],
+                };
+                register
+            })
+            .collect();
 
         for register in &registers {
-            let struct_name = register.function.split(' ').map(|word| { word[0..1].to_uppercase() + &word[1..] }).collect::<String>();
+            let struct_name = register
+                .function
+                .split(' ')
+                .map(|word| word[0..1].to_uppercase() + &word[1..])
+                .collect::<String>();
             let value_type = match register.bytes {
                 "1" => "u8",
                 "2" => "u16",
@@ -132,7 +157,9 @@ mod codegen {
             let minimum_value = register.minimum_value;
             let maximum_value = register.maximum_value;
             let unit = register.unit;
-            result.push_str(&dedent(&format!(r#"
+            result.push_str(
+                &dedent(&format!(
+                    r#"
                 /**
                  * {function}
                  * 
@@ -150,85 +177,122 @@ mod codegen {
                     type Value = {value_type};
                     const MEMORY_ADDRESS: u8 = {memory_address};
                 }}
-            "#)).replace("\n *\n *\n *", "\n *"));
+            "#
+                ))
+                .replace("\n *\n *\n *", "\n *"),
+            );
         }
 
         result.push_str("pub enum RegisterAddress {\n");
         for register in &registers {
-            let struct_name = register.function.split(' ').map(|word| { word[0..1].to_uppercase() + &word[1..] }).collect::<String>();
-            result.push_str(&format!("    {struct_name}({struct_name}),\n", struct_name = struct_name));
+            let struct_name = register
+                .function
+                .split(' ')
+                .map(|word| word[0..1].to_uppercase() + &word[1..])
+                .collect::<String>();
+            result.push_str(&format!(
+                "    {struct_name}({struct_name}),\n",
+                struct_name = struct_name
+            ));
         }
         result.push_str("}\n");
-        
-        result.push_str(&dedent(r#"
-            impl RegisterAddress {"#));
+
+        result.push_str(&dedent(
+            r#"
+            impl RegisterAddress {"#,
+        ));
 
         // from_memory_address()
-        result.push_str(&dedent(r#"
+        result.push_str(
+            &dedent(
+                r#"
             
                 pub fn from_memory_address(memory_address: u8) -> Option<Self> {
                     match memory_address {
-            "#)[1..]);
+            "#,
+            )[1..],
+        );
         for register in &registers {
             let memory_address = register.memory_address;
-            let struct_name = register.function.split(' ').map(|word| { word[0..1].to_uppercase() + &word[1..] }).collect::<String>();
-            result.push_str(&format!("            {memory_address} => Some(Self::{struct_name}({struct_name})),\n"));
+            let struct_name = register
+                .function
+                .split(' ')
+                .map(|word| word[0..1].to_uppercase() + &word[1..])
+                .collect::<String>();
+            result.push_str(&format!(
+                "            {memory_address} => Some(Self::{struct_name}({struct_name})),\n"
+            ));
         }
-        result.push_str(&dedent_last(r#"
+        result.push_str(
+            &dedent_last(
+                r#"
                     _ => None,
                 }
             }
-        "#).trim_start_matches("\n"));
+        "#,
+            )
+            .trim_start_matches("\n"),
+        );
 
         // length()
-        result.push_str(&dedent(r#"
+        result.push_str(
+            &dedent(
+                r#"
             
                 pub fn length(&self) -> u8 {
                     match self {
-            "#)[1..]);
+            "#,
+            )[1..],
+        );
         for register in &registers {
             let bytes = register.bytes;
-            let struct_name = register.function.split(' ').map(|word| { word[0..1].to_uppercase() + &word[1..] }).collect::<String>();
+            let struct_name = register
+                .function
+                .split(' ')
+                .map(|word| word[0..1].to_uppercase() + &word[1..])
+                .collect::<String>();
             result.push_str(&format!("            Self::{struct_name}(_) => {bytes},\n"));
         }
-        result.push_str(&dedent_last(r#"
+        result.push_str(
+            &dedent_last(
+                r#"
                 }
             }
-        "#).trim_start_matches("\n"));
+        "#,
+            )
+            .trim_start_matches("\n"),
+        );
 
         // } for impl RegisterAddress
         result.push_str(&dedent(r#"}"#));
-        
 
         result.push_str(SUFFIX);
 
         result
     }
-    /**
-     * This is inspired by https://llogiq.github.io/2024/03/28/easy.html
-     *
-     * I much prefer this approach over the procedural macro approach.
-     *
-     * Note that generated code must be formatted in a way that rustfmt agrees with.
-     * 
-     * FIXME: move this into another crate or build script so that `cargo test` doesn't break
-     * itself irrecoverably if you output invalid code?
-     */
-    #[test]
-    fn generate_registers() {
-        let new_source = format_code();
+}
 
-        let registers_module_path = std::path::PathBuf::from("src/registers.rs");
-        if let Ok(old_source) = std::fs::read_to_string(&registers_module_path) {
-            if new_source == old_source {
-                // everything is up to date
-                return;
-            }
+/**
+ * This was originally inspired by https://llogiq.github.io/2024/03/28/easy.html
+ * but I found that I would get into problems when it generated broken code
+ * (it would refuse to re-generate the code because the package would no longer compile).
+ *
+ * Note that generated code must be formatted in a way that rustfmt agrees with.
+ * It might be possible to call out to rustfmt instead, to make our lives easier.
+ */
+fn main() {
+    let new_source = codegen::format_code();
+    let registers_module_path = "src/registers.rs";
+
+    println!("cargo::rerun-if-changed={registers_module_path}");
+    if let Ok(old_source) = std::fs::read_to_string(registers_module_path) {
+        if new_source == old_source {
+            // everything is up to date
+            return;
         }
-
-        // write the new source to the file and fail the test to make sure CI can ensure that
-        // the generated code is up to date
-        std::fs::write(registers_module_path, new_source).unwrap();
+    }
+    std::fs::write(registers_module_path, new_source).unwrap();
+    if std::env::var("CI").as_deref().unwrap_or("") == "1" {
         panic!("Updated generated code. Please commit.");
     }
 }

@@ -2,10 +2,9 @@
 
 trait Register {
     type Value;
-    
+
     const MEMORY_ADDRESS: u8;
 }
-
 
 /**
  * Firmware major version number
@@ -950,12 +949,16 @@ impl RegisterAddress {
             18 => Some(Self::Phase(Phase)),
             19 => Some(Self::UnloadingCondition(UnloadingCondition)),
             20 => Some(Self::LEDAlarmCondition(LEDAlarmCondition)),
-            21 => Some(Self::PProportionalityCoefficient(PProportionalityCoefficient)),
+            21 => Some(Self::PProportionalityCoefficient(
+                PProportionalityCoefficient,
+            )),
             22 => Some(Self::DDifferentialCoefficient(DDifferentialCoefficient)),
             23 => Some(Self::IIntegralCoefficient(IIntegralCoefficient)),
             24 => Some(Self::MinimumStartupForce(MinimumStartupForce)),
             26 => Some(Self::ClockwiseInsensitiveArea(ClockwiseInsensitiveArea)),
-            27 => Some(Self::CounterclockwiseInsensitiveRegion(CounterclockwiseInsensitiveRegion)),
+            27 => Some(Self::CounterclockwiseInsensitiveRegion(
+                CounterclockwiseInsensitiveRegion,
+            )),
             28 => Some(Self::ProtectionCurrent(ProtectionCurrent)),
             30 => Some(Self::AngularResolution(AngularResolution)),
             31 => Some(Self::PositionCorrection(PositionCorrection)),
@@ -963,9 +966,13 @@ impl RegisterAddress {
             34 => Some(Self::ProtectiveTorque(ProtectiveTorque)),
             35 => Some(Self::ProtectionTime(ProtectionTime)),
             36 => Some(Self::OverloadTorque(OverloadTorque)),
-            37 => Some(Self::SpeedClosedLoopPProportionalCoefficient(SpeedClosedLoopPProportionalCoefficient)),
+            37 => Some(Self::SpeedClosedLoopPProportionalCoefficient(
+                SpeedClosedLoopPProportionalCoefficient,
+            )),
             38 => Some(Self::OverCurrentProtectionTime(OverCurrentProtectionTime)),
-            39 => Some(Self::VelocityClosedLoopIIntegralCoefficient(VelocityClosedLoopIIntegralCoefficient)),
+            39 => Some(Self::VelocityClosedLoopIIntegralCoefficient(
+                VelocityClosedLoopIIntegralCoefficient,
+            )),
             40 => Some(Self::TorqueSwitch(TorqueSwitch)),
             41 => Some(Self::Acceleration(Acceleration)),
             42 => Some(Self::TargetLocation(TargetLocation)),
