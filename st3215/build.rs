@@ -69,16 +69,6 @@ struct RegisterDescription {
     analysis_of_values: &'static str,
 }
 
-const PREFIX: &str = r#"/** Auto-generated code. Do not modify. */
-
-trait Register {
-    type Value;
-    
-    const MEMORY_ADDRESS: u8;
-}
-"#;
-const SUFFIX: &str = r#""#;
-
 mod codegen {
     use super::*;
 
@@ -114,7 +104,7 @@ mod codegen {
 
     pub(super) fn format_code() -> String {
         let mut result = String::new();
-        result.push_str(PREFIX);
+        result.push_str("/** Auto-generated code. Do not modify. See build.rs for details. */\n\n");
         let registers: Vec<_> = MEMORY_TABLE_TSV
             .lines()
             .skip(3)
@@ -137,20 +127,20 @@ mod codegen {
             })
             .collect();
 
+
+        // RegisterAddress enum
+        result.push_str("pub enum RegisterAddress {");
         for register in &registers {
             let struct_name = register
                 .function
                 .split(' ')
                 .map(|word| word[0..1].to_uppercase() + &word[1..])
                 .collect::<String>();
-            let value_type = match register.bytes {
-                "1" => "u8",
-                "2" => "u16",
-                _ => panic!("Unsupported byte count: {}", register.bytes),
-            };
+
+
             let memory_address = register.memory_address;
             let function = register.function;
-            let analysis_of_values = register.analysis_of_values;
+            let analysis_of_values = register.analysis_of_values.replace("\\n", "\n     * ");
             let initial_value = register.initial_value;
             let storage_area = register.storage_area;
             let authority = register.authority;
@@ -158,42 +148,25 @@ mod codegen {
             let maximum_value = register.maximum_value;
             let unit = register.unit;
             result.push_str(
-                &dedent(&format!(
+                &dedent_last(&format!(
                     r#"
-                /**
-                 * {function}
-                 * 
-                 * {analysis_of_values}
-                 * 
-                 * initial_value: {initial_value}
-                 * storage_area: {storage_area}
-                 * authority: {authority}
-                 * minimum_value: {minimum_value}
-                 * maximum_value: {maximum_value}
-                 * unit: {unit}
-                 */
-                pub struct {struct_name};
-                impl Register for {struct_name} {{
-                    type Value = {value_type};
-                    const MEMORY_ADDRESS: u8 = {memory_address};
-                }}
-            "#
+                        /**
+                         * {function}
+                         * 
+                         * {analysis_of_values}
+                         * 
+                         * initial_value: {initial_value}
+                         * storage_area: {storage_area}
+                         * authority: {authority}
+                         * minimum_value: {minimum_value}
+                         * maximum_value: {maximum_value}
+                         * unit: {unit}
+                         */
+                        {struct_name} = {memory_address},
+                    "#
                 ))
-                .replace("\n *\n *\n *", "\n *"),
+                .replace("\n     *\n     *\n     *", "\n     *"),
             );
-        }
-
-        result.push_str("pub enum RegisterAddress {\n");
-        for register in &registers {
-            let struct_name = register
-                .function
-                .split(' ')
-                .map(|word| word[0..1].to_uppercase() + &word[1..])
-                .collect::<String>();
-            result.push_str(&format!(
-                "    {struct_name}({struct_name}),\n",
-                struct_name = struct_name
-            ));
         }
         result.push_str("}\n");
 
@@ -202,6 +175,8 @@ mod codegen {
             impl RegisterAddress {"#,
         ));
 
+        // FIXME: there are crates that can derive this.
+        // Decide whether we're happy to take the compile-time hit.
         // from_memory_address()
         result.push_str(
             &dedent(
@@ -220,7 +195,7 @@ mod codegen {
                 .map(|word| word[0..1].to_uppercase() + &word[1..])
                 .collect::<String>();
             result.push_str(&format!(
-                "            {memory_address} => Some(Self::{struct_name}({struct_name})),\n"
+                "            {memory_address} => Some(Self::{struct_name}),\n"
             ));
         }
         result.push_str(
@@ -251,7 +226,7 @@ mod codegen {
                 .split(' ')
                 .map(|word| word[0..1].to_uppercase() + &word[1..])
                 .collect::<String>();
-            result.push_str(&format!("            Self::{struct_name}(_) => {bytes},\n"));
+            result.push_str(&format!("            Self::{struct_name} => {bytes},\n"));
         }
         result.push_str(
             &dedent_last(
@@ -265,8 +240,6 @@ mod codegen {
 
         // } for impl RegisterAddress
         result.push_str(&dedent(r#"}"#));
-
-        result.push_str(SUFFIX);
 
         result
     }
@@ -285,6 +258,7 @@ fn main() {
     let registers_module_path = "src/registers.rs";
 
     println!("cargo::rerun-if-changed={registers_module_path}");
+    println!("cargo::rerun-if-changed=build.rs");
     if let Ok(old_source) = std::fs::read_to_string(registers_module_path) {
         if new_source == old_source {
             // everything is up to date
