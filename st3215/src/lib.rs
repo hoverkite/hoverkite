@@ -77,9 +77,12 @@ pub enum Instruction {
     WriteData {
         head_address: u8,
         data: ArrayVec<[u8; 256]>,
-    }, // >= 1
+    },
     /** Similar to WRITE DATA, the control character does not act immediately after writing until the ACTION instruction arrives. (0x04) */
-    RegWriteData { parameters: ArrayVec<[u8; 256]> }, // Not less than 2
+    RegWriteData {
+        head_address: u8,
+        data: ArrayVec<[u8; 256]>,
+    },
     /** Actions that trigger REG WRITE writes (0x05) */
     Action,
     /** For simultaneous control of multiple servos (0x83) */
@@ -109,14 +112,11 @@ impl Instruction {
         match self {
             Instruction::Ping => {}
             Instruction::ReadData { parameters } => buf.extend_from_slice(parameters),
-            Instruction::WriteData {
-                head_address,
-                data: values,
-            } => {
+            Instruction::WriteData { head_address, data }
+            | Instruction::RegWriteData { head_address, data } => {
                 buf.push(*head_address);
-                buf.extend_from_slice(values)
+                buf.extend_from_slice(data)
             }
-            Instruction::RegWriteData { parameters } => buf.extend_from_slice(parameters),
             Instruction::Action => {}
             Instruction::SyncWrite { parameters } => buf.extend_from_slice(parameters),
             Instruction::Reset => {}
@@ -131,8 +131,11 @@ impl Instruction {
             Instruction::WriteData {
                 head_address,
                 data: values,
+            }
+            | Instruction::RegWriteData {
+                head_address,
+                data: values,
             } => values.len() as u8 + 1,
-            Instruction::RegWriteData { parameters } => parameters.len() as u8,
             Instruction::Action => 0,
             Instruction::SyncWrite { parameters } => parameters.len() as u8,
             Instruction::Reset => 0,
@@ -311,6 +314,7 @@ mod tests {
      * Example 4 controls the ID1 servo to rotate to 2048 at a speed of 1000 seconds.
      * (first part)
      */
+    // FIXME: impl tests in terms of the write_to_buf() method instead of write() and make tests non-async
     #[futures_test::test]
     async fn example_4_control_servo_instruction() {
         let packet = InstructionPacket {
@@ -324,7 +328,7 @@ mod tests {
         assert_eq!(packet.effective_data_length(), 0x09);
         assert_eq!(
             packet.instruction.parameters_as_buf().as_slice(),
-            [0x2au8, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
+            [0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
         );
         packet.write(&mut stream).await.unwrap();
         assert_eq!(
@@ -351,5 +355,52 @@ mod tests {
                 parameters: array_vec![],
             }
         );
+    }
+    /**
+     * Example 5 Control ID1 to ID10 servo to rotate to 2048 position at 1000 per second.
+     */
+    #[futures_test::test]
+    async fn example_5_reg_write() {
+        let packet = InstructionPacket {
+            id: ServoIdOrBroadcast(1),
+            instruction: Instruction::RegWriteData {
+                head_address: 0x2a,
+                data: array_vec!(0x00, 0x08, 0x00, 0x00, 0xe8, 0x03),
+            },
+        };
+        let mut stream: Vec<u8> = Vec::new();
+        assert_eq!(packet.effective_data_length(), 0x09);
+        assert_eq!(
+            packet.instruction.parameters_as_buf().as_slice(),
+            [0x2a, 0x00, 0x08, 0x00, 0x00, 0xe8, 0x03]
+        );
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(
+            stream,
+            vec![0xFF, 0xFF, 0x01, 0x09, 0x04, 0x2A, 0x00, 0x08, 0x00, 0x00, 0xE8, 0x03, 0xD4]
+        );
+        // Returned packet is the same as the write response. We also don't bother testing the other
+        // servo ids from their example, because the only difference is id and checksum.
+        // Note that the servo won't do anything until an ACTION instruction is sent.
+    }
+
+    /**
+     * Example 6: After issuing the asynchronous writing instructions that control ID1 to
+     * ID10 servo to rotate at 2048 position at a speed of 1000 seconds, the following
+     * instruction packages (FF FF FE 02 05 FA) need to be sent when the asynchronous writing
+     * instructions need to be executed. All servos on the bus receive this instruction
+     * and run the asynchronous writing instruction received before.
+     */
+    #[futures_test::test]
+    async fn example_6_action() {
+        let packet = InstructionPacket {
+            id: ServoIdOrBroadcast::BROADCAST,
+            instruction: Instruction::Action,
+        };
+        let mut stream: Vec<u8> = Vec::new();
+        assert_eq!(packet.effective_data_length(), 0x02);
+        assert_eq!(packet.instruction.parameters_as_buf().as_slice(), &[]);
+        packet.write(&mut stream).await.unwrap();
+        assert_eq!(stream, vec![0xFF, 0xFF, 0xFE, 0x02, 0x05, 0xFA]);
     }
 }
