@@ -1,6 +1,6 @@
 /** Auto-generated code. Do not modify. See build.rs for details. */
 
-pub enum RegisterAddress {
+pub enum Register {
     /**
      * Firmware major version number
      *
@@ -682,7 +682,7 @@ pub enum RegisterAddress {
     CurrentCurrent = 69,
 }
 
-impl RegisterAddress {
+impl Register {
     pub fn from_memory_address(memory_address: u8) -> Option<Self> {
         match memory_address {
             0 => Some(Self::FirmwareMajorVersionNumber),

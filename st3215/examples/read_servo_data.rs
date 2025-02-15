@@ -39,7 +39,7 @@ fn main() {
     // let length = parse_hex(&args[4]);
 
     let length = if let Some(register) =
-        st3215::registers::RegisterAddress::from_memory_address(head_address)
+        st3215::registers::Register::from_memory_address(head_address)
     {
         register.length()
     } else {

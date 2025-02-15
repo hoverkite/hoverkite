@@ -134,8 +134,8 @@ mod codegen {
             .collect();
 
 
-        // RegisterAddress enum
-        result.push_str("pub enum RegisterAddress {");
+        // Register enum
+        result.push_str("pub enum Register {");
         for register in &registers {
             
             let memory_address = register.memory_address;
@@ -173,7 +173,7 @@ mod codegen {
 
         result.push_str(&dedent(
             r#"
-            impl RegisterAddress {"#,
+            impl Register {"#,
         ));
 
         // FIXME: there are crates that can derive this.
@@ -258,7 +258,7 @@ mod codegen {
             .trim_start_matches("\n"),
         );
 
-        // } for impl RegisterAddress
+        // } for impl Register
         result.push_str(&dedent(r#"}"#));
 
         result
