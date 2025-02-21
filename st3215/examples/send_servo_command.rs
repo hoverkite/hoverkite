@@ -3,7 +3,7 @@ use st3215::{
     messages::Instruction, messages::InstructionPacket, messages::ReplyPacket,
     messages::ServoIdOrBroadcast, registers::Register,
 };
-use std::env;
+use std::{env, time::Duration};
 
 fn parse_hex(input: &str) -> u8 {
     assert!(
@@ -96,6 +96,7 @@ fn main() {
         serial_port_path,
         &SerialPortSettings {
             baud_rate,
+            timeout: Duration::from_secs(1),
             ..Default::default()
         },
     )
