@@ -117,6 +117,13 @@ impl Instruction {
             length: register.length(),
         }
     }
+    pub fn write_register(register: Register, value: u16) -> Self {
+        match register.length() {
+            1 => Self::write_register_u8(register, value as u8),
+            2 => Self::write_register_u16(register, value),
+            _ => panic!("register length not supported"),
+        }
+    }
     pub fn write_register_u8(register: Register, value: u8) -> Self {
         assert!(register.length() == 1);
         Self::WriteData {

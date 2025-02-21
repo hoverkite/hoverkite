@@ -14,6 +14,15 @@ fn parse_hex(input: &str) -> u8 {
     u8::from_str_radix(&input[2..], 16).expect("Input must be a valid hexadecimal number")
 }
 
+fn parse_hex_u16(input: &str) -> u16 {
+    assert!(
+        input.starts_with("0x"),
+        "Input must start with '0x'. Received: {}",
+        input
+    );
+    u16::from_str_radix(&input[2..], 16).expect("Input must be a valid hexadecimal number")
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 4 {
@@ -51,7 +60,16 @@ fn main() {
                 instruction: Instruction::read_register(register),
             }
         }
-        "write" => todo!(),
+        "write" => {
+            let head_address = parse_hex(&args[4]);
+            let register =
+                Register::from_memory_address(head_address).expect("Invalid head address");
+            let value = parse_hex_u16(&args[5]);
+            InstructionPacket {
+                id,
+                instruction: Instruction::write_register(register, value),
+            }
+        }
         "reset" => InstructionPacket {
             id,
             instruction: Instruction::Reset,
@@ -90,6 +108,7 @@ fn main() {
                 response.interpret_as_register(register)
             );
         }
+        Instruction::WriteData { .. } => {}
         _ => todo!(),
     }
 }
