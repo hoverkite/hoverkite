@@ -244,8 +244,8 @@ impl ReplyPacket {
     pub fn read<R: embedded_io::Read>(mut stream: R) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 5];
         stream.read_exact(&mut buffer)?;
-        debug_assert!(buffer[0] == 0xff);
-        debug_assert!(buffer[1] == 0xff);
+        assert!(buffer[0] == 0xff);
+        assert!(buffer[1] == 0xff);
         let id = ServoId::new(buffer[2]).unwrap();
         let length = buffer[3].saturating_sub(2);
         let current_state = ServoStatusErrors::from_u8(buffer[4]).unwrap();
@@ -271,8 +271,8 @@ impl ReplyPacket {
     ) -> Result<Self, ReadExactError<R::Error>> {
         let mut buffer = [0u8; 5];
         stream.read_exact(&mut buffer).await?;
-        debug_assert!(buffer[0] == 0xff);
-        debug_assert!(buffer[1] == 0xff);
+        assert!(buffer[0] == 0xff);
+        assert!(buffer[1] == 0xff);
         let id = ServoId::new(buffer[2]).unwrap();
         let length = buffer[3].saturating_sub(2);
         let current_state = buffer[4];
