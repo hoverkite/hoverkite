@@ -41,11 +41,23 @@ fn main() {
         );
         std::process::exit(1);
     }
-    let serial_port_path = &args[1];
+    let mut serial_port_path: &str = &args[1];
+    let mut baud_rate: u32 = 1_000_000;
+    if let Some((path, baud)) = serial_port_path.rsplit_once(':') {
+        if let Ok(baud) = baud.parse() {
+            baud_rate = baud;
+            serial_port_path = path;
+        } else {
+            eprintln!("Invalid baud rate: {}", baud);
+            std::process::exit(1);
+        }
+    }
     let command = &args[2];
     let id = ServoIdOrBroadcast::from_hex_string(&args[3])
         .expect("servo_id must be a valid hexadecimal number or BROADCAST");
 
+    // FIXME: write this using a proper argument parsing library and use named flags instead of
+    // positional arguments
     let packet = match command.as_str() {
         "ping" => InstructionPacket {
             id,
@@ -83,12 +95,13 @@ fn main() {
     let mut serial_port = serialport::open_with_settings(
         serial_port_path,
         &SerialPortSettings {
-            baud_rate: 1_000_000,
+            baud_rate,
             ..Default::default()
         },
     )
     .expect("Failed to open serial port");
 
+    dbg!(serial_port.settings());
     serial_port
         .write_all(&packet.to_buf())
         .expect("Failed to write to serial port");
