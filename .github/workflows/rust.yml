@@ -47,6 +47,13 @@ jobs:
         with:
           toolchain: stable
           target: thumbv7m-none-eabi
+      - name: Install esp toolchain if needed
+        if: ${{ matrix.directory == 'cross/kitebox' }}
+        run: |
+          set -euxo pipefail
+          cargo install cargo-quickinstall
+          cargo quickinstall espup
+          espup install
       - name: Build
         run: cargo build
       - name: Run tests
@@ -58,13 +65,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
-      - name: Install esp toolchain if needed
-        if: ${{ matrix.directory == 'cross/kitebox' }}
-        run: |
-          set -euxo pipefail
-          cargo install cargo-quickinstall
-          cargo quickinstall espup
-          espup install
       - name: Run clippy
         # Fall back to running clippy manually.
         if: ${{ matrix.directory != '.' }}
