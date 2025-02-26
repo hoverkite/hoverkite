@@ -3,6 +3,10 @@ edition = "2021"
 name    = "kitebox"
 version = "0.1.0"
 
+# We mark ourselves as a separate workspace to avoid being included in top-level host-arch builds
+[workspace]
+resolver = "2"
+
 [[bin]]
 name = "kitebox"
 path = "./src/bin/async_main.rs"
