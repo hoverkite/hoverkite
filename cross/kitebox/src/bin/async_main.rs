@@ -11,7 +11,6 @@ use esp_hal::{
     Async,
 };
 
-// Constants
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
@@ -30,19 +29,19 @@ async fn main(spawner: Spawner) {
 
     let uart1 = Uart::new(peripherals.UART1, config)
         .unwrap()
-        .with_tx(peripherals.GPIO19) // TX pin
-        .with_rx(peripherals.GPIO18) // RX pin
+        .with_tx(peripherals.GPIO19)
+        .with_rx(peripherals.GPIO18)
         .into_async();
 
-    let (rx, tx) = uart1.split();
+    let bus = ServoBus::from_uart(uart1);
 
-    spawner.spawn(reader(rx, tx)).ok();
+    spawner.spawn(reader(bus)).ok();
 }
 
 #[embassy_executor::task]
-async fn reader(mut rx: UartRx<'static, Async>, mut tx: UartTx<'static, Async>) {
+async fn reader(mut bus: ServoBus) {
     loop {
-        match ping_servo(&mut tx, &mut rx, SERVO_ID).await {
+        match bus.ping_servo(SERVO_ID).await {
             Ok(id) => esp_println::println!("Servo ID: {}", id),
             Err(e) => esp_println::println!("Ping error: {}", e),
         }
@@ -50,28 +49,37 @@ async fn reader(mut rx: UartRx<'static, Async>, mut tx: UartTx<'static, Async>) 
     }
 }
 
-async fn ping_servo(
-    tx: &mut UartTx<'static, Async>,
-    rx: &mut UartRx<'static, Async>,
-    servo_id: u8,
-) -> Result<u8, &'static str> {
-    // FIXME: stop ignoring servo_id (requires calculating the checksum properly)
-    let ping_command = [0xFF, 0xFF, 254, 0x02, 0x01, 254];
+struct ServoBus {
+    rx: UartRx<'static, Async>,
+    tx: UartTx<'static, Async>,
+}
 
-    tx.write_all(&ping_command).await.unwrap();
-    tx.flush_async().await.unwrap();
+impl ServoBus {
+    fn from_uart(uart: Uart<'static, Async>) -> Self {
+        let (rx, tx) = uart.split();
+        Self { rx, tx }
+    }
 
-    // we're expecting a response like [0xff, 0xff, 0x01, 0x02, 0x00, 0xFC]
-    // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
-    // missing then we'll just drop whatever we've read so far and return an error.
-    let mut response_buf = [0u8; 6];
-    match rx
-        .read_exact(&mut response_buf)
-        .with_timeout(SERVO_RESPONSE_TIMEOUT)
-        .await
-    {
-        Ok(Ok(())) => Ok(response_buf[2]), // Extract servo ID
-        Ok(_) => Err("Ping failed"),
-        Err(_) => Err("Ping timeout"),
+    async fn ping_servo(&mut self, servo_id: u8) -> Result<u8, &'static str> {
+        // FIXME: stop ignoring servo_id (requires calculating the checksum properly)
+        let ping_command = [0xFF, 0xFF, 254, 0x02, 0x01, 254];
+
+        self.tx.write_all(&ping_command).await.unwrap();
+        self.tx.flush_async().await.unwrap();
+
+        // we're expecting a response like [0xff, 0xff, 0x01, 0x02, 0x00, 0xFC]
+        // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
+        // missing then we'll just drop whatever we've read so far and return an error.
+        let mut response_buf = [0u8; 6];
+        match self
+            .rx
+            .read_exact(&mut response_buf)
+            .with_timeout(SERVO_RESPONSE_TIMEOUT)
+            .await
+        {
+            Ok(Ok(())) => Ok(response_buf[2]), // Extract servo ID
+            Ok(_) => Err("Ping failed"),
+            Err(_) => Err("Ping timeout"),
+        }
     }
 }
