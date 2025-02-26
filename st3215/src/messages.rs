@@ -361,7 +361,7 @@ pub(crate) mod tests {
     #[futures_test::test]
     async fn example_1_query_status_instruction_ping_1_3_1() {
         let packet = InstructionPacket {
-            id: ServoIdOrBroadcast(1),
+            id: ServoIdOrBroadcast::BROADCAST,
             instruction: Instruction::Ping,
         };
         let mut stream: Vec<u8> = Vec::new();

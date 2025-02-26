@@ -31,7 +31,8 @@ async fn ping_servo(
     rx: &mut UartRx<'static, Async>,
     servo_id: u8,
 ) -> Result<u8, &'static str> {
-    let ping_command = [0xFF, 0xFF, servo_id, 0x01, 0x00]; // Example Ping packet
+    // FIXME: stop ignoring servo_id (requires calculating the checksum properly)
+    let ping_command = [0xFF, 0xFF, 254, 0x02, 0x01, 254];
 
     tx.write_all(&ping_command).await.unwrap();
     tx.flush_async().await.unwrap();
