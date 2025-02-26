@@ -4,6 +4,7 @@ use crate::registers::Register;
 
 use tinyvec::ArrayVec;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionPacket {
     pub id: ServoIdOrBroadcast,
     pub instruction: Instruction,
@@ -54,6 +55,7 @@ impl InstructionPacket {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServoIdOrBroadcast(pub u8);
 
 impl ServoIdOrBroadcast {
@@ -87,6 +89,7 @@ impl ServoId {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     /** Query the working status (0x01) */
     Ping,
@@ -200,6 +203,7 @@ impl Instruction {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncWriteParameters {
     pub(crate) head_address: u8,
     // length of data for each servo
