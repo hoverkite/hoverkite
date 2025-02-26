@@ -973,6 +973,7 @@ dependencies = [
  "log",
  "smoltcp",
  "static_cell",
+ "xtensa-lx-rt",
 ]
 
 [[package]]
