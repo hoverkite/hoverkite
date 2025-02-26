@@ -346,6 +346,10 @@ impl ServoStatusErrors {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    extern crate std;
+    use std::vec;
+    use std::vec::Vec;
+
     use super::*;
     use tinyvec::array_vec;
 
@@ -365,7 +369,7 @@ pub(crate) mod tests {
     #[futures_test::test]
     async fn example_1_query_status_instruction_ping_1_3_1() {
         let packet = InstructionPacket {
-            id: ServoIdOrBroadcast::BROADCAST,
+            id: ServoIdOrBroadcast(1),
             instruction: Instruction::Ping,
         };
         let mut stream: Vec<u8> = Vec::new();
