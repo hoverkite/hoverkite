@@ -49,12 +49,7 @@ jobs:
           target: thumbv7m-none-eabi
       - name: Install esp toolchain if needed
         if: ${{ matrix.directory == 'cross/kitebox' }}
-        working-directory: .
-        run: |
-          set -euxo pipefail
-          cargo install cargo-quickinstall
-          cargo quickinstall espup
-          espup install
+        uses: esp-rs/xtensa-toolchain@v1.5
       - name: Build
         run: cargo build
       - name: Run tests
