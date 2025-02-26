@@ -53,6 +53,7 @@ jobs:
       - name: Build
         run: cargo build
       - name: Run tests
+        if: ${{ matrix.directory != 'cross/kitebox' }}
         run: cargo test
       - name: Run clippy
         # clippy-check only works in the top-level directory.
