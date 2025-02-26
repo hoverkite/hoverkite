@@ -3,6 +3,7 @@
 
 use embassy_executor::Spawner;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
+use embedded_io::Write;
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::{
@@ -12,13 +13,18 @@ use esp_hal::{
 use log::info;
 use static_cell::StaticCell;
 
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Timer, WithTimeout};
 
 extern crate alloc;
 const READ_BUF_SIZE: usize = 64;
 
+// FIXME: just pass the whole uart in here?
 #[embassy_executor::task]
-async fn writer(mut tx: UartTx<'static, Async>, signal: &'static Signal<NoopRawMutex, usize>) {
+async fn servo_controller(
+    mut rx: UartRx<'static, Async>,
+    mut tx: UartTx<'static, Async>,
+    signal: &'static Signal<NoopRawMutex, usize>,
+) {
     use core::fmt::Write;
     embedded_io_async::Write::write(
         &mut tx,
@@ -27,36 +33,36 @@ async fn writer(mut tx: UartTx<'static, Async>, signal: &'static Signal<NoopRawM
     .await
     .unwrap();
 
-    info!("writer");
-
-    embedded_io_async::Write::flush(&mut tx).await.unwrap();
-    loop {
-        let bytes_read = signal.wait().await;
-        signal.reset();
-        write!(&mut tx, "\r\n-- received {} bytes --\r\n", bytes_read).unwrap();
-        embedded_io_async::Write::flush(&mut tx).await.unwrap();
-    }
-}
-
-#[embassy_executor::task]
-async fn reader(mut rx: UartRx<'static, Async>, signal: &'static Signal<NoopRawMutex, usize>) {
     const MAX_BUFFER_SIZE: usize = 10 * READ_BUF_SIZE + 16;
 
     let mut rbuf: [u8; MAX_BUFFER_SIZE] = [0u8; MAX_BUFFER_SIZE];
     let mut offset = 0;
 
-    info!("reader");
+    info!("servo controller task started");
+
+    embedded_io_async::Write::flush(&mut tx).await.unwrap();
 
     loop {
-        let r = embedded_io_async::Read::read(&mut rx, &mut rbuf[offset..]).await;
+        const BROADCAST: u8 = 254; // 0xFE
+
+        // seems reasonable to do a blocking write here: if we only manage to send half a message
+        // over the uart then we're probably not going to get the servos doing what we want them to anyway?
+        tx.write_all(&[0xff, 0xff, BROADCAST, 0x02, 0x01, 0xfB])
+            .unwrap();
+        embedded_io_async::Write::flush(&mut tx).await.unwrap();
+
+        let r = embedded_io_async::Read::read(&mut rx, &mut rbuf[offset..])
+            .with_timeout(Duration::from_secs(1))
+            .await;
         match r {
-            Ok(len) => {
+            Ok(Ok(len)) => {
                 offset += len;
                 esp_println::println!("Read: {len}, data: {:?}", &rbuf[..offset]);
                 offset = 0;
                 signal.signal(len);
             }
-            Err(e) => esp_println::println!("RX Error: {:?}", e),
+            Ok(Err(e)) => esp_println::println!("RX Error: {:?}", e),
+            Err(e) => esp_println::println!("read timeout: {:?}", e),
         }
     }
 }
@@ -85,33 +91,28 @@ async fn main(spawner: Spawner) {
     )
     .unwrap();
 
-    // "UART0"
-    // let (tx_pin, rx_pin) = (peripherals.GPIO1, peripherals.GPIO3);
-    let config = esp_hal::uart::Config::default().with_baudrate(9600);
-    // .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16));
+    let config = esp_hal::uart::Config::default()
+        .with_baudrate(1_000_000)
+        // 8N1
+        .with_data_bits(esp_hal::uart::DataBits::_8)
+        .with_parity(esp_hal::uart::Parity::None)
+        .with_stop_bits(esp_hal::uart::StopBits::_1);
 
-    let mut uart2 = Uart::new(peripherals.UART2, config)
+    let uart1 = Uart::new(peripherals.UART1, config)
         .unwrap()
+        .with_rx(peripherals.GPIO18)
         .with_tx(peripherals.GPIO19)
-        .with_rx(peripherals.GPIO22)
         .into_async();
-    // TODO: Spawn some tasks
+
     let _ = spawner;
 
-    let (rx, mut tx) = uart2.split();
+    let (rx, tx) = uart1.split();
 
     static SIGNAL: StaticCell<Signal<NoopRawMutex, usize>> = StaticCell::new();
     let signal = &*SIGNAL.init(Signal::new());
 
-    embedded_io_async::Write::write(
-        &mut tx,
-        b"Hello async serial. Enter something ended with EOT (CTRL-D).\r\n",
-    )
-    .await
-    .unwrap();
+    spawner.spawn(servo_controller(rx, tx, &signal)).ok();
 
-    spawner.spawn(reader(rx, &signal)).ok();
-    spawner.spawn(writer(tx, &signal)).ok();
     loop {
         info!("Hello world!");
         Timer::after(Duration::from_secs(100)).await;
