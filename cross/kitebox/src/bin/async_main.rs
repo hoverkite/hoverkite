@@ -1,54 +1,45 @@
-//! embassy serial
-//!
-//! This is an example of running the embassy executor and asynchronously
-//! writing to and reading from UART.
-
-//% CHIPS: esp32 esp32c2 esp32c3 esp32c6 esp32h2 esp32s2 esp32s3
-//% FEATURES: embassy esp-hal/unstable
-
 #![no_std]
 #![no_main]
 
 use embassy_executor::Spawner;
+use embassy_time::{Duration, Timer};
+use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::{
     timer::timg::TimerGroup,
-    uart::{AtCmdConfig, Config, RxConfig, Uart, UartRx, UartTx},
+    uart::{Config, RxConfig, Uart, UartRx, UartTx},
     Async,
 };
 
-// fifo_full_threshold (RX)
+// Constants
 const READ_BUF_SIZE: usize = 64;
-// EOT (CTRL-D)
-const AT_CMD: u8 = 0x04;
+const SERVO_ID: u8 = 3;
 
 #[embassy_executor::task]
 async fn reader(mut rx: UartRx<'static, Async>, mut tx: UartTx<'static, Async>) {
-    const MAX_BUFFER_SIZE: usize = 10 * READ_BUF_SIZE + 16;
-
-    let mut rbuf: [u8; MAX_BUFFER_SIZE] = [0u8; MAX_BUFFER_SIZE];
-    let mut offset = 0;
-
-    use core::fmt::Write;
-    embedded_io_async::Write::write(
-        &mut tx,
-        b"Hello async serial. Enter something ended with EOT (CTRL-D).\r\n",
-    )
-    .await.unwrap();
     loop {
-        let r = embedded_io_async::Read::read(&mut rx, &mut rbuf[offset..]).await;
-        match r {
-            Ok(len) => {
-                offset += len;
-                esp_println::println!("Read: {len}, data: {:?}", &rbuf[..offset]);
-                offset = 0;
-
-                let bytes_read = len;
-                write!(&mut tx, "\r\n-- received {} bytes --\r\n", bytes_read).unwrap();
-                embedded_io_async::Write::flush(&mut tx).await.unwrap();
-            }
-            Err(e) => esp_println::println!("RX Error: {:?}", e),
+        match ping_servo(&mut tx, &mut rx, SERVO_ID).await {
+            Ok(id) => esp_println::println!("Servo ID: {}", id),
+            Err(e) => esp_println::println!("Ping error: {}", e),
         }
+        Timer::after(Duration::from_millis(2000)).await; // Delay like in Arduino
+    }
+}
+
+async fn ping_servo(
+    tx: &mut UartTx<'static, Async>,
+    rx: &mut UartRx<'static, Async>,
+    servo_id: u8,
+) -> Result<u8, &'static str> {
+    let ping_command = [0xFF, 0xFF, servo_id, 0x01, 0x00]; // Example Ping packet
+
+    tx.write(&ping_command).await.unwrap();
+    tx.flush().await.unwrap();
+
+    let mut response_buf = [0u8; 6]; // Adjust based on expected response size
+    match rx.read(&mut response_buf).await {
+        Ok(len) if len > 0 => Ok(response_buf[2]), // Extract servo ID
+        _ => Err("Ping failed"),
     }
 }
 
@@ -60,19 +51,17 @@ async fn main(spawner: Spawner) {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_hal_embassy::init(timg0.timer0);
 
-    let (tx_pin, rx_pin) = (peripherals.GPIO1, peripherals.GPIO3);
-
     let config = Config::default()
+        .baudrate(1_000_000)
         .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16));
 
-    let mut uart0 = Uart::new(peripherals.UART0, config)
+    let mut uart1 = Uart::new(peripherals.UART1, config)
         .unwrap()
-        .with_tx(tx_pin)
-        .with_rx(rx_pin)
+        .with_tx(peripherals.GPIO19) // TX pin
+        .with_rx(peripherals.GPIO18) // RX pin
         .into_async();
-    uart0.set_at_cmd(AtCmdConfig::default().with_cmd_char(AT_CMD));
 
-    let (rx, tx) = uart0.split();
+    let (rx, tx) = uart1.split();
 
     spawner.spawn(reader(rx, tx)).ok();
 }
