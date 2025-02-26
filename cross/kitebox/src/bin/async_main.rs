@@ -3,13 +3,13 @@
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer, WithTimeout};
-use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::{
     timer::timg::TimerGroup,
     uart::{Config, RxConfig, Uart, UartRx, UartTx},
     Async,
 };
+use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoId, ServoIdOrBroadcast};
 
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
@@ -42,7 +42,7 @@ async fn main(spawner: Spawner) {
 async fn reader(mut bus: ServoBus) {
     loop {
         match bus.ping_servo(SERVO_ID).await {
-            Ok(id) => esp_println::println!("Servo ID: {}", id),
+            Ok(id) => esp_println::println!("Servo ID: {:?}", id),
             Err(e) => esp_println::println!("Ping error: {}", e),
         }
         Timer::after(Duration::from_millis(2000)).await; // Delay like in Arduino
@@ -60,24 +60,22 @@ impl ServoBus {
         Self { rx, tx }
     }
 
-    async fn ping_servo(&mut self, servo_id: u8) -> Result<u8, &'static str> {
-        // FIXME: stop ignoring servo_id (requires calculating the checksum properly)
-        let ping_command = [0xFF, 0xFF, 254, 0x02, 0x01, 254];
+    async fn ping_servo(&mut self, servo_id: u8) -> Result<ServoId, &'static str> {
+        let command = InstructionPacket {
+            id: ServoIdOrBroadcast(servo_id),
+            instruction: Instruction::Ping,
+        };
 
-        self.tx.write_all(&ping_command).await.unwrap();
+        command.write(&mut self.tx).await.unwrap();
         self.tx.flush_async().await.unwrap();
 
-        // we're expecting a response like [0xff, 0xff, 0x01, 0x02, 0x00, 0xFC]
         // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
         // missing then we'll just drop whatever we've read so far and return an error.
-        let mut response_buf = [0u8; 6];
-        match self
-            .rx
-            .read_exact(&mut response_buf)
+        match ReplyPacket::read_async(&mut self.rx)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
             .await
         {
-            Ok(Ok(())) => Ok(response_buf[2]), // Extract servo ID
+            Ok(Ok(reply)) => Ok(reply.id), // Extract servo ID
             Ok(_) => Err("Ping failed"),
             Err(_) => Err("Ping timeout"),
         }

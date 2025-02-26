@@ -8,6 +8,8 @@ name = "kitebox"
 path = "./src/bin/async_main.rs"
 
 [dependencies]
+st3215 = { path = "../../st3215" }
+
 embassy-net = { version = "0.6.0", features = [
   "dhcpv4",
   "medium-ethernet",

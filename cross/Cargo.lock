@@ -986,6 +986,7 @@ dependencies = [
  "heapless",
  "log",
  "smoltcp",
+ "st3215",
  "static_cell",
  "xtensa-lx-rt",
 ]
@@ -1364,6 +1365,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "st3215"
+version = "0.1.0"
+dependencies = [
+ "bitflags 1.3.2",
+ "embedded-io",
+ "embedded-io-async",
+ "tinyvec",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1458,6 +1469,12 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "022db8904dfa342efe721985167e9fcd16c29b226db4397ed752a761cfce81e8"
 
 [[package]]
 name = "toml"

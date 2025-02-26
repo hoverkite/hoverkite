@@ -235,8 +235,8 @@ impl SyncWriteParameters {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReplyPacket {
-    pub(crate) id: ServoId,
-    pub(crate) servo_status_errors: ServoStatusErrors,
+    pub id: ServoId,
+    pub servo_status_errors: ServoStatusErrors,
     pub(crate) parameters: ArrayVec<[u8; 256]>,
 }
 
