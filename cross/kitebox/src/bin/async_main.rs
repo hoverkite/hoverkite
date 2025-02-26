@@ -2,7 +2,7 @@
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Timer, WithTimeout};
 use embedded_io_async::{Read, Write};
 use esp_backtrace as _;
 use esp_hal::{
@@ -14,6 +14,7 @@ use esp_hal::{
 // Constants
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
+static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
 
 #[embassy_executor::task]
 async fn reader(mut rx: UartRx<'static, Async>, mut tx: UartTx<'static, Async>) {
@@ -38,10 +39,17 @@ async fn ping_servo(
     tx.flush_async().await.unwrap();
 
     // we're expecting a response like [0xff, 0xff, 0x01, 0x02, 0x00, 0xFC]
+    // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
+    // missing then we'll just drop whatever we've read so far and return an error.
     let mut response_buf = [0u8; 6];
-    match rx.read_exact(&mut response_buf).await {
-        Ok(()) => Ok(response_buf[2]), // Extract servo ID
-        _ => Err("Ping failed"),
+    match rx
+        .read_exact(&mut response_buf)
+        .with_timeout(SERVO_RESPONSE_TIMEOUT)
+        .await
+    {
+        Ok(Ok(())) => Ok(response_buf[2]), // Extract servo ID
+        Ok(_) => Err("Ping failed"),
+        Err(_) => Err("Ping timeout"),
     }
 }
 
