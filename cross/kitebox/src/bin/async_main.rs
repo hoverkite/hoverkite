@@ -33,12 +33,13 @@ async fn ping_servo(
 ) -> Result<u8, &'static str> {
     let ping_command = [0xFF, 0xFF, servo_id, 0x01, 0x00]; // Example Ping packet
 
-    tx.write(&ping_command).await.unwrap();
-    tx.flush().await.unwrap();
+    tx.write_all(&ping_command).await.unwrap();
+    tx.flush_async().await.unwrap();
 
-    let mut response_buf = [0u8; 6]; // Adjust based on expected response size
-    match rx.read(&mut response_buf).await {
-        Ok(len) if len > 0 => Ok(response_buf[2]), // Extract servo ID
+    // we're expecting a response like [0xff, 0xff, 0x01, 0x02, 0x00, 0xFC]
+    let mut response_buf = [0u8; 6];
+    match rx.read_exact(&mut response_buf).await {
+        Ok(()) => Ok(response_buf[2]), // Extract servo ID
         _ => Err("Ping failed"),
     }
 }
@@ -52,10 +53,10 @@ async fn main(spawner: Spawner) {
     esp_hal_embassy::init(timg0.timer0);
 
     let config = Config::default()
-        .baudrate(1_000_000)
+        .with_baudrate(1_000_000)
         .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16));
 
-    let mut uart1 = Uart::new(peripherals.UART1, config)
+    let uart1 = Uart::new(peripherals.UART1, config)
         .unwrap()
         .with_tx(peripherals.GPIO19) // TX pin
         .with_rx(peripherals.GPIO18) // RX pin
