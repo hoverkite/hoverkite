@@ -2,6 +2,10 @@
 #![no_main]
 
 use embassy_executor::Spawner;
+use embassy_sync::{
+    blocking_mutex::raw::CriticalSectionRawMutex,
+    channel::{Channel, Receiver, Sender},
+};
 use embassy_time::{Duration, WithTimeout};
 use esp_backtrace as _;
 use esp_hal::{
@@ -18,6 +22,16 @@ use st3215::{
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
+
+// copy-pasta from esp-rs examples
+macro_rules! mk_static {
+    ($t:ty,$val:expr) => {{
+        static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
+        #[deny(unused_attributes)]
+        let x = STATIC_CELL.uninit().write(($val));
+        x
+    }};
+}
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
@@ -51,23 +65,31 @@ async fn main(spawner: Spawner) {
 
     let bus = ServoBus::from_uart(servo_bus_uart);
 
-    spawner.spawn(main_loop(tty_uart, bus)).ok();
+    #[allow(non_upper_case_globals)]
+    static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+
+    spawner
+        .spawn(tty_receiver(tty_uart, tty_channel.sender()))
+        .unwrap();
+
+    spawner
+        .spawn(main_loop(tty_channel.receiver(), bus))
+        .unwrap();
 }
 
 #[embassy_executor::task]
-async fn main_loop(tty_uart: Uart<'static, Async>, mut bus: ServoBus) {
-    // in practice, we use println!() to respond, so we don't need the tx part yet.
-    let (mut tty_rx, _tty_tx) = tty_uart.split();
-
+async fn main_loop(
+    // FIXME: is there seriously no way that I can write `tty_receiver: impl ...`?
+    tty_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    mut bus: ServoBus,
+) {
     // put the servo in the middle of it's range (0,4096)
     bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
         .await
         .unwrap();
 
     loop {
-        let command = TtyCommand::read_async(&mut tty_rx)
-            .await
-            .expect("should be able to read command from tty (usb uart)");
+        let command = tty_receiver.receive().await;
         match command {
             TtyCommand::Ping => match bus.ping_servo(SERVO_ID).await {
                 Ok(id) => esp_println::println!("Servo ID: {:?}", id),
@@ -87,6 +109,41 @@ async fn main_loop(tty_uart: Uart<'static, Async>, mut bus: ServoBus) {
     }
 }
 
+// This just parses commands from the tty uart and shovels them onto a channel.
+// The esp-hal examples tend to use select(), but TtyCommand::read_async() is not cancel safe,
+// and I have a long-standing hatred of select loops.
+// (see https://blog.yoshuawuyts.com/futures-concurrency-3/).
+//
+// I would prefer to do something like:
+//     let tty_commands = futures::stream::repeat(()).map(move |()| TtyCommand::read_async(tty_rx));
+//     let merged = commands.select(commands_from_espnow)
+//     while let Some(command) = merged.next().await { ... }
+// I hear that there is a cpu starvation hazard there though, because neither stream is polled while
+// the body of the loop is happening (even if it has yielded to the executor). There is a blog post
+// about this somewhere...
+#[embassy_executor::task]
+async fn tty_receiver(
+    tty_uart: Uart<'static, Async>,
+    // FIXME: replace this with an impl trait?
+    sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+) {
+    // in practice, we use println!() to respond, so we don't need the tx part yet.
+    // For some reason, if I just pass tty_rx into this function (rather than the whole tty_uart)
+    // then it stops working (as if it's dropping the uart in main() and cleaning things up?)
+    let (mut tty_rx, _tty_tx) = tty_uart.split();
+
+    println!("tty_receiver");
+    loop {
+        let command = TtyCommand::read_async(&mut tty_rx)
+            .await
+            .expect("should be able to read command from tty (usb uart)");
+        println!("received from tty: {command:?}");
+
+        sender.send(command).await;
+    }
+}
+
+#[derive(Debug)]
 enum TtyCommand {
     Ping,
     Up,
