@@ -106,6 +106,8 @@ impl TtyCommand {
 
         Ok(match buffer[0] {
             b'p' => Self::Ping,
+            b'^' => Self::Up,
+            b'v' => Self::Down,
             b'<' => Self::Left,
             b'>' => Self::Right,
             27 => {
@@ -127,6 +129,18 @@ impl TtyCommand {
             }
             other => Self::Unrecognised(other),
         })
+    }
+
+    // TODO: proptest that TtyCommand::read_async([cmd.as_u8()]).await == cmd for all cmd?
+    fn as_u8(&self) -> u8 {
+        match self {
+            TtyCommand::Ping => b'p',
+            TtyCommand::Up => b'^',
+            TtyCommand::Down => b'v',
+            TtyCommand::Left => b'<',
+            TtyCommand::Right => b'>',
+            TtyCommand::Unrecognised(_) => b'?',
+        }
     }
 }
 
