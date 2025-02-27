@@ -6,32 +6,17 @@ use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
 };
-use embassy_time::{Duration, WithTimeout};
 use esp_backtrace as _;
 use esp_hal::{
     timer::timg::TimerGroup,
-    uart::{Config, RxConfig, Uart, UartRx, UartTx},
+    uart::{Config, RxConfig, Uart},
     Async,
 };
 use esp_println::println;
-use st3215::{
-    messages::{Instruction, InstructionPacket, ReplyPacket, ServoId, ServoIdOrBroadcast},
-    registers::Register,
-};
+use st3215::registers::Register;
 
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
-static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
-
-// copy-pasta from esp-rs examples
-macro_rules! mk_static {
-    ($t:ty,$val:expr) => {{
-        static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
-        #[deny(unused_attributes)]
-        let x = STATIC_CELL.uninit().write(($val));
-        x
-    }};
-}
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
@@ -63,7 +48,7 @@ async fn main(spawner: Spawner) {
     .with_rx(peripherals.GPIO18)
     .into_async();
 
-    let bus = ServoBus::from_uart(servo_bus_uart);
+    let bus = kitebox::servo::ServoBus::from_uart(servo_bus_uart);
 
     #[allow(non_upper_case_globals)]
     static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
@@ -81,7 +66,7 @@ async fn main(spawner: Spawner) {
 async fn main_loop(
     // FIXME: is there seriously no way that I can write `tty_receiver: impl ...`?
     tty_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    mut bus: ServoBus,
+    mut bus: kitebox::servo::ServoBus,
 ) {
     // put the servo in the middle of it's range (0,4096)
     bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
@@ -198,108 +183,5 @@ impl TtyCommand {
             TtyCommand::Right => b'>',
             TtyCommand::Unrecognised(_) => b'?',
         }
-    }
-}
-
-struct ServoBus {
-    rx: UartRx<'static, Async>,
-    tx: UartTx<'static, Async>,
-}
-
-impl ServoBus {
-    fn from_uart(uart: Uart<'static, Async>) -> Self {
-        let (rx, tx) = uart.split();
-        Self { rx, tx }
-    }
-
-    async fn ping_servo(&mut self, servo_id: u8) -> Result<ServoId, &'static str> {
-        let command = InstructionPacket {
-            id: ServoIdOrBroadcast(servo_id),
-            instruction: Instruction::Ping,
-        };
-
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
-
-        // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
-        // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
-            .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
-            .map_err(|_| "read failed")?;
-
-        Ok(reply.id)
-    }
-
-    async fn rotate_servo(&mut self, servo_id: u8, increment: i16) -> Result<(), &'static str> {
-        let current = self
-            .read_register(servo_id, Register::TargetLocation)
-            .await?;
-
-        // you can set any u16 in this register, but if you go outside the range 0,4096, it will
-        // get stored as you provide it, but won't cause the servo to rotate out of its circle.
-        let next = ((current as i16) + increment) as u16;
-        self.write_register(servo_id, Register::TargetLocation, next)
-            .await?;
-
-        esp_println::println!("TargetLocation {next}",);
-
-        Ok(())
-    }
-
-    async fn read_register(
-        &mut self,
-        servo_id: u8,
-        register: Register,
-    ) -> Result<u16, &'static str> {
-        let command = InstructionPacket {
-            id: ServoIdOrBroadcast(servo_id),
-            instruction: Instruction::read_register(register),
-        };
-
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
-
-        // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
-        // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
-            .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
-            .map_err(|_| "read failed")?;
-
-        let parsed = reply.interpret_as_register(register);
-
-        Ok(parsed)
-    }
-
-    async fn write_register(
-        &mut self,
-        servo_id: u8,
-        register: Register,
-        value: u16,
-    ) -> Result<(), &'static str> {
-        let command = InstructionPacket {
-            id: ServoIdOrBroadcast(servo_id),
-            instruction: Instruction::write_register(register, value),
-        };
-
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
-
-        // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
-        // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
-            .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
-            .map_err(|_| "read failed")?;
-
-        if !reply.servo_status_errors.is_empty() {
-            println!("problem after writing {command:?}: {reply:?}")
-        }
-
-        Ok(())
     }
 }
