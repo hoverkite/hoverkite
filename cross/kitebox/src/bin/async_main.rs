@@ -5,18 +5,36 @@ use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
 };
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embassy_time::{Duration, Ticker};
+use esp_alloc as _;
 use esp_backtrace as _;
+use esp_backtrace as _;
+use esp_hal::{rng::Rng, timer::timg::TimerGroup};
 use esp_hal::{
-    timer::timg::TimerGroup,
     uart::{Config, RxConfig, Uart},
     Async,
 };
 use esp_println::println;
+use esp_wifi::{
+    esp_now::{EspNowManager, EspNowReceiver, EspNowSender, PeerInfo, BROADCAST_ADDRESS},
+    init, EspWifiController,
+};
 use kitebox::messages::TtyCommand;
 use st3215::registers::Register;
 
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
+
+// When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
+macro_rules! mk_static {
+    ($t:ty,$val:expr) => {{
+        static STATIC_CELL: static_cell::StaticCell<$t> = static_cell::StaticCell::new();
+        #[deny(unused_attributes)]
+        let x = STATIC_CELL.uninit().write(($val));
+        x
+    }};
+}
 
 /**
  * Kitebox firmware for hoverkite 0.2
@@ -56,8 +74,8 @@ async fn main(spawner: Spawner) {
     esp_println::println!("Init!");
     let peripherals = esp_hal::init(esp_hal::Config::default());
 
-    let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_hal_embassy::init(timg0.timer0);
+    let timg1 = TimerGroup::new(peripherals.TIMG1);
+    esp_hal_embassy::init(timg1.timer0);
 
     // This is what's exposed to the terminal when you do `cargo run`.
     let tty_uart = Uart::new(
@@ -82,6 +100,31 @@ async fn main(spawner: Spawner) {
     .into_async();
 
     let bus = kitebox::servo::ServoBus::from_uart(servo_bus_uart);
+
+    let timg0 = TimerGroup::new(peripherals.TIMG0);
+
+    let esp_wifi_ctrl = &*mk_static!(
+        EspWifiController<'static>,
+        init(
+            timg0.timer0,
+            Rng::new(peripherals.RNG),
+            peripherals.RADIO_CLK,
+        )
+        .unwrap()
+    );
+    let wifi = peripherals.WIFI;
+    let esp_now = esp_wifi::esp_now::EspNow::new(&esp_wifi_ctrl, wifi).unwrap();
+    println!("esp-now version {}", esp_now.version().unwrap());
+
+    let (manager, sender, receiver) = esp_now.split();
+    let manager = mk_static!(EspNowManager<'static>, manager);
+    let sender = mk_static!(
+        Mutex::<NoopRawMutex, EspNowSender<'static>>,
+        Mutex::<NoopRawMutex, _>::new(sender)
+    );
+
+    spawner.spawn(listener(manager, receiver)).ok();
+    spawner.spawn(broadcaster(sender)).ok();
 
     #[allow(non_upper_case_globals)]
     static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
@@ -158,5 +201,39 @@ async fn tty_receiver(
         println!("received from tty: {command:?}");
 
         sender.send(command).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn broadcaster(sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>) {
+    let mut ticker = Ticker::every(Duration::from_secs(1));
+    loop {
+        ticker.next().await;
+
+        println!("Send Broadcast...");
+        let mut sender = sender.lock().await;
+        let status = sender.send_async(&BROADCAST_ADDRESS, b"Hello.").await;
+        println!("Send broadcast status: {:?}", status);
+    }
+}
+
+#[embassy_executor::task]
+async fn listener(manager: &'static EspNowManager<'static>, mut receiver: EspNowReceiver<'static>) {
+    loop {
+        let r = receiver.receive_async().await;
+        println!("Received {:?}", r.data());
+        if r.info.dst_address == BROADCAST_ADDRESS {
+            if !manager.peer_exists(&r.info.src_address) {
+                manager
+                    .add_peer(PeerInfo {
+                        peer_address: r.info.src_address,
+                        lmk: None,
+                        channel: None,
+                        encrypt: false,
+                    })
+                    .unwrap();
+                println!("Added peer {:?}", r.info.src_address);
+            }
+        }
     }
 }

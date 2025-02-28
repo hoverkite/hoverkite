@@ -39,6 +39,7 @@ esp-wifi = { version = "0.13.0", default-features = false, features = [
   "esp32",
   "log",
   "wifi",
+  "esp-now",
 ] }
 # This is just to sidestep an error from rust-analyzer. There is probably a cleaner way to do this.
 xtensa-lx-rt = {version = "*", features = ["esp32"]}
