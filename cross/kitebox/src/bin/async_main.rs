@@ -73,6 +73,7 @@ macro_rules! mk_static {
 async fn main(spawner: Spawner) {
     esp_println::println!("Init!");
     let peripherals = esp_hal::init(esp_hal::Config::default());
+    esp_alloc::heap_allocator!(size: 65 * 1024);
 
     let timg1 = TimerGroup::new(peripherals.TIMG1);
     esp_hal_embassy::init(timg1.timer0);
@@ -147,7 +148,7 @@ async fn main_loop(
     // put the servo in the middle of it's range (0,4096)
     bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
         .await
-        .unwrap();
+        .unwrap_or_else(|e| println!("no servo available? {e}"));
 
     loop {
         let command = tty_receiver.receive().await;
