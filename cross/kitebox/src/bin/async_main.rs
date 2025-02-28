@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-
 use embassy_executor::Spawner;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
@@ -13,12 +12,15 @@ use esp_hal::{
     Async,
 };
 use esp_println::println;
+use kitebox::messages::TtyCommand;
 use st3215::registers::Register;
 
 const READ_BUF_SIZE: usize = 64;
 const SERVO_ID: u8 = 3;
 
 /**
+ * Kitebox firmware for hoverkite 0.2
+ *
  * The intention is that we ship exactly the same code to both the ground station and the box in
  * the sky. The ground kitebox might be connected to a computer over usb, but not connected to a
  * servo bus, but that's okay: the algorithm is still:
@@ -156,63 +158,5 @@ async fn tty_receiver(
         println!("received from tty: {command:?}");
 
         sender.send(command).await;
-    }
-}
-
-#[derive(Debug)]
-enum TtyCommand {
-    Ping,
-    Up,
-    Down,
-    Left,
-    Right,
-    // FIXME: make this into an error instead?
-    Unrecognised(u8),
-}
-
-impl TtyCommand {
-    async fn read_async<R: embedded_io_async::Read>(
-        mut stream: R,
-    ) -> Result<Self, embedded_io_async::ReadExactError<R::Error>> {
-        let mut buffer = [0u8; 1];
-        stream.read_exact(&mut buffer).await?;
-
-        Ok(match buffer[0] {
-            b'p' => Self::Ping,
-            b'^' => Self::Up,
-            b'v' => Self::Down,
-            b'<' => Self::Left,
-            b'>' => Self::Right,
-            27 => {
-                // Escape codes. Used by arrow keys.
-                stream.read_exact(&mut buffer).await?;
-                match buffer[0] {
-                    b'[' => {
-                        stream.read_exact(&mut buffer).await?;
-                        match buffer[0] {
-                            b'A' => Self::Up,
-                            b'B' => Self::Down,
-                            b'D' => Self::Left,
-                            b'C' => Self::Right,
-                            other => Self::Unrecognised(other),
-                        }
-                    }
-                    other => Self::Unrecognised(other),
-                }
-            }
-            other => Self::Unrecognised(other),
-        })
-    }
-
-    // TODO: proptest that TtyCommand::read_async([cmd.as_u8()]).await == cmd for all cmd?
-    fn as_u8(&self) -> u8 {
-        match self {
-            TtyCommand::Ping => b'p',
-            TtyCommand::Up => b'^',
-            TtyCommand::Down => b'v',
-            TtyCommand::Left => b'<',
-            TtyCommand::Right => b'>',
-            TtyCommand::Unrecognised(_) => b'?',
-        }
     }
 }
