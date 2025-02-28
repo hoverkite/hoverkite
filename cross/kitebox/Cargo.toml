@@ -22,7 +22,7 @@ embassy-net = { version = "0.6.0", features = [
 ] }
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
-esp-alloc = { version = "0.6.0" }
+esp-alloc = { version = "0.7.0" }
 esp-backtrace = { version = "0.15.0", features = [
   "esp32",
   "exception-handler",
@@ -40,6 +40,7 @@ esp-wifi = { version = "0.13.0", default-features = false, features = [
   "log",
   "wifi",
   "esp-now",
+  "builtin-scheduler",
 ] }
 # This is just to sidestep an error from rust-analyzer. There is probably a cleaner way to do this.
 xtensa-lx-rt = {version = "*", features = ["esp32"]}
