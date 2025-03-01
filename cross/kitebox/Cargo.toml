@@ -32,15 +32,11 @@ esp-backtrace = { version = "0.15.0", features = [
 esp-hal = { version = "1.0.0-beta.0", features = ["esp32", "unstable"] }
 # esp-hal = {  git = "https://github.com/esp-rs/esp-hal", features = ["esp32", "unstable"] }
 esp-println = { version = "0.13.0", features = ["esp32", "log"] }
-esp-wifi = { version = "0.13.0", default-features = false, features = [
-  "ble",
-  "coex",
-  "esp-alloc",
+esp-wifi = { version = "0.13.0", features = [
   "esp32",
   "log",
   "wifi",
   "esp-now",
-  "builtin-scheduler",
 ] }
 # This is just to sidestep an error from rust-analyzer. There is probably a cleaner way to do this.
 xtensa-lx-rt = {version = "*", features = ["esp32"]}
