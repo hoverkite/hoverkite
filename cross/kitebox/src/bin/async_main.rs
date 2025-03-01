@@ -145,7 +145,7 @@ async fn main_loop(
     tty_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     mut bus: kitebox::servo::ServoBus,
 ) {
-    // put the servo in the middle of it's range (0,4096)
+    // put the servo in the middle of its range (0,4096)
     bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
         .await
         .unwrap_or_else(|e| println!("no servo available? {e}"));
@@ -207,14 +207,17 @@ async fn tty_receiver(
 
 #[embassy_executor::task]
 async fn broadcaster(sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>) {
+    // FIXME: while we have a healthy peer, maybe we can pause broadcasting.
     let mut ticker = Ticker::every(Duration::from_secs(1));
     loop {
         ticker.next().await;
 
-        println!("Send Broadcast...");
+        // println!("Send Broadcast...");
         let mut sender = sender.lock().await;
-        let status = sender.send_async(&BROADCAST_ADDRESS, b"Hello.").await;
-        println!("Send broadcast status: {:?}", status);
+        sender
+            .send_async(&BROADCAST_ADDRESS, b"Hello.")
+            .await
+            .unwrap_or_else(|e| println!("Send broadcast status: {:?}", e));
     }
 }
 
@@ -222,9 +225,11 @@ async fn broadcaster(sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>
 async fn listener(manager: &'static EspNowManager<'static>, mut receiver: EspNowReceiver<'static>) {
     loop {
         let r = receiver.receive_async().await;
-        println!("Received {:?}", r.data());
+        // println!("Received {:?}", r.data());
         if r.info.dst_address == BROADCAST_ADDRESS {
             if !manager.peer_exists(&r.info.src_address) {
+                // FIXME: add peers in a more sensible way (pairing based on proximity?)
+                // and negotiate some kind of authentication so that we can't be hijacked.
                 manager
                     .add_peer(PeerInfo {
                         peer_address: r.info.src_address,
