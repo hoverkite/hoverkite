@@ -3,7 +3,7 @@ use embassy_time::WithTimeout;
 use esp_hal::uart::{Uart, UartRx, UartTx};
 use esp_hal::Async;
 use esp_println::println;
-use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoId, ServoIdOrBroadcast};
+use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast};
 use st3215::registers::Register;
 
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
@@ -19,7 +19,7 @@ impl ServoBus {
         Self { rx, tx }
     }
 
-    pub async fn ping_servo(&mut self, servo_id: u8) -> Result<ServoId, &'static str> {
+    pub async fn ping_servo(&mut self, servo_id: u8) -> Result<(), &'static str> {
         let command = InstructionPacket {
             id: ServoIdOrBroadcast(servo_id),
             instruction: Instruction::Ping,
@@ -30,13 +30,13 @@ impl ServoBus {
 
         // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
         // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
+        ReplyPacket::read_async(&mut self.rx)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
             .await
             .map_err(|_| "read timeout")?
             .map_err(|_| "read failed")?;
 
-        Ok(reply.id)
+        Ok(())
     }
 
     pub async fn rotate_servo(&mut self, servo_id: u8, increment: i16) -> Result<(), &'static str> {

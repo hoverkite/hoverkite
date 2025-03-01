@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 use embassy_executor::Spawner;
+use embassy_futures::select::{select, Either};
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
@@ -124,7 +125,16 @@ async fn main(spawner: Spawner) {
         Mutex::<NoopRawMutex, _>::new(sender)
     );
 
-    spawner.spawn(listener(manager, receiver)).ok();
+    #[allow(non_upper_case_globals)]
+    static esp_now_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+
+    spawner
+        .spawn(esp_now_receiver(
+            manager,
+            receiver,
+            esp_now_channel.sender(),
+        ))
+        .ok();
     spawner.spawn(broadcaster(sender)).ok();
 
     #[allow(non_upper_case_globals)]
@@ -135,15 +145,24 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     spawner
-        .spawn(main_loop(tty_channel.receiver(), bus))
+        .spawn(main_loop(
+            tty_channel.receiver(),
+            esp_now_channel.receiver(),
+            bus,
+            manager,
+            sender,
+        ))
         .unwrap();
 }
 
 #[embassy_executor::task]
 async fn main_loop(
-    // FIXME: is there seriously no way that I can write `tty_receiver: impl ...`?
-    tty_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    // FIXME: is there seriously no way that I can write `tty_channel_receiver: impl ...`?
+    tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     mut bus: kitebox::servo::ServoBus,
+    manager: &'static EspNowManager<'static>,
+    sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>,
 ) {
     // put the servo in the middle of its range (0,4096)
     bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
@@ -151,23 +170,53 @@ async fn main_loop(
         .unwrap_or_else(|e| println!("no servo available? {e}"));
 
     loop {
-        let command = tty_receiver.receive().await;
-        match command {
-            TtyCommand::Ping => match bus.ping_servo(SERVO_ID).await {
-                Ok(id) => esp_println::println!("Servo ID: {:?}", id),
-                Err(e) => esp_println::println!("Ping error: {}", e),
-            },
-            TtyCommand::Up => bus.rotate_servo(SERVO_ID, 100).await.unwrap(),
-            TtyCommand::Down => bus.rotate_servo(SERVO_ID, -100).await.unwrap(),
-            TtyCommand::Left => bus.rotate_servo(SERVO_ID, -10).await.unwrap(),
-            TtyCommand::Right => bus.rotate_servo(SERVO_ID, 10).await.unwrap(),
+        let command = select(
+            tty_channel_receiver.receive(),
+            esp_now_channel_receiver.receive(),
+        )
+        .await;
+
+        let command = match command {
+            // if it came from tty then forward it
+            Either::First(command) => {
+                println!("Forwarding command to esp-now: {command:?}");
+                match manager
+                    .fetch_peer(false)
+                    .or_else(|_| manager.fetch_peer(true))
+                {
+                    Ok(peer) => {
+                        let mut sender = sender.lock().await;
+                        sender
+                            .send_async(&peer.peer_address, &[command.as_u8()])
+                            .await
+                            .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                    }
+                    Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
+                };
+                command
+            }
+            Either::Second(command) => command,
+        };
+        // Always attempt to action the command, because this simplifies local dev.
+        println!("Sending command to servo bus: {command:?}");
+        let result = match command {
+            TtyCommand::Ping => bus.ping_servo(SERVO_ID).await,
+            TtyCommand::Up => bus.rotate_servo(SERVO_ID, 100).await,
+            TtyCommand::Down => bus.rotate_servo(SERVO_ID, -100).await,
+            TtyCommand::Left => bus.rotate_servo(SERVO_ID, -10).await,
+            TtyCommand::Right => bus.rotate_servo(SERVO_ID, 10).await,
             TtyCommand::Unrecognised(other) => {
                 esp_println::println!(
                     "Unknown command (ascii {other}): {}",
                     char::from_u32(other.into()).unwrap_or('?')
-                )
+                );
+                Ok(())
             }
-        }
+        };
+        match result {
+            Ok(()) => esp_println::println!("Servo {command:?} ok"),
+            Err(e) => esp_println::println!("Servo {command:?} error: {}", e),
+        };
     }
 }
 
@@ -222,10 +271,13 @@ async fn broadcaster(sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>
 }
 
 #[embassy_executor::task]
-async fn listener(manager: &'static EspNowManager<'static>, mut receiver: EspNowReceiver<'static>) {
+async fn esp_now_receiver(
+    manager: &'static EspNowManager<'static>,
+    mut receiver: EspNowReceiver<'static>,
+    sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+) {
     loop {
         let r = receiver.receive_async().await;
-        // println!("Received {:?}", r.data());
         if r.info.dst_address == BROADCAST_ADDRESS {
             if !manager.peer_exists(&r.info.src_address) {
                 // FIXME: add peers in a more sensible way (pairing based on proximity?)
@@ -240,6 +292,11 @@ async fn listener(manager: &'static EspNowManager<'static>, mut receiver: EspNow
                     .unwrap();
                 println!("Added peer {:?}", r.info.src_address);
             }
+        } else {
+            let data = r.data();
+            println!("Received {:?}", data);
+            let command = TtyCommand::read_async(data).await.unwrap();
+            sender.send(command).await;
         }
     }
 }

@@ -65,6 +65,7 @@ embassy-time = { version = "0.4.0", features = ["generic-queue-8"] }
 embassy-sync = "0.6.1"
 esp-hal-embassy = { version = "0.7.0", features = ["esp32"] }
 static_cell = { version = "2.1.0", features = ["nightly"] }
+embassy-futures = "0.1.1"
 
 [profile.dev]
 # Rust debug is too slow.
