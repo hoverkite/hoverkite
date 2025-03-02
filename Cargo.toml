@@ -4,5 +4,6 @@ resolver = "2"
 
 members = [
     "hovercontrol",
-    "messages", "st3215",
+    "messages",
+    "st3215",
 ]
