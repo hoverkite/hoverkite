@@ -1,11 +1,43 @@
+use core::fmt::Display;
+
 use embassy_time::Duration;
+use embassy_time::TimeoutError;
 use embassy_time::WithTimeout;
-use esp_println::println;
 use st3215::messages::ServoId;
+use st3215::messages::ServoStatusErrors;
 use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast};
 use st3215::registers::Register;
 
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
+
+#[derive(Debug)]
+pub enum ServoBusError {
+    /// There is a problem with the servo. The operation **may** have succeed, but don't bet on it.
+    ServoStatus(ServoStatusErrors),
+    /// Timeout
+    Timeout,
+    Other(&'static str),
+}
+
+impl From<TimeoutError> for ServoBusError {
+    fn from(_value: TimeoutError) -> Self {
+        Self::Timeout
+    }
+}
+
+impl From<&'static str> for ServoBusError {
+    fn from(value: &'static str) -> Self {
+        Self::Other(value)
+    }
+}
+
+impl Display for ServoBusError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl core::error::Error for ServoBusError {}
 
 pub struct ServoBusAsync<U: embedded_io_async::Read + embedded_io_async::Write> {
     uart: U,
@@ -19,7 +51,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
     pub async fn ping_servo(
         &mut self,
         servo_id: ServoIdOrBroadcast,
-    ) -> Result<ServoId, &'static str> {
+    ) -> Result<ServoId, ServoBusError> {
         let command = InstructionPacket {
             id: servo_id,
             instruction: Instruction::Ping,
@@ -32,8 +64,9 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // missing then we'll just drop whatever we've read so far and return an error.
         let reply = ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
+            .await?
+            // FIXME: this is a `ReadExactError<<U as ErrorType>::Error>``.
+            // Find a way to propagate that doesn't tie the api in knots
             .map_err(|_| "read failed")?;
 
         Ok(reply.id)
@@ -43,7 +76,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         &mut self,
         servo_id: ServoIdOrBroadcast,
         increment: i16,
-    ) -> Result<u16, &'static str> {
+    ) -> Result<u16, ServoBusError> {
         // FIXME: I picked u16 arbitrarily because I thought It would cover all 1 and 2 byte registers.
         // This register is actually documented as being a i16 though (minimum_value: -32766, maximum_value: 32766).
         // I wonder if it's possible to guarantee that we have the return type correct at compile time.
@@ -69,7 +102,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         &mut self,
         servo_id: ServoIdOrBroadcast,
         register: Register,
-    ) -> Result<u16, &'static str> {
+    ) -> Result<u16, ServoBusError> {
         let command = InstructionPacket {
             id: servo_id,
             instruction: Instruction::read_register(register),
@@ -82,9 +115,12 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // missing then we'll just drop whatever we've read so far and return an error.
         let reply = ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
+            .await?
             .map_err(|_| "read failed")?;
+
+        if !reply.servo_status_errors.is_empty() {
+            return Err(ServoBusError::ServoStatus(reply.servo_status_errors));
+        }
 
         let parsed = reply.interpret_as_register(register);
 
@@ -96,7 +132,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         servo_id: ServoIdOrBroadcast,
         register: Register,
         value: u16,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), ServoBusError> {
         let command = InstructionPacket {
             id: servo_id,
             instruction: Instruction::write_register(register, value),
@@ -109,12 +145,11 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // missing then we'll just drop whatever we've read so far and return an error.
         let reply = ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
-            .await
-            .map_err(|_| "read timeout")?
+            .await?
             .map_err(|_| "read failed")?;
 
         if !reply.servo_status_errors.is_empty() {
-            println!("problem after writing {command:?}: {reply:?}")
+            return Err(ServoBusError::ServoStatus(reply.servo_status_errors));
         }
 
         Ok(())
