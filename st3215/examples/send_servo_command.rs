@@ -23,6 +23,17 @@ fn parse_hex_u16(input: &str) -> u16 {
     u16::from_str_radix(&input[2..], 16).expect("Input must be a valid hexadecimal number")
 }
 
+/**
+ * This example is an early PoC that the rest of the library works.
+ * It is sync because that's the first serial port lib that I found.
+ * In practice, I prefer the interface provided by ServoBusAsync.
+ * The core of the library (Register, InstructionPacket, ReplyPacket, ...) is written in a sans-io
+ * style for the most part, so it shouldn't be too hard to maintain sync and async frontends.
+ * If you want to use this library in a sync context, I would recommend copy-pasting that to use as
+ * your base, and making a ServoBusBlocking struct with a similar API.
+ * I would happily accept patches that implement a ServoBusBlocking struct, but I don't have a use
+ * for it at the moment, so it's quite low on my priority list.
+ */
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 4 {

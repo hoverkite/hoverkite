@@ -2,13 +2,14 @@
 name = "st3215"
 version = "0.1.0"
 edition = "2021"
+keywords = ["feetech", ""]
 
 [dependencies]
 embedded-io-async = { version = "0.6.1" }
 embedded-io = { version = "0.6.1" }
 tinyvec = "1.8.1"
 bitflags = "1.3.2"
-# FIXME: make this optional and either provide servo_bus_async or servo_bus_sync based on features?
+# FIXME: make this optional and either provide servo_bus_async or servo_bus_blocking, based on features?
 embassy-time = "0.4.0"
 
 [target.'cfg(any(target_arch = "xtensa"))'.dependencies]

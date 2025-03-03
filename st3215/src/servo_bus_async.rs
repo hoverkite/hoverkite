@@ -37,6 +37,19 @@ impl Display for ServoBusError {
 
 impl core::error::Error for ServoBusError {}
 
+/**
+ * This is a slightly higher level wrapper around the core of the bus.
+ *
+ * It is still very much a work in progress. Going forward, it might be worth emulating one of the
+ * existing dynamixel servo bus crates (e.g. https://github.com/pollen-robotics/rustamixel).
+ *
+ * The core of the library (Register, InstructionPacket, ReplyPacket, ...) is written in a sans-io
+ * style for the most part, so it shouldn't be too hard to maintain sync and async frontends.
+ * If you want to use this library in a sync context, I would recommend copy-pasting that to use as
+ * your base, and making a ServoBusBlocking struct with a similar API.
+ * I would happily accept patches that implement a ServoBusBlocking struct, but I don't have a use
+ * for it at the moment, so it's quite low on my priority list.
+ */
 pub struct ServoBusAsync<U: embedded_io_async::Read + embedded_io_async::Write> {
     uart: U,
 }
