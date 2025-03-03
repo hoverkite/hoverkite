@@ -1,5 +1,7 @@
 #![no_std]
 #![no_main]
+#![doc = include_str!("../../README.md")]
+
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{
@@ -37,39 +39,6 @@ macro_rules! mk_static {
     }};
 }
 
-/**
- * Kitebox firmware for hoverkite 0.2
- *
- * The intention is that we ship exactly the same code to both the ground station and the box in
- * the sky. The ground kitebox might be connected to a computer over usb, but not connected to a
- * servo bus, but that's okay: the algorithm is still:
- * * if you receive anything from tty_uart:
- *   * attempt to forward it over esp now
- *   * attempt to action it via the servo_uart
- * * if you receive anything from esp now:
- *   * attempt to log it over tty_uart (or in practice esp_println::println!() for now)
- *   * attempt to action it via the servo_uart
- * * if any of your attempts fail because there is nothing connected
- *   * that's fine
- *   * maybe we can log it later, or add metrics?
- *
- *              ground kitebox                       sky kitebox
- *             ┌─────────────────────────┐          ┌─────────────────────────┐
- *             │         esp now ────────┼──────────┼───────► esp now         │
- *             │            ▲            │          │           │             │
- *             │            │            │          │           ▼             │
- *             │     ┌─► main_loop()     │          │        main_loop()─┐    │
- *             │     │                   │          │                    ▼    │
- *          ───►tty_uart       servo_uart┼►x      x─►tty_uart       servo_uart┼────►
- *         usb │                         │          │                         │ servo
- *             └─────────────────────────┘          └─────────────────────────┘  bus
- *
- * This is a very similar approach to hoverkite-firmware, but the hoverkite boards are almost
- * completely identical, and I'm working with a mishmash or esp32 devboards.
- *
- * I suspect that the approach will start to fall apart when we add accelerometer-based inputs and
- * sdcard-based logs.
- */
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
     esp_println::println!("Init!");
