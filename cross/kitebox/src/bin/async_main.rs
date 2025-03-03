@@ -108,16 +108,21 @@ async fn main(spawner: Spawner) {
 
     #[allow(non_upper_case_globals)]
     static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
-
     spawner
         .spawn(tty_receiver(tty_uart, tty_channel.sender()))
+        .unwrap();
+
+    #[allow(non_upper_case_globals)]
+    static servo_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+    spawner
+        .spawn(servo_bus_writer(servo_channel.receiver(), bus))
         .unwrap();
 
     spawner
         .spawn(main_loop(
             tty_channel.receiver(),
             esp_now_channel.receiver(),
-            bus,
+            servo_channel.sender(),
             manager,
             sender,
         ))
@@ -129,15 +134,10 @@ async fn main_loop(
     // FIXME: is there seriously no way that I can write `tty_channel_receiver: impl ...`?
     tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    mut bus: ServoBusAsync<Uart<'static, Async>>,
+    servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     manager: &'static EspNowManager<'static>,
     sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>,
 ) {
-    // put the servo in the middle of its range (0,4096)
-    bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
-        .await
-        .unwrap_or_else(|e| println!("no servo available? {e}"));
-
     loop {
         let command = select(
             tty_channel_receiver.receive(),
@@ -166,7 +166,25 @@ async fn main_loop(
             }
             Either::Second(command) => command,
         };
+
         // Always attempt to action the command, because this simplifies local dev.
+        servo_channel_sender.send(command).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn servo_bus_writer(
+    command_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    mut bus: ServoBusAsync<Uart<'static, Async>>,
+) {
+    // put the servo in the middle of its range (0,4096)
+    bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
+        .await
+        .unwrap_or_else(|e| println!("no servo available? {e}"));
+
+    loop {
+        let command = command_receiver.receive().await;
+
         println!("Sending command to servo bus: {command:?}");
         let result = match command {
             TtyCommand::Ping => bus.ping_servo(SERVO_ID).await.map(|_| None),
