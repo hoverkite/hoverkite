@@ -3,3 +3,4 @@
 
 pub mod messages;
 pub mod registers;
+pub mod servo_bus_async;

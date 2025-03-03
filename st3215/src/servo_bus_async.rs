@@ -1,12 +1,10 @@
 use core::fmt::Display;
 
-use embassy_time::Duration;
-use embassy_time::TimeoutError;
-use embassy_time::WithTimeout;
-use st3215::messages::ServoId;
-use st3215::messages::ServoStatusErrors;
-use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast};
-use st3215::registers::Register;
+use crate::messages::{
+    Instruction, InstructionPacket, ReplyPacket, ServoId, ServoIdOrBroadcast, ServoStatusErrors,
+};
+use crate::registers::Register;
+use embassy_time::{Duration, TimeoutError, WithTimeout};
 
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
 
