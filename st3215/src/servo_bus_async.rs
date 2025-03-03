@@ -85,7 +85,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
 
     pub async fn rotate_servo(
         &mut self,
-        servo_id: ServoIdOrBroadcast,
+        servo_id: ServoId,
         increment: i16,
     ) -> Result<u16, ServoBusError> {
         // FIXME: I picked u16 arbitrarily because I thought It would cover all 1 and 2 byte registers.
@@ -94,16 +94,16 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // Potentially we could:
         // * make a trait IntoRegisterEnum with associated type `rust_type` and `into_register_enum(Self) -> Register`
         // * generate zero sized types that impl this trait (e.g. register_types::TargetLocation)
-        // * make a read_register<RegisterType: IntoRegisterEnum>(servo_id: ServoIdOrBroadcast, register: RegisterType) -> RegisterType::rust_type
+        // * make a read_register<RegisterType: IntoRegisterEnum>(servo_id: ServoId, register: RegisterType) -> RegisterType::rust_type
         // In practice, I should probably fix the addition overflow panic first ;-).
         let current = self
-            .read_register(servo_id, Register::TargetLocation)
+            .read_register(servo_id.into(), Register::TargetLocation)
             .await?;
 
         // you can set any u16 in this register, but if you go outside the range 0,4096, it will
         // get stored as you provide it, but won't cause the servo to rotate out of its circle.
         let next = ((current as i16) + increment) as u16;
-        self.write_register(servo_id, Register::TargetLocation, next)
+        self.write_register(servo_id.into(), Register::TargetLocation, next)
             .await?;
 
         Ok(next)

@@ -27,7 +27,6 @@ use kitebox::messages::TtyCommand;
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
 
 const READ_BUF_SIZE: usize = 64;
-const SERVO_ID: ServoIdOrBroadcast = ServoIdOrBroadcast(3);
 
 // When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
 macro_rules! mk_static {
@@ -177,21 +176,40 @@ async fn servo_bus_writer(
     command_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     mut bus: ServoBusAsync<Uart<'static, Async>>,
 ) {
-    // put the servo in the middle of its range (0,4096)
-    bus.write_register(SERVO_ID, Register::TargetLocation, 2048)
-        .await
-        .unwrap_or_else(|e| println!("no servo available? {e}"));
+    let mut maybe_servo_id = bus.ping_servo(ServoIdOrBroadcast::BROADCAST).await.ok();
+
+    if let Some(servo_id) = maybe_servo_id {
+        // put the servo in the middle of its range (0,4096)
+        bus.write_register(servo_id.into(), Register::TargetLocation, 2048)
+            .await
+            .unwrap_or_else(|e| println!("no servo available? {e}"));
+    }
 
     loop {
         let command = command_receiver.receive().await;
+        let servo_id = match maybe_servo_id {
+            Some(id) => id,
+            None => {
+                maybe_servo_id = bus.ping_servo(ServoIdOrBroadcast::BROADCAST).await.ok();
+                match maybe_servo_id {
+                    Some(id) => id,
+                    None => {
+                        let len = command_receiver.len();
+                        println!("Could not find servo. Dropping {command:?} and {len} others.");
+                        command_receiver.clear();
+                        continue;
+                    }
+                }
+            }
+        };
 
         println!("Sending command to servo bus: {command:?}");
         let result = match command {
-            TtyCommand::Ping => bus.ping_servo(SERVO_ID).await.map(|_| None),
-            TtyCommand::Up => bus.rotate_servo(SERVO_ID, 100).await.map(Some),
-            TtyCommand::Down => bus.rotate_servo(SERVO_ID, -100).await.map(Some),
-            TtyCommand::Left => bus.rotate_servo(SERVO_ID, -10).await.map(Some),
-            TtyCommand::Right => bus.rotate_servo(SERVO_ID, 10).await.map(Some),
+            TtyCommand::Ping => bus.ping_servo(servo_id.into()).await.map(|_| None),
+            TtyCommand::Up => bus.rotate_servo(servo_id, 100).await.map(Some),
+            TtyCommand::Down => bus.rotate_servo(servo_id, -100).await.map(Some),
+            TtyCommand::Left => bus.rotate_servo(servo_id, -10).await.map(Some),
+            TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
             TtyCommand::Unrecognised(other) => {
                 esp_println::println!(
                     "Unknown command (ascii {other}): {}",
@@ -205,6 +223,7 @@ async fn servo_bus_writer(
             Ok(Some(val)) => {
                 esp_println::println!("Servo command `{command:?}` ok. New value: {val}")
             }
+            // FIXME: handle timeout error here and maybe clear maybe_servo_id?
             Err(e) => esp_println::println!("Servo {command:?} error: {}", e),
         };
     }

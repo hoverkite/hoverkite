@@ -59,7 +59,7 @@ impl InstructionPacket {
 pub struct ServoIdOrBroadcast(pub u8);
 
 impl ServoIdOrBroadcast {
-    pub(crate) const BROADCAST: Self = Self(254);
+    pub const BROADCAST: Self = Self(254);
 
     pub fn from_hex_string(input: &str) -> Option<Self> {
         if input == "BROADCAST" {
@@ -71,6 +71,11 @@ impl ServoIdOrBroadcast {
             input
         );
         u8::from_str_radix(&input[2..], 16).map(Self).ok()
+    }
+}
+impl From<ServoId> for ServoIdOrBroadcast {
+    fn from(value: ServoId) -> Self {
+        Self(value.0)
     }
 }
 
