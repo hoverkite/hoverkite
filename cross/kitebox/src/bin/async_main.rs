@@ -27,6 +27,7 @@ use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async:
 
 const READ_BUF_SIZE: usize = 64;
 
+// Copy-pasta from esp-hal examples.
 // When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
 macro_rules! mk_static {
     ($t:ty,$val:expr) => {{
@@ -42,36 +43,10 @@ async fn main(spawner: Spawner) {
     esp_println::println!("Init!");
     let peripherals = esp_hal::init(esp_hal::Config::default());
     esp_alloc::heap_allocator!(size: 65 * 1024);
-
     let timg1 = TimerGroup::new(peripherals.TIMG1);
     esp_hal_embassy::init(timg1.timer0);
 
-    // This is what's exposed to the terminal when you do `cargo run`.
-    let tty_uart = Uart::new(
-        peripherals.UART0,
-        Config::default()
-            .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16)),
-    )
-    .unwrap()
-    .with_tx(peripherals.GPIO1)
-    .with_rx(peripherals.GPIO3)
-    .into_async();
-
-    let servo_bus_uart = Uart::new(
-        peripherals.UART1,
-        Config::default()
-            .with_baudrate(1_000_000)
-            .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16)),
-    )
-    .unwrap()
-    .with_tx(peripherals.GPIO19)
-    .with_rx(peripherals.GPIO18)
-    .into_async();
-
-    let bus = ServoBusAsync::from_uart(servo_bus_uart);
-
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-
     let esp_wifi_ctrl = &*mk_static!(
         EspWifiController<'static>,
         init(
@@ -110,12 +85,32 @@ async fn main(spawner: Spawner) {
 
     #[allow(non_upper_case_globals)]
     static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+    let tty_uart = Uart::new(
+        peripherals.UART0,
+        Config::default()
+            .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16)),
+    )
+    .unwrap()
+    .with_tx(peripherals.GPIO1)
+    .with_rx(peripherals.GPIO3)
+    .into_async();
     spawner
         .spawn(tty_receiver(tty_uart, tty_channel.sender()))
         .unwrap();
 
     #[allow(non_upper_case_globals)]
     static servo_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+    let servo_bus_uart = Uart::new(
+        peripherals.UART1,
+        Config::default()
+            .with_baudrate(1_000_000)
+            .with_rx(RxConfig::default().with_fifo_full_threshold(READ_BUF_SIZE as u16)),
+    )
+    .unwrap()
+    .with_tx(peripherals.GPIO19)
+    .with_rx(peripherals.GPIO18)
+    .into_async();
+    let bus = ServoBusAsync::from_uart(servo_bus_uart);
     spawner
         .spawn(servo_bus_writer(servo_channel.receiver(), bus))
         .unwrap();

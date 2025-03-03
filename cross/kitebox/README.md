@@ -1,6 +1,6 @@
 # Kitebox firmware for hoverkite
 
-This folder contains ESP32 firmware for 
+This folder contains ESP32 firmware for a kite controller that lives in the sky and a ground station.
 
 This is inspired by the "soft kite variant" of the kitesforfuture.be project. See slide 13 of [this slide deck](https://www.kitesforfuture.de/FOSDEMSlides.pdf), or [this youtube video](https://www.youtube.com/watch?v=9IuRIYftyb0).
 
@@ -34,6 +34,6 @@ servo bus, but that's okay: the algorithm is still:
 ```
 
 This is a very similar approach to hoverkite-firmware, but the hoverkite boards are almost
-completely identical, and I'm working with a mishmash or esp32 devboards.
+completely identical, and I'm working with a mishmash of esp32 devboards.
 I suspect that the approach will start to fall apart when we add accelerometer-based inputs and
 sdcard-based logs.
