@@ -24,10 +24,10 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
-use st3215::registers::Register;
+use st3215::{messages::ServoIdOrBroadcast, registers::Register};
 
 const READ_BUF_SIZE: usize = 64;
-const SERVO_ID: u8 = 3;
+const SERVO_ID: ServoIdOrBroadcast = ServoIdOrBroadcast(3);
 
 // When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
 macro_rules! mk_static {
@@ -169,21 +169,24 @@ async fn main_loop(
         // Always attempt to action the command, because this simplifies local dev.
         println!("Sending command to servo bus: {command:?}");
         let result = match command {
-            TtyCommand::Ping => bus.ping_servo(SERVO_ID).await,
-            TtyCommand::Up => bus.rotate_servo(SERVO_ID, 100).await,
-            TtyCommand::Down => bus.rotate_servo(SERVO_ID, -100).await,
-            TtyCommand::Left => bus.rotate_servo(SERVO_ID, -10).await,
-            TtyCommand::Right => bus.rotate_servo(SERVO_ID, 10).await,
+            TtyCommand::Ping => bus.ping_servo(SERVO_ID).await.map(|_| None),
+            TtyCommand::Up => bus.rotate_servo(SERVO_ID, 100).await.map(Some),
+            TtyCommand::Down => bus.rotate_servo(SERVO_ID, -100).await.map(Some),
+            TtyCommand::Left => bus.rotate_servo(SERVO_ID, -10).await.map(Some),
+            TtyCommand::Right => bus.rotate_servo(SERVO_ID, 10).await.map(Some),
             TtyCommand::Unrecognised(other) => {
                 esp_println::println!(
                     "Unknown command (ascii {other}): {}",
                     char::from_u32(other.into()).unwrap_or('?')
                 );
-                Ok(())
+                Ok(None)
             }
         };
         match result {
-            Ok(()) => esp_println::println!("Servo {command:?} ok"),
+            Ok(None) => esp_println::println!("Servo command `{command:?}` ok"),
+            Ok(Some(val)) => {
+                esp_println::println!("Servo command `{command:?}` ok. New value: {val}")
+            }
             Err(e) => esp_println::println!("Servo {command:?} error: {}", e),
         };
     }
