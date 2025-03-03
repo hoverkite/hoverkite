@@ -1,22 +1,18 @@
 use embassy_time::Duration;
 use embassy_time::WithTimeout;
-use esp_hal::uart::{Uart, UartRx, UartTx};
-use esp_hal::Async;
 use esp_println::println;
 use st3215::messages::{Instruction, InstructionPacket, ReplyPacket, ServoIdOrBroadcast};
 use st3215::registers::Register;
 
 static SERVO_RESPONSE_TIMEOUT: Duration = Duration::from_millis(100);
 
-pub struct ServoBus {
-    pub rx: UartRx<'static, Async>,
-    pub tx: UartTx<'static, Async>,
+pub struct ServoBusAsync<U: embedded_io_async::Read + embedded_io_async::Write> {
+    uart: U,
 }
 
-impl ServoBus {
-    pub fn from_uart(uart: Uart<'static, Async>) -> Self {
-        let (rx, tx) = uart.split();
-        Self { rx, tx }
+impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
+    pub fn from_uart(uart: U) -> Self {
+        Self { uart }
     }
 
     pub async fn ping_servo(&mut self, servo_id: u8) -> Result<(), &'static str> {
@@ -25,12 +21,12 @@ impl ServoBus {
             instruction: Instruction::Ping,
         };
 
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
+        command.write(&mut self.uart).await.unwrap();
+        self.uart.flush().await.unwrap();
 
         // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
         // missing then we'll just drop whatever we've read so far and return an error.
-        ReplyPacket::read_async(&mut self.rx)
+        ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
             .await
             .map_err(|_| "read timeout")?
@@ -65,12 +61,12 @@ impl ServoBus {
             instruction: Instruction::read_register(register),
         };
 
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
+        command.write(&mut self.uart).await.unwrap();
+        self.uart.flush().await.unwrap();
 
         // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
         // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
+        let reply = ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
             .await
             .map_err(|_| "read timeout")?
@@ -92,12 +88,12 @@ impl ServoBus {
             instruction: Instruction::write_register(register, value),
         };
 
-        command.write(&mut self.tx).await.unwrap();
-        self.tx.flush_async().await.unwrap();
+        command.write(&mut self.uart).await.unwrap();
+        self.uart.flush().await.unwrap();
 
         // Note that UartRx is documented as not being cancel safe, so I'm hoping that if a byte goes
         // missing then we'll just drop whatever we've read so far and return an error.
-        let reply = ReplyPacket::read_async(&mut self.rx)
+        let reply = ReplyPacket::read_async(&mut self.uart)
             .with_timeout(SERVO_RESPONSE_TIMEOUT)
             .await
             .map_err(|_| "read timeout")?

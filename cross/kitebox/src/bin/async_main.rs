@@ -70,7 +70,7 @@ async fn main(spawner: Spawner) {
     .with_rx(peripherals.GPIO18)
     .into_async();
 
-    let bus = kitebox::servo::ServoBus::from_uart(servo_bus_uart);
+    let bus = kitebox::servo::ServoBusAsync::from_uart(servo_bus_uart);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
 
@@ -129,7 +129,7 @@ async fn main_loop(
     // FIXME: is there seriously no way that I can write `tty_channel_receiver: impl ...`?
     tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    mut bus: kitebox::servo::ServoBus,
+    mut bus: kitebox::servo::ServoBusAsync<Uart<'static, Async>>,
     manager: &'static EspNowManager<'static>,
     sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>,
 ) {
