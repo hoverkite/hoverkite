@@ -8,7 +8,6 @@ use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
 };
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Ticker};
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -88,22 +87,26 @@ async fn main(spawner: Spawner) {
 
     let (manager, sender, receiver) = esp_now.split();
     let manager = mk_static!(EspNowManager<'static>, manager);
-    let sender = mk_static!(
-        Mutex::<NoopRawMutex, EspNowSender<'static>>,
-        Mutex::<NoopRawMutex, _>::new(sender)
-    );
 
     #[allow(non_upper_case_globals)]
-    static esp_now_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+    static from_esp_now_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
+    #[allow(non_upper_case_globals)]
+    static to_esp_now_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
 
     spawner
-        .spawn(esp_now_receiver(
+        .spawn(esp_now_reader(
             manager,
             receiver,
-            esp_now_channel.sender(),
+            from_esp_now_channel.sender(),
         ))
         .ok();
-    spawner.spawn(broadcaster(sender)).ok();
+    spawner
+        .spawn(esp_now_writer(
+            to_esp_now_channel.receiver(),
+            manager,
+            sender,
+        ))
+        .ok();
 
     #[allow(non_upper_case_globals)]
     static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
@@ -120,27 +123,24 @@ async fn main(spawner: Spawner) {
     spawner
         .spawn(main_loop(
             tty_channel.receiver(),
-            esp_now_channel.receiver(),
+            from_esp_now_channel.receiver(),
+            to_esp_now_channel.sender(),
             servo_channel.sender(),
-            manager,
-            sender,
         ))
         .unwrap();
 }
 
 #[embassy_executor::task]
 async fn main_loop(
-    // FIXME: is there seriously no way that I can write `tty_channel_receiver: impl ...`?
     tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    to_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    manager: &'static EspNowManager<'static>,
-    sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>,
 ) {
     loop {
         let command = select(
             tty_channel_receiver.receive(),
-            esp_now_channel_receiver.receive(),
+            from_esp_now_channel_receiver.receive(),
         )
         .await;
 
@@ -148,19 +148,7 @@ async fn main_loop(
             // if it came from tty then forward it
             Either::First(command) => {
                 println!("Forwarding command to esp-now: {command:?}");
-                match manager
-                    .fetch_peer(false)
-                    .or_else(|_| manager.fetch_peer(true))
-                {
-                    Ok(peer) => {
-                        let mut sender = sender.lock().await;
-                        sender
-                            .send_async(&peer.peer_address, &[command.as_u8()])
-                            .await
-                            .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
-                    }
-                    Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
-                };
+                to_esp_now_channel_sender.send(command).await;
                 command
             }
             Either::Second(command) => command,
@@ -230,21 +218,9 @@ async fn servo_bus_writer(
 }
 
 // This just parses commands from the tty uart and shovels them onto a channel.
-// The esp-hal examples tend to use select(), but TtyCommand::read_async() is not cancel safe,
-// and I have a long-standing hatred of select loops.
-// (see https://blog.yoshuawuyts.com/futures-concurrency-3/).
-//
-// I would prefer to do something like:
-//     let tty_commands = futures::stream::repeat(()).map(move |()| TtyCommand::read_async(tty_rx));
-//     let merged = commands.select(commands_from_espnow)
-//     while let Some(command) = merged.next().await { ... }
-// I hear that there is a cpu starvation hazard there though, because neither stream is polled while
-// the body of the loop is happening (even if it has yielded to the executor). There is a blog post
-// about this somewhere...
 #[embassy_executor::task]
 async fn tty_receiver(
     tty_uart: Uart<'static, Async>,
-    // FIXME: replace this with an impl trait?
     sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     // in practice, we use println!() to respond, so we don't need the tx part yet.
@@ -264,26 +240,49 @@ async fn tty_receiver(
 }
 
 #[embassy_executor::task]
-async fn broadcaster(sender: &'static Mutex<NoopRawMutex, EspNowSender<'static>>) {
-    // FIXME: while we have a healthy peer, maybe we can pause broadcasting.
-    let mut ticker = Ticker::every(Duration::from_secs(1));
+async fn esp_now_writer(
+    to_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    manager: &'static EspNowManager<'static>,
+    mut sender: EspNowSender<'static>,
+) {
+    let mut broadcast_ticker = Ticker::every(Duration::from_secs(1));
     loop {
-        ticker.next().await;
-
-        // println!("Send Broadcast...");
-        let mut sender = sender.lock().await;
-        sender
-            .send_async(&BROADCAST_ADDRESS, b"Hello.")
-            .await
-            .unwrap_or_else(|e| println!("Send broadcast status: {:?}", e));
+        match select(
+            broadcast_ticker.next(),
+            to_esp_now_channel_receiver.receive(),
+        )
+        .await
+        {
+            Either::First(_) => {
+                // FIXME: while we have a healthy peer, maybe we can pause broadcasting.
+                sender
+                    .send_async(&BROADCAST_ADDRESS, b"Hello.")
+                    .await
+                    .unwrap_or_else(|e| println!("Send broadcast status: {:?}", e));
+            }
+            Either::Second(command) => {
+                match manager
+                    .fetch_peer(false)
+                    .or_else(|_| manager.fetch_peer(true))
+                {
+                    Ok(peer) => {
+                        sender
+                            .send_async(&peer.peer_address, &[command.as_u8()])
+                            .await
+                            .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                    }
+                    Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
+                };
+            }
+        }
     }
 }
 
 #[embassy_executor::task]
-async fn esp_now_receiver(
+async fn esp_now_reader(
     manager: &'static EspNowManager<'static>,
     mut receiver: EspNowReceiver<'static>,
-    sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     loop {
         let r = receiver.receive_async().await;
@@ -305,7 +304,7 @@ async fn esp_now_receiver(
             let data = r.data();
             println!("Received {:?}", data);
             let command = TtyCommand::read_async(data).await.unwrap();
-            sender.send(command).await;
+            from_esp_now_channel_sender.send(command).await;
         }
     }
 }
