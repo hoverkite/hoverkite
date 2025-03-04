@@ -3,16 +3,16 @@
 A crate for communicating with the Feetech/Waveshare branded
 [https://www.waveshare.com/wiki/ST3215_Servo](ST3215 serial bus servo).
 
-It is still very much a work in progress. Going forward, it might be worth emulating one of the
-existing dynamixel servo bus crates (e.g. https://crates.io/keywords/dynamixel or
-https://github.com/pollen-robotics/rustamixel).
-This would allow us to have a consistent API for programming different servo-based robot arms.
-Eventually, it might be nice create a single set of traits (or even structs) that work for both
-dynamixel and ST3215. For now though, I am taking the "innovate then standardize" approach,
-and completely ignoring the structure of existing servo bus crates.
+It is still very much a "works for me in hoverkite" level of maturity.
+Going forward, it might be worth [https://github.com/pollen-robotics/rustypot/issues/66](adding support for ST3215 servos to rustypot)
+and then fixing their codegen macros so that they also produce async code behind a feature flag.
+This would allow me to use their crate and deprecate this one. It would also give people a lot more
+choice about which servos they use when replicating my projects.
+For now though, I am taking the "innovate then standardize" approach, and completely ignoring the
+structure of existing servo bus crates.
 
-The core of this crate is written in a sans-io style, so it **should** work with any blocking/async
-serial port implementation on Windows/MacOS/Linux/embedded/no_std.
+The core of this crate is written in a sans-io style, so it **should** work with any blocking or
+async serial port implementation on Windows/MacOS/Linux/embedded/no_std.
 
 The primary user of this crate is the hoverkite project, for the ESP32 firmware of our kitebox
 kite control robot.
