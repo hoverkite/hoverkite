@@ -64,8 +64,21 @@ fn main() {
         }
     }
     let command = &args[2];
-    let id = ServoIdOrBroadcast::from_hex_string(&args[3])
-        .expect("servo_id must be a valid hexadecimal number or BROADCAST");
+    let id = {
+        let input = &args[3];
+        if input == "BROADCAST" {
+            ServoIdOrBroadcast::BROADCAST
+        } else {
+            assert!(
+                input.starts_with("0x"),
+                "Input must start with '0x'. Received: {}",
+                input
+            );
+            u8::from_str_radix(&input[2..], 16)
+                .map(ServoIdOrBroadcast)
+                .expect("servo_id must be a valid hexadecimal number or BROADCAST")
+        }
+    };
 
     // FIXME: write this using a proper argument parsing library and use named flags instead of
     // positional arguments

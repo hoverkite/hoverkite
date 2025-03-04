@@ -60,18 +60,6 @@ pub struct ServoIdOrBroadcast(pub u8);
 
 impl ServoIdOrBroadcast {
     pub const BROADCAST: Self = Self(254);
-
-    pub fn from_hex_string(input: &str) -> Option<Self> {
-        if input == "BROADCAST" {
-            return Some(Self::BROADCAST);
-        }
-        assert!(
-            input.starts_with("0x"),
-            "Input must start with '0x'. Received: {}",
-            input
-        );
-        u8::from_str_radix(&input[2..], 16).map(Self).ok()
-    }
 }
 impl From<ServoId> for ServoIdOrBroadcast {
     fn from(value: ServoId) -> Self {
