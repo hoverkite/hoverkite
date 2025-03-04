@@ -1,10 +1,10 @@
 # ST3215
 
 A crate for communicating with Feetech/Waveshare branded
-[https://www.waveshare.com/wiki/ST3215_Servo](ST3215 serial bus servos).
+[ST3215 serial bus servos](https://www.waveshare.com/wiki/ST3215_Servo).
 
 It is still very much a "works for me in hoverkite" level of maturity.
-Going forward, it might be worth [https://github.com/pollen-robotics/rustypot/issues/66](adding support for ST3215 servos to rustypot)
+Going forward, it might be worth [adding support for ST3215 servos to rustypot](https://github.com/pollen-robotics/rustypot/issues/66)
 and then fixing their codegen macros so that they also produce async code behind a feature flag.
 This would allow me to use their crate and deprecate this one. It would also give people a lot more
 choice about which servos they use when replicating my projects.
@@ -17,5 +17,5 @@ async serial port implementation on Windows/MacOS/Linux/embedded/no_std.
 The primary user of this crate is the hoverkite project, for the ESP32 firmware of our kitebox
 kite control robot.
 This means that embassy + ESP32 on the Waveshare
-[https://www.waveshare.com/wiki/General_Driver_for_Robots](General Driver For Robotics) dev board is
+[General Driver For Robotics](https://www.waveshare.com/wiki/General_Driver_for_Robots) dev board is
 the most well tested target for this library.

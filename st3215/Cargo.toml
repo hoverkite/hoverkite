@@ -1,6 +1,6 @@
 [package]
 name = "st3215"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["David Laban <alsuren@gmail.com>"]
 description = "A crate for communicating with Feetech/Waveshare branded ST3215 serial bus servos"
 repository = "https://github.com/hoverkite/hoverkite/tree/main/st3215"
