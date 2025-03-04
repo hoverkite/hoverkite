@@ -16,14 +16,15 @@ jobs:
       matrix:
         directory:
           - .
-          - cross
+          - cross/hoverkite-firmware
+          - cross/kitebox
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
     steps:
       - uses: actions/checkout@v4
       - name: Format Rust code
-        run: cargo fmt --all -- --check
+        run: cargo +stable fmt --all -- --check
 
   build:
     name: Build and test
@@ -32,7 +33,8 @@ jobs:
       matrix:
         directory:
           - .
-          - cross
+          - cross/hoverkite-firmware
+          - cross/kitebox
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -45,9 +47,13 @@ jobs:
         with:
           toolchain: stable
           target: thumbv7m-none-eabi
+      - name: Install esp toolchain if needed
+        if: ${{ matrix.directory == 'cross/kitebox' }}
+        uses: esp-rs/xtensa-toolchain@v1.5
       - name: Build
         run: cargo build
       - name: Run tests
+        if: ${{ matrix.directory != 'cross/kitebox' }}
         run: cargo test
       - name: Run clippy
         # clippy-check only works in the top-level directory.

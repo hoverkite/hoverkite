@@ -1,0 +1,25 @@
+[package]
+name = "st3215"
+version = "0.1.0"
+edition = "2021"
+keywords = ["feetech", "waveshare", "servo", "motor"]
+categories = ["science::robotics"]
+
+[dependencies]
+embedded-io-async = { version = "0.6.1" }
+embedded-io = { version = "0.6.1" }
+tinyvec = "1.8.1"
+bitflags = "1.3.2"
+# FIXME: make this optional and either provide servo_bus_async or servo_bus_blocking, based on features?
+embassy-time = "0.4.0"
+
+[target.'cfg(any(target_arch = "xtensa"))'.dependencies]
+esp-println = { version = "0.13.0", features = ["esp32", "log"], optional = true }
+esp-hal = { version = "1.0.0-beta.0", features = ["esp32", "unstable"], optional = true }
+
+[dev-dependencies]
+futures-test = "0.3.31"
+embedded-io-async = {features = ["std"], version = "0.6.1"}
+embedded-io = {features = ["std"], version = "0.6.1"}
+embedded-io-adapters = {features = ["std"], version = "0.6.1"}
+serialport = "3.1.1"
