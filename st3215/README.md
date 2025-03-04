@@ -1,7 +1,7 @@
 # ST3215
 
-A crate for communicating with the Feetech/Waveshare branded
-[https://www.waveshare.com/wiki/ST3215_Servo](ST3215 serial bus servo).
+A crate for communicating with Feetech/Waveshare branded
+[https://www.waveshare.com/wiki/ST3215_Servo](ST3215 serial bus servos).
 
 It is still very much a "works for me in hoverkite" level of maturity.
 Going forward, it might be worth [https://github.com/pollen-robotics/rustypot/issues/66](adding support for ST3215 servos to rustypot)
