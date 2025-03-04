@@ -29,8 +29,8 @@ servo bus, but that's okay: the algorithm is still:
             │           v │           │          │          ▼ :            │
             │    ┌──► main_loop() ••  │          │    ••> main_loop() ─┐   │
             │    │                 v  │          │    :                ▼   │
-         ───►tty_uart       servo_uart••>      ••>tty_uart       servo_uart┼────►
-        usb │                         │          │                         │ servo
+        usb │               servo_uart••>        │               servo_uart┼────►
+         ───►tty_uart                 │        ••>tty_uart                 │ servo
             └─────────────────────────┘          └─────────────────────────┘  bus
 
              ──► = active connection        ••> = unused connection
