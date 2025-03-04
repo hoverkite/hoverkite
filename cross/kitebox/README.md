@@ -21,9 +21,12 @@ servo bus, but that's okay: the algorithm is still:
 ```
              ground kitebox                       sky kitebox
             ┌─────────────────────────┐          ┌─────────────────────────┐
-            │         esp now ────────┼──────────┼───────► esp now         │
-            │            ▲            │          │           │             │
-            │            │            │          │           ▼             │
+            │                         │          │                         │
+            │           esp <•••••••••••••••••••••••••••••• esp            │
+            │           now ──────────────────────────────► now            │
+            │           : ▲           │          │          │ ^            │
+            │           : │           │          │          │ :            │
+            │           v │           │          │          ▼ :            │
             │    ┌──► main_loop() ••  │          │    ••> main_loop() ─┐   │
             │    │                 v  │          │    :                ▼   │
          ───►tty_uart       servo_uart••>      ••>tty_uart       servo_uart┼────►
