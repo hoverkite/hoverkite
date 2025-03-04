@@ -40,8 +40,8 @@ impl core::error::Error for ServoBusError {}
 /**
  * This is a slightly higher level wrapper around the core of the bus.
  *
- * It is still very much a work in progress. Going forward, it might be worth emulating one of the
- * existing dynamixel servo bus crates (e.g. https://github.com/pollen-robotics/rustamixel).
+ * It is still very much a work in progress. Going forward, it might be worth merging this into
+ * an existing dynamixel servo bus crate (e.g. https://github.com/pollen-robotics/rustypot).
  *
  * The core of the library (Register, InstructionPacket, ReplyPacket, ...) is written in a sans-io
  * style for the most part, so it shouldn't be too hard to maintain sync and async frontends.
