@@ -19,7 +19,7 @@ bitflags = "1.3.2"
 embassy-time = "0.4.0"
 
 [target.'cfg(any(target_arch = "xtensa"))'.dependencies]
-esp-println = { version = "0.13.0", features = ["esp32", "log"], optional = true }
+esp-println = { version = "0.13.1", features = ["esp32", "log"], optional = true }
 esp-hal = { version = "1.0.0-beta.0", features = ["esp32", "unstable"], optional = true }
 
 [dev-dependencies]
