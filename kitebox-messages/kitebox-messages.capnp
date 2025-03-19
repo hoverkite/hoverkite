@@ -15,3 +15,15 @@ struct Data {
     gyr @1: AxisData; # Gyroscope data.
     time @2: UInt32; # Sensor time.
 }
+
+struct Time {
+    time @0: UInt32; # time since boot (TODO: units?)
+}
+
+
+struct Message {
+    body: union {
+        data @0: Data;
+        time @1: Time;
+    }
+}

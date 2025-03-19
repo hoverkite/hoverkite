@@ -35,17 +35,16 @@ mod tests {
         let mut message = capnp::message::Builder::new(SingleSegmentAllocator::new(&mut segment));
 
         {
-            let mut root: kitebox_messages_capnp::data::Builder = message.init_root();
-            root.set_time(1000);
+            let root: kitebox_messages_capnp::message::Builder = message.init_root();
+            let mut data = root.init_body().init_data();
+            data.set_time(1000);
 
-            let root: kitebox_messages_capnp::data::Builder = message.get_root().unwrap();
-            let mut acc = root.init_acc();
+            let mut acc = data.reborrow().init_acc();
             acc.set_x(1);
             acc.set_y(-1);
             acc.set_z(0);
 
-            let root: kitebox_messages_capnp::data::Builder = message.get_root().unwrap();
-            let mut gyr = root.init_gyr();
+            let mut gyr = data.reborrow().init_gyr();
             gyr.set_x(10);
             gyr.set_y(-10);
             gyr.set_z(0);
@@ -57,9 +56,14 @@ mod tests {
             capnp::message::SegmentArray::new(&segments),
             Default::default(),
         );
-        let data = message
-            .get_root::<kitebox_messages_capnp::data::Reader>()
+        let root = message
+            .get_root::<kitebox_messages_capnp::message::Reader>()
             .unwrap();
+
+        let data = match root.get_body().which().unwrap() {
+            kitebox_messages_capnp::message::body::Which::Data(data) => data.unwrap(),
+            kitebox_messages_capnp::message::body::Which::Time(_) => panic!("expected data"),
+        };
 
         assert_eq!(data.get_time(), 1000);
 
