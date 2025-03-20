@@ -170,6 +170,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "capnp_conv"
+version = "0.3.1"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#0fe01ebec7dec012a838e6c7394e727c3842dd09"
+dependencies = [
+ "capnp",
+ "capnp_conv_macros",
+]
+
+[[package]]
+name = "capnp_conv_macros"
+version = "0.3.1"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#0fe01ebec7dec012a838e6c7394e727c3842dd09"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "capnpc"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1054,6 +1074,7 @@ name = "kitebox-messages"
 version = "0.1.0"
 dependencies = [
  "capnp",
+ "capnp_conv",
  "capnpc",
 ]
 

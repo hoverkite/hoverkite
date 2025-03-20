@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 build = "build.rs"
 
+[dependencies.capnp_conv]
+git = "https://github.com/alsuren/capnp_conv"
+branch = "no_std"
+
 [dependencies.capnp]
 version = "*"
 default-features = false
