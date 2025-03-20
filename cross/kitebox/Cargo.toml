@@ -13,6 +13,7 @@ path = "./src/bin/async_main.rs"
 
 [dependencies]
 st3215 = { path = "../../st3215" }
+kitebox-messages = { path = "../../kitebox-messages" }
 
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"

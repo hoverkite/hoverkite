@@ -172,7 +172,7 @@ dependencies = [
 [[package]]
 name = "capnp_conv"
 version = "0.3.1"
-source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#0fe01ebec7dec012a838e6c7394e727c3842dd09"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#45434627ab858048a90809ce7bfb919d649a18ce"
 dependencies = [
  "capnp",
  "capnp_conv_macros",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "capnp_conv_macros"
 version = "0.3.1"
-source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#0fe01ebec7dec012a838e6c7394e727c3842dd09"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#45434627ab858048a90809ce7bfb919d649a18ce"
 dependencies = [
  "heck",
  "proc-macro2",

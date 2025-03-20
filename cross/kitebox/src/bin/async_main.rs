@@ -9,10 +9,16 @@ use embassy_sync::{
     channel::{Channel, Receiver, Sender},
 };
 use embassy_time::{Duration, Ticker};
+use embedded_io_async::Write;
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_backtrace as _;
-use esp_hal::{rng::Rng, timer::timg::TimerGroup};
+use esp_hal::{
+    rng::Rng,
+    time::Instant,
+    timer::timg::TimerGroup,
+    uart::{UartRx, UartTx},
+};
 use esp_hal::{
     uart::{Config, RxConfig, Uart},
     Async,
@@ -23,6 +29,7 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
+use kitebox_messages::{Report, ReportMessage, Time};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
 
 const READ_BUF_SIZE: usize = 64;
@@ -83,8 +90,6 @@ async fn main(spawner: Spawner) {
         ))
         .ok();
 
-    #[allow(non_upper_case_globals)]
-    static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
     let tty_uart = Uart::new(
         peripherals.UART0,
         Config::default()
@@ -94,8 +99,18 @@ async fn main(spawner: Spawner) {
     .with_tx(peripherals.GPIO1)
     .with_rx(peripherals.GPIO3)
     .into_async();
+    let (tty_rx, tty_tx) = tty_uart.split();
+
+    #[allow(non_upper_case_globals)]
+    static from_tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
     spawner
-        .spawn(tty_receiver(tty_uart, tty_channel.sender()))
+        .spawn(tty_reader(tty_rx, from_tty_channel.sender()))
+        .unwrap();
+
+    #[allow(non_upper_case_globals)]
+    static to_tty_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
+    spawner
+        .spawn(tty_writer(to_tty_channel.receiver(), tty_tx))
         .unwrap();
 
     #[allow(non_upper_case_globals)]
@@ -117,7 +132,8 @@ async fn main(spawner: Spawner) {
 
     spawner
         .spawn(main_loop(
-            tty_channel.receiver(),
+            from_tty_channel.receiver(),
+            to_tty_channel.sender(),
             from_esp_now_channel.receiver(),
             to_esp_now_channel.sender(),
             servo_channel.sender(),
@@ -127,14 +143,15 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn main_loop(
-    tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
     from_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     to_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     loop {
         let command = select(
-            tty_channel_receiver.receive(),
+            from_tty_channel_receiver.receive(),
             from_esp_now_channel_receiver.receive(),
         )
         .await;
@@ -151,6 +168,13 @@ async fn main_loop(
 
         // Always attempt to action the command, because this simplifies local dev.
         servo_channel_sender.send(command).await;
+
+        // Always report the time after every command
+        let now = Instant::now().duration_since_epoch().as_micros();
+        let message = ReportMessage {
+            report: Report::Time(Time { time: now }),
+        };
+        to_tty_channel_sender.send(message).await;
     }
 }
 
@@ -214,16 +238,11 @@ async fn servo_bus_writer(
 
 // This just parses commands from the tty uart and shovels them onto a channel.
 #[embassy_executor::task]
-async fn tty_receiver(
-    tty_uart: Uart<'static, Async>,
+async fn tty_reader(
+    mut tty_rx: UartRx<'static, Async>,
     sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
-    // in practice, we use println!() to respond, so we don't need the tx part yet.
-    // For some reason, if I just pass tty_rx into this function (rather than the whole tty_uart)
-    // then it stops working (as if it's dropping the uart in main() and cleaning things up?)
-    let (mut tty_rx, _tty_tx) = tty_uart.split();
-
-    println!("tty_receiver");
+    println!("tty_reader");
     loop {
         let command = TtyCommand::read_async(&mut tty_rx)
             .await
@@ -231,6 +250,30 @@ async fn tty_receiver(
         println!("received from tty: {command:?}");
 
         sender.send(command).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn tty_writer(
+    to_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    mut tty_tx: UartTx<'static, Async>,
+) {
+    let mut slice = [0u8; ReportMessage::SEGMENT_ALLOCATOR_SIZE];
+    loop {
+        let message = to_tty_channel_receiver.receive().await;
+
+        let bytes_to_send = message.to_slice(&mut slice);
+
+        // a '#' followed by a capnproto message, using the recommended serialization scheme from
+        // https://capnproto.org/encoding.html#serialization-over-a-stream
+        tty_tx.write_all(b"#").await.unwrap();
+        tty_tx.write_all(&0u32.to_le_bytes()).await.unwrap();
+        tty_tx
+            .write_all(&(bytes_to_send.len() as u32).to_le_bytes())
+            .await
+            .unwrap();
+        tty_tx.write_all(bytes_to_send).await.unwrap();
+        tty_tx.write_all(b"\n").await.unwrap();
     }
 }
 

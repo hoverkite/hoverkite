@@ -1,12 +1,13 @@
 [package]
 name = "kitebox-messages"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 build = "build.rs"
 
 [dependencies.capnp_conv]
 git = "https://github.com/alsuren/capnp_conv"
 branch = "no_std"
+default-features = false
 
 [dependencies.capnp]
 version = "*"

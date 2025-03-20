@@ -17,7 +17,7 @@ struct ImuData {
 }
 
 struct Time {
-    time @0: UInt32; # time since boot (TODO: units?)
+    time @0: UInt64; # time since boot in microseconds
 }
 
 

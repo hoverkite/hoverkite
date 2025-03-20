@@ -133,8 +133,16 @@ fn spawn_tty_rx_channel(
 
                     let message = kitebox_messages::ReportMessage::from_slice(&buf);
 
-                    dbg!(message);
+                    match message.report {
+                        kitebox_messages::Report::Time(time) => {
+                            println!("time since boot: {:?}", Duration::from_micros(time.time))
+                        }
+                        kitebox_messages::Report::ImuData(imu_data) => {
+                            dbg!(imu_data);
+                        }
+                    }
                 }
+                b'\n' => {}
                 _ => {
                     let mut line = Vec::from(&buf);
                     loop {

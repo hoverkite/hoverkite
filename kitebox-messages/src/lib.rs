@@ -1,7 +1,7 @@
 #![no_std]
 
 use capnp::message::SingleSegmentAllocator;
-use capnp_conv::{Readable, Writable, capnp_conv};
+use capnp_conv::{capnp_conv, Readable, Writable};
 
 pub mod kitebox_messages_capnp {
     include!(concat!(env!("OUT_DIR"), "/kitebox_messages_capnp.rs"));
@@ -25,13 +25,13 @@ pub struct ImuData {
 
 #[capnp_conv(kitebox_messages_capnp::time)]
 #[derive(Debug, PartialEq, Eq)]
-struct Time {
-    time: u32,
+pub struct Time {
+    pub time: u64,
 }
 
 #[capnp_conv(kitebox_messages_capnp::report_message::report)]
 #[derive(Debug, PartialEq, Eq)]
-enum Report {
+pub enum Report {
     ImuData(ImuData),
     Time(Time),
 }
@@ -40,10 +40,14 @@ enum Report {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReportMessage {
     #[capnp_conv(type = "union")]
-    report: Report,
+    pub report: Report,
 }
 
 impl ReportMessage {
+    // FIXME: if I know that I don't have any arrays in my structs, is there a way to get capnp
+    // to generate this max size directly?
+    pub const SEGMENT_ALLOCATOR_SIZE: usize = 64;
+
     pub fn to_slice<'a>(&self, slice: &'a mut [u8]) -> &'a [u8] {
         let mut message_builder = capnp::message::Builder::new(SingleSegmentAllocator::new(slice));
 
@@ -73,10 +77,6 @@ impl ReportMessage {
     }
 }
 
-// FIXME: if I know that I don't have any arrays in my structs, is there a way to get capnp
-// to generate this max size directly?
-pub const SEGMENT_ALLOCATOR_SIZE: usize = 64;
-
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -89,7 +89,7 @@ mod tests {
     fn test_segment_allocator_size_is_big_enough() {
         // FIXME: surely there is a way for capnp to assert this statically?
         assert!(
-            SEGMENT_ALLOCATOR_SIZE
+            ReportMessage::SEGMENT_ALLOCATOR_SIZE
                 > kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.data as usize
                     + kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.pointers as usize * 2
                     + kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.pointers as usize
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_message() {
-        let mut segment = [0; SEGMENT_ALLOCATOR_SIZE];
+        let mut segment = [0; ReportMessage::SEGMENT_ALLOCATOR_SIZE];
 
         let data = ReportMessage {
             report: Report::ImuData(ImuData {
