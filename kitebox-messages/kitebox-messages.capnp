@@ -8,7 +8,7 @@ struct AxisData {
     z @2: Int16; # Z axis data.
 }
 
-struct Data {
+struct ImuData {
     # Represents the Data struct from the bmi2 library
 
     acc @0: AxisData; # Accelerometer data.
@@ -21,9 +21,9 @@ struct Time {
 }
 
 
-struct Message {
-    body: union {
-        data @0: Data;
+struct ReportMessage {
+    report: union {
+        imuData @0: ImuData;
         time @1: Time;
     }
 }

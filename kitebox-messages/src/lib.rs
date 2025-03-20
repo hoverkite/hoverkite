@@ -14,9 +14,9 @@ pub struct AxisData {
     z: i16,
 }
 
-#[capnp_conv(kitebox_messages_capnp::data)]
+#[capnp_conv(kitebox_messages_capnp::imu_data)]
 #[derive(Debug, PartialEq, Eq)]
-pub struct Data {
+pub struct ImuData {
     acc: AxisData,
     gyr: AxisData,
     time: u32,
@@ -28,18 +28,18 @@ struct Time {
     time: u32,
 }
 
-#[capnp_conv(kitebox_messages_capnp::message::body)]
+#[capnp_conv(kitebox_messages_capnp::report_message::report)]
 #[derive(Debug, PartialEq, Eq)]
-enum Body {
-    Data(Data),
+enum Report {
+    ImuData(ImuData),
     Time(Time),
 }
 
-#[capnp_conv(kitebox_messages_capnp::message)]
+#[capnp_conv(kitebox_messages_capnp::report_message)]
 #[derive(Debug, PartialEq, Eq)]
-struct Message {
+struct ReportMessage {
     #[capnp_conv(type = "union")]
-    body: Body,
+    report: Report,
 }
 
 // FIXME: if I know that I don't have any arrays in my structs, is there a way to get capnp
@@ -61,9 +61,9 @@ mod tests {
         // FIXME: surely there is a way for capnp to assert this statically?
         assert!(
             SEGMENT_ALLOCATOR_SIZE
-                > kitebox_messages_capnp::data::Builder::STRUCT_SIZE.data as usize
-                    + kitebox_messages_capnp::data::Builder::STRUCT_SIZE.pointers as usize * 2
-                    + kitebox_messages_capnp::data::Builder::STRUCT_SIZE.pointers as usize
+                > kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.data as usize
+                    + kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.pointers as usize * 2
+                    + kitebox_messages_capnp::imu_data::Builder::STRUCT_SIZE.pointers as usize
                         * kitebox_messages_capnp::axis_data::Builder::STRUCT_SIZE.data as usize
         );
     }
@@ -73,8 +73,8 @@ mod tests {
         let mut segment = [0; SEGMENT_ALLOCATOR_SIZE];
         let mut message = capnp::message::Builder::new(SingleSegmentAllocator::new(&mut segment));
 
-        let data = Message {
-            body: Body::Data(Data {
+        let data = ReportMessage {
+            report: Report::ImuData(ImuData {
                 acc: AxisData { x: 1, y: -1, z: 0 },
                 gyr: AxisData {
                     x: 10,
@@ -94,10 +94,10 @@ mod tests {
             Default::default(),
         );
         let root = message
-            .get_root::<kitebox_messages_capnp::message::Reader>()
+            .get_root::<kitebox_messages_capnp::report_message::Reader>()
             .unwrap();
 
-        let round_tripped = Message::read(root).unwrap();
+        let round_tripped = ReportMessage::read(root).unwrap();
 
         assert_eq!(round_tripped, data);
     }
