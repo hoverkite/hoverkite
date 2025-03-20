@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+kitebox-messages = {path = "../kitebox-messages"}
 embassy = "0.0.0"
 embassy-executor = { version = "0.7.0", features = ["arch-std", "executor-thread"]}
 embassy-futures = "0.1.1"

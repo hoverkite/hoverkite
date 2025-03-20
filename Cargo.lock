@@ -1086,6 +1086,7 @@ dependencies = [
  "embassy-executor",
  "embassy-futures",
  "embassy-sync",
+ "kitebox-messages",
  "log",
  "serialport 4.7.0",
  "static_cell",

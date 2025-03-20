@@ -1,4 +1,4 @@
-use std::{io::Stdin, process::Stdio, time::Duration};
+use std::{io::Stdin, iter::repeat, process::Stdio, time::Duration};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -117,7 +117,24 @@ fn spawn_tty_rx_channel(
             let count = port.read(&mut buf).unwrap();
             assert_eq!(count, 1);
             match buf[0] {
-                b'#' => todo!("read message as capnproto-encoded message"),
+                b'#' => {
+                    // The following bytes are a capnproto message, using the recommended
+                    // serialization scheme from
+                    // https://capnproto.org/encoding.html#serialization-over-a-stream
+                    let mut buf = [0u8; 4];
+                    // N segments - 1 should always be 0 for a SingleSegmentAllocator
+                    assert_eq!(port.read(&mut buf).unwrap(), 4);
+                    assert_eq!(u32::from_le_bytes(buf), 0);
+
+                    assert_eq!(port.read(&mut buf).unwrap(), 4);
+                    let len = u32::from_le_bytes(buf) as usize;
+                    let mut buf = repeat(0u8).take(len).collect::<Vec<_>>();
+                    assert_eq!(port.read(&mut buf).unwrap(), len);
+
+                    let message = kitebox_messages::ReportMessage::from_slice(&buf);
+
+                    dbg!(message);
+                }
                 _ => {
                     let mut line = Vec::from(&buf);
                     loop {
