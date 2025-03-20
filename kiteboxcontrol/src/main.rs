@@ -123,13 +123,13 @@ fn spawn_tty_rx_channel(
                     // https://capnproto.org/encoding.html#serialization-over-a-stream
                     let mut buf = [0u8; 4];
                     // N segments - 1 should always be 0 for a SingleSegmentAllocator
-                    assert_eq!(port.read(&mut buf).unwrap(), 4);
+                    port.read_exact(&mut buf).unwrap();
                     assert_eq!(u32::from_le_bytes(buf), 0);
 
-                    assert_eq!(port.read(&mut buf).unwrap(), 4);
+                    port.read_exact(&mut buf).unwrap();
                     let len = u32::from_le_bytes(buf) as usize;
                     let mut buf = repeat(0u8).take(len).collect::<Vec<_>>();
-                    assert_eq!(port.read(&mut buf).unwrap(), len);
+                    port.read_exact(&mut buf).unwrap();
 
                     let message = kitebox_messages::ReportMessage::from_slice(&buf);
 
