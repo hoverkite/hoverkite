@@ -40,7 +40,7 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
-use kitebox_messages::{ImuData, Report, ReportMessage, Time};
+use kitebox_messages::{CommandMessage, ImuData, Report, ReportMessage, Time};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
 use static_cell::StaticCell;
 
@@ -249,6 +249,15 @@ async fn servo_bus_writer(
             TtyCommand::Down => bus.rotate_servo(servo_id, -100).await.map(Some),
             TtyCommand::Left => bus.rotate_servo(servo_id, -10).await.map(Some),
             TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
+            TtyCommand::Capnp(command) => match command {
+                kitebox_messages::Command::SetPosition(position) => bus
+                    .write_register(servo_id.into(), Register::TargetLocation, position as u16)
+                    .await
+                    .map(|()| Some(position as u16)),
+                kitebox_messages::Command::NudgePosition(increment) => {
+                    bus.rotate_servo(servo_id, increment).await.map(Some)
+                }
+            },
             TtyCommand::Unrecognised(other) => {
                 esp_println::println!(
                     "Unknown command (ascii {other}): {}",
@@ -335,12 +344,25 @@ async fn esp_now_writer(
                     .fetch_peer(false)
                     .or_else(|_| manager.fetch_peer(true))
                 {
-                    Ok(peer) => {
-                        sender
-                            .send_async(&peer.peer_address, &[command.as_u8()])
-                            .await
-                            .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
-                    }
+                    Ok(peer) => match command {
+                        // FIXME: kill off the non-capnp commands and write a converter in
+                        // kiteboxcontrol if convenience is important.
+                        TtyCommand::Capnp(command) => {
+                            let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
+                            let slice = CommandMessage { command }.to_slice(&mut buf);
+
+                            sender
+                                .send_async(&peer.peer_address, slice)
+                                .await
+                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                        }
+                        command => {
+                            sender
+                                .send_async(&peer.peer_address, &[command.as_u8()])
+                                .await
+                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                        }
+                    },
                     Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
                 };
             }
@@ -373,7 +395,12 @@ async fn esp_now_reader(
         } else {
             let data = r.data();
             println!("Received {:?}", data);
-            let command = TtyCommand::read_async(data).await.unwrap();
+            let command = if data.len() == 1 {
+                TtyCommand::read_async(data).await.unwrap()
+            } else {
+                let message = CommandMessage::from_slice(data).unwrap();
+                TtyCommand::Capnp(message.command)
+            };
             from_esp_now_channel_sender.send(command).await;
         }
     }
@@ -391,7 +418,10 @@ async fn imu_reporter(
     // that kitebox-controller has typically had enough time to connect to the UART before we do
     // anything interesting. Hopefully this doesn't cause problems if run in parallel with
     // the main loop.
-    imu.init(&bmi2::config::BMI270_CONFIG_FILE).await.unwrap();
+    if let Err(e) = imu.init(&bmi2::config::BMI270_CONFIG_FILE).await {
+        println!("could not talk to imu: {e:?}");
+        return;
+    };
     imu.set_acc_conf(AccConf {
         odr: Odr::Odr25,
         bwp: AccBwp::Osr2Avg2,

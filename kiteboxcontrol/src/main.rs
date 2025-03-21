@@ -6,7 +6,7 @@ use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
 };
-use kitebox_messages::Report;
+use kitebox_messages::{Command, CommandMessage, Report};
 use log::error;
 use rerun::Vec3D;
 use serialport::SerialPort;
@@ -82,7 +82,7 @@ async fn main(_spawner: Spawner) {
     loop {
         match select(stdin_rx.receive(), tty_rx.receive()).await {
             Either::First(stdin_msg) => {
-                tty_tx.try_send(stdin_msg).unwrap();
+                tty_tx.try_send(stdin_msg.into()).unwrap();
             }
             Either::Second(line_or_report) => match line_or_report {
                 LineOrReport::Line(line) => {
@@ -114,6 +114,30 @@ async fn main(_spawner: Spawner) {
                             )]),
                         )
                         .unwrap();
+
+                        let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
+                        let command_message = CommandMessage {
+                            command: Command::SetPosition(
+                                ((imu_data.acc.x + 1.0) * 1000.0) as i64 as i16,
+                            ),
+                        };
+                        let slice = command_message.to_slice(&mut buf);
+
+                        // FIXME: DRY
+                        // a '#' followed by a capnproto message, using the recommended
+                        // serialization scheme from
+                        // https://capnproto.org/encoding.html#serialization-over-a-stream
+                        let mut to_send = vec![b'#'];
+                        to_send.extend_from_slice(&0u32.to_le_bytes());
+                        to_send.extend_from_slice(&(slice.len() as u32).to_le_bytes());
+                        to_send.extend_from_slice(slice);
+                        to_send.push(b'\n');
+                        assert_eq!(
+                            CommandMessage::from_slice(&to_send[(1 + 4 + 4)..]).unwrap(),
+                            command_message
+                        );
+
+                        tty_tx.try_send(to_send).unwrap();
                     }
                 },
             },
@@ -178,7 +202,21 @@ fn read_message_from_port(port: &mut Box<dyn SerialPort>) -> LineOrReport {
             let mut buf = [0u8; 4];
             // N segments - 1 should always be 0 for a SingleSegmentAllocator
             port.read_exact(&mut buf).unwrap();
-            assert_eq!(u32::from_le_bytes(buf), 0);
+            if u32::from_le_bytes(buf) != 0 {
+                // FIXME: What the hell is going on here? Happens every time I send a SetPosition.
+                let mut line = Vec::from(b"garbled report #");
+                line.extend_from_slice(&buf);
+                // FIXME: BufRead::read_until()?
+                loop {
+                    port.read_exact(&mut buf).unwrap();
+                    match buf[0] {
+                        b'\n' => break,
+                        o => line.push(o),
+                    }
+                }
+                println!("garbled report: {:?}", &line[b"garbled report #".len()..]);
+                return LineOrReport::Line(String::from_utf8_lossy(&line).to_string());
+            }
 
             // FIXME: fuzz this. It might be possible to drop into the middle of a
             // message and interpret it as a message with a huge length, then wait
@@ -224,9 +262,9 @@ fn read_message_from_port(port: &mut Box<dyn SerialPort>) -> LineOrReport {
 
 fn spawn_tty_tx_channel(
     port: Box<dyn SerialPort>,
-) -> Sender<'static, CriticalSectionRawMutex, String, 10> {
+) -> Sender<'static, CriticalSectionRawMutex, Vec<u8>, 10> {
     #[allow(non_upper_case_globals)]
-    static tty_tx_channel: Channel<CriticalSectionRawMutex, String, 10> = Channel::new();
+    static tty_tx_channel: Channel<CriticalSectionRawMutex, Vec<u8>, 10> = Channel::new();
 
     let tx = tty_tx_channel.sender();
     let rx = tty_tx_channel.receiver();
@@ -245,10 +283,10 @@ fn spawn_tty_tx_channel(
 #[embassy_executor::task]
 async fn _forward_tty_tx_channel(
     mut port: Box<dyn SerialPort>,
-    rx: Receiver<'static, CriticalSectionRawMutex, String, 10>,
+    rx: Receiver<'static, CriticalSectionRawMutex, Vec<u8>, 10>,
 ) {
     loop {
         let msg = rx.receive().await;
-        port.write_all(msg.as_bytes()).unwrap();
+        port.write_all(&msg).unwrap();
     }
 }

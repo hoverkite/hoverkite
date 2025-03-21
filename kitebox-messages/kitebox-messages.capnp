@@ -20,10 +20,17 @@ struct Time {
     time @0: UInt64; # time since boot in microseconds
 }
 
-
 struct ReportMessage {
     report: union {
         imuData @0: ImuData;
         time @1: Time;
+    }
+}
+
+
+struct CommandMessage {
+    command: union {
+        setPosition @0: Int16;
+        nudgePosition @1: Int16;
     }
 }
