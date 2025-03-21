@@ -2,10 +2,12 @@
 #![no_main]
 #![doc = include_str!("../../README.md")]
 
+use core::i16;
+
 use bmi2::{
     bmi2_async::Bmi2,
     interface::I2cInterface,
-    types::{AccBwp, AccConf, Burst, Odr, PerfMode, PwrCtrl},
+    types::{AccBwp, AccConf, AccRange, Burst, Odr, PerfMode, PwrCtrl},
     I2cAddr,
 };
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
@@ -155,29 +157,7 @@ async fn main(spawner: Spawner) {
     let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
 
     let imu_i2c_device = I2cDevice::new(i2c_bus);
-    // Sending BMI270_CONFIG_FILE takes sufficiently long (8192 bytes at 31 bytes per transaction)
-    // that kitebox-controller has typically had enough time to connect to the UART before we do
-    // anything interesting. In theory this is all async so we could chuck it down into the
-    // imu_reporter() task and do it in parallel with running the main loop, but I think I prefer it
-    // this way.
-    let mut imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
-    imu.init(&bmi2::config::BMI270_CONFIG_FILE).await.unwrap();
-    imu.set_acc_conf(AccConf {
-        odr: Odr::Odr25,
-        bwp: AccBwp::Osr2Avg2,
-        filter_perf: PerfMode::Perf,
-    })
-    .await
-    .unwrap();
-    imu.set_pwr_ctrl(PwrCtrl {
-        aux_en: false,
-        gyr_en: true,
-        acc_en: true,
-        temp_en: true,
-    })
-    .await
-    .unwrap();
-
+    let imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
     spawner
         .spawn(imu_reporter(imu, to_tty_channel.sender()))
         .unwrap();
@@ -407,6 +387,29 @@ async fn imu_reporter(
     println!("imu_reporter");
     let mut ticker = Ticker::every(Duration::from_millis(1000 / 25));
 
+    // Sending BMI270_CONFIG_FILE takes sufficiently long (8192 bytes at 31 bytes per transaction)
+    // that kitebox-controller has typically had enough time to connect to the UART before we do
+    // anything interesting. Hopefully this doesn't cause problems if run in parallel with
+    // the main loop.
+    imu.init(&bmi2::config::BMI270_CONFIG_FILE).await.unwrap();
+    imu.set_acc_conf(AccConf {
+        odr: Odr::Odr25,
+        bwp: AccBwp::Osr2Avg2,
+        filter_perf: PerfMode::Perf,
+    })
+    .await
+    .unwrap();
+    imu.set_acc_range(AccRange::Range2g).await.unwrap();
+    // FIXME: imu.set_gyr_range(?). Not sure what the parameter really means.
+    imu.set_pwr_ctrl(PwrCtrl {
+        aux_en: false,
+        gyr_en: true,
+        acc_en: true,
+        temp_en: true,
+    })
+    .await
+    .unwrap();
+
     loop {
         // FIXME: is there a way to await the interrupt from the imu instead,
         // so I don't have to keep the ticker configuration in sync with the `Odr::Odr25` setting.
@@ -414,10 +417,22 @@ async fn imu_reporter(
         let status = imu.get_status().await.unwrap();
         if status.acc_data_ready {
             let data = imu.get_data().await.unwrap();
+            let acc = kitebox_messages::AxisData {
+                // fixme: AccRange::Range2g.as_number() to make it easier to keep these things in sync?
+                x: data.acc.x as f32 * 2f32 / i16::MAX as f32,
+                y: data.acc.y as f32 * 2f32 / i16::MAX as f32,
+                z: data.acc.z as f32 * 2f32 / i16::MAX as f32,
+            };
+            let gyr = kitebox_messages::AxisData {
+                // fixme: decide how to scale these
+                x: data.gyr.x as f32 / i16::MAX as f32,
+                y: data.gyr.y as f32 / i16::MAX as f32,
+                z: data.gyr.z as f32 / i16::MAX as f32,
+            };
             let message = ReportMessage {
                 report: Report::ImuData(ImuData {
-                    acc: data.acc.into(),
-                    gyr: data.gyr.into(),
+                    acc,
+                    gyr,
                     time: data.time,
                 }),
             };

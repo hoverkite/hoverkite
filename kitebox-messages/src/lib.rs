@@ -8,22 +8,15 @@ pub mod kitebox_messages_capnp {
 }
 
 #[capnp_conv(kitebox_messages_capnp::axis_data)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct AxisData {
-    pub x: i16,
-    pub y: i16,
-    pub z: i16,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
-impl From<bmi2::types::AxisData> for AxisData {
-    fn from(value: bmi2::types::AxisData) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            z: value.z,
-        }
-    }
-}
+// Shut the hell up about NaNs.
+impl Eq for AxisData {}
 
 #[capnp_conv(kitebox_messages_capnp::imu_data)]
 #[derive(Debug, PartialEq, Eq)]
@@ -56,7 +49,7 @@ pub struct ReportMessage {
 impl ReportMessage {
     // FIXME: if I know that I don't have any arrays in my structs, is there a way to get capnp
     // to generate this max size directly?
-    pub const SEGMENT_ALLOCATOR_SIZE: usize = 64;
+    pub const SEGMENT_ALLOCATOR_SIZE: usize = 128;
 
     pub fn to_slice<'a>(&self, slice: &'a mut [u8]) -> &'a [u8] {
         let mut message_builder = capnp::message::Builder::new(SingleSegmentAllocator::new(slice));
@@ -113,11 +106,15 @@ mod tests {
 
         let data = ReportMessage {
             report: Report::ImuData(ImuData {
-                acc: AxisData { x: 1, y: -1, z: 0 },
+                acc: AxisData {
+                    x: 1f32,
+                    y: -1f32,
+                    z: 0f32,
+                },
                 gyr: AxisData {
-                    x: 10,
-                    y: -10,
-                    z: 0,
+                    x: 10f32,
+                    y: -10f32,
+                    z: 0f32,
                 },
                 time: 1000,
             }),
@@ -125,7 +122,7 @@ mod tests {
 
         let segment = data.to_slice(&mut segment);
 
-        let round_tripped = ReportMessage::from_slice(segment);
+        let round_tripped = ReportMessage::from_slice(segment).unwrap();
 
         assert_eq!(round_tripped, data);
     }

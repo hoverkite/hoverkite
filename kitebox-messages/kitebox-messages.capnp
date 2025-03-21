@@ -3,9 +3,9 @@
 struct AxisData {
     # Represents the AxisData struct from the bmi2 library
 
-    x @0: Int16; # X axis data.
-    y @1: Int16; # Y axis data.
-    z @2: Int16; # Z axis data.
+    x @0: Float32; # X axis data.
+    y @1: Float32; # Y axis data.
+    z @2: Float32; # Z axis data.
 }
 
 struct ImuData {
