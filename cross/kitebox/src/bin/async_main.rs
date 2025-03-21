@@ -205,7 +205,7 @@ async fn main_loop(
                 to_tty_channel_sender.send(report).await;
                 if let Report::ImuData(imu_data) = report.report {
                     let command = TtyCommand::Capnp(Command::SetPosition(
-                        ((imu_data.acc.x + 1.0) * 1000.0) as i64 as i16,
+                        ((imu_data.acc.x + 1.0) * 4000.0) as i64 as i16,
                     ));
                     to_esp_now_channel_sender.send(command).await;
                     command
@@ -228,10 +228,11 @@ async fn servo_bus_writer(
     let mut maybe_servo_id = bus.ping_servo(ServoIdOrBroadcast::BROADCAST).await.ok();
 
     if let Some(servo_id) = maybe_servo_id {
-        // put the servo in the middle of its range (0,4096)
-        bus.write_register(servo_id.into(), Register::TargetLocation, 2048)
+        bus.write_register(servo_id.into(), Register::MaximumAngleLimitation, 0)
             .await
-            .unwrap_or_else(|e| println!("no servo available? {e}"));
+            .unwrap();
+        // can also set AngularResolution to something bigger than 1 if we want to go even furter.
+        // might also need LockMark?
     }
 
     loop {
