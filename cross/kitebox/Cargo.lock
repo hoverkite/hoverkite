@@ -56,6 +56,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
+name = "bmi2"
+version = "0.1.1"
+source = "git+https://github.com/alsuren/bmi2?branch=async#0cffd040686c5d002ecbbc0b664409c2303c8f59"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "fixedvec",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,6 +76,44 @@ name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
+name = "capnp"
+version = "0.20.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "053b81915c2ce1629b8fb964f578b18cb39b23ef9d5b24120d0dfc959569a1d9"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
+name = "capnp_conv"
+version = "0.3.1"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#45434627ab858048a90809ce7bfb919d649a18ce"
+dependencies = [
+ "capnp",
+ "capnp_conv_macros",
+]
+
+[[package]]
+name = "capnp_conv_macros"
+version = "0.3.1"
+source = "git+https://github.com/alsuren/capnp_conv?branch=no_std#45434627ab858048a90809ce7bfb919d649a18ce"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "capnpc"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aa3d5f01e69ed11656d2c7c47bf34327ea9bfb5c85c7de787fcd7b6c5e45b61"
+dependencies = [
+ "capnp",
+]
 
 [[package]]
 name = "cfg-if"
@@ -563,6 +611,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixedvec"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b395ef2adf62bdeefcd1b59ad0dd2225c6c333ec79656ea79ac5285c46d051ea"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -684,7 +738,9 @@ dependencies = [
 name = "kitebox"
 version = "0.1.0"
 dependencies = [
+ "bmi2",
  "critical-section",
+ "embassy-embedded-hal",
  "embassy-executor",
  "embassy-futures",
  "embassy-sync",
@@ -698,10 +754,21 @@ dependencies = [
  "esp-println",
  "esp-wifi",
  "heapless",
+ "kitebox-messages",
  "log",
  "st3215",
  "static_cell",
  "xtensa-lx-rt",
+]
+
+[[package]]
+name = "kitebox-messages"
+version = "0.1.0"
+dependencies = [
+ "bmi2",
+ "capnp",
+ "capnp_conv",
+ "capnpc",
 ]
 
 [[package]]

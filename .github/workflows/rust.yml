@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install libudev-dev
+        run: sudo apt-get update && sudo apt-get install libudev-dev capnproto libcapnp-dev
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install libudev-dev
+        run: sudo apt-get update && sudo apt-get install libudev-dev capnproto libcapnp-dev
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:

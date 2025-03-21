@@ -2,17 +2,34 @@
 #![no_main]
 #![doc = include_str!("../../README.md")]
 
+use core::i16;
+
+use bmi2::{
+    bmi2_async::Bmi2,
+    interface::I2cInterface,
+    types::{AccBwp, AccConf, AccRange, Burst, Odr, PerfMode, PwrCtrl},
+    I2cAddr,
+};
+use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select, select3, Either, Either3};
 use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
+    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
     channel::{Channel, Receiver, Sender},
+    mutex::Mutex,
 };
 use embassy_time::{Duration, Ticker};
+use embedded_io_async::Write;
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_backtrace as _;
-use esp_hal::{rng::Rng, timer::timg::TimerGroup};
+use esp_hal::{
+    i2c::master::I2c,
+    rng::Rng,
+    time::Rate,
+    timer::timg::TimerGroup,
+    uart::{UartRx, UartTx},
+};
 use esp_hal::{
     uart::{Config, RxConfig, Uart},
     Async,
@@ -23,9 +40,14 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
+use kitebox_messages::{Command, CommandMessage, ImuData, Report, ReportMessage};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
+use static_cell::StaticCell;
 
 const READ_BUF_SIZE: usize = 64;
+
+type I2cBus = Mutex<NoopRawMutex, I2c<'static, Async>>;
+type IMU = Bmi2<I2cInterface<I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>>>;
 
 // Copy-pasta from esp-hal examples.
 // When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
@@ -83,8 +105,6 @@ async fn main(spawner: Spawner) {
         ))
         .ok();
 
-    #[allow(non_upper_case_globals)]
-    static tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
     let tty_uart = Uart::new(
         peripherals.UART0,
         Config::default()
@@ -94,8 +114,18 @@ async fn main(spawner: Spawner) {
     .with_tx(peripherals.GPIO1)
     .with_rx(peripherals.GPIO3)
     .into_async();
+    let (tty_rx, tty_tx) = tty_uart.split();
+
+    #[allow(non_upper_case_globals)]
+    static from_tty_channel: Channel<CriticalSectionRawMutex, TtyCommand, 10> = Channel::new();
     spawner
-        .spawn(tty_receiver(tty_uart, tty_channel.sender()))
+        .spawn(tty_reader(tty_rx, from_tty_channel.sender()))
+        .unwrap();
+
+    #[allow(non_upper_case_globals)]
+    static to_tty_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
+    spawner
+        .spawn(tty_writer(to_tty_channel.receiver(), tty_tx))
         .unwrap();
 
     #[allow(non_upper_case_globals)]
@@ -115,9 +145,30 @@ async fn main(spawner: Spawner) {
         .spawn(servo_bus_writer(servo_channel.receiver(), bus))
         .unwrap();
 
+    let i2c = I2c::new(
+        peripherals.I2C0,
+        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(400)),
+    )
+    .unwrap()
+    .with_sda(peripherals.GPIO26)
+    .with_scl(peripherals.GPIO32)
+    .into_async();
+    static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
+    let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
+
+    #[allow(non_upper_case_globals)]
+    static from_imu_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
+    let imu_i2c_device = I2cDevice::new(i2c_bus);
+    let imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
+    spawner
+        .spawn(imu_reporter(imu, from_imu_channel.sender()))
+        .unwrap();
+
     spawner
         .spawn(main_loop(
-            tty_channel.receiver(),
+            from_tty_channel.receiver(),
+            from_imu_channel.receiver(),
+            to_tty_channel.sender(),
             from_esp_now_channel.receiver(),
             to_esp_now_channel.sender(),
             servo_channel.sender(),
@@ -127,26 +178,41 @@ async fn main(spawner: Spawner) {
 
 #[embassy_executor::task]
 async fn main_loop(
-    tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_imu_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
     from_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     to_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     loop {
-        let command = select(
-            tty_channel_receiver.receive(),
+        let command = select3(
+            from_tty_channel_receiver.receive(),
             from_esp_now_channel_receiver.receive(),
+            from_imu_channel_receiver.receive(),
         )
         .await;
 
         let command = match command {
             // if it came from tty then forward it
-            Either::First(command) => {
+            Either3::First(command) => {
                 println!("Forwarding command to esp-now: {command:?}");
                 to_esp_now_channel_sender.send(command).await;
                 command
             }
-            Either::Second(command) => command,
+            Either3::Second(command) => command,
+            Either3::Third(report) => {
+                to_tty_channel_sender.send(report).await;
+                if let Report::ImuData(imu_data) = report.report {
+                    let command = TtyCommand::Capnp(Command::SetPosition(
+                        ((imu_data.acc.x + 1.0) * 1000.0) as i64 as i16,
+                    ));
+                    to_esp_now_channel_sender.send(command).await;
+                    command
+                } else {
+                    TtyCommand::Unrecognised(b'X')
+                }
+            }
         };
 
         // Always attempt to action the command, because this simplifies local dev.
@@ -193,6 +259,15 @@ async fn servo_bus_writer(
             TtyCommand::Down => bus.rotate_servo(servo_id, -100).await.map(Some),
             TtyCommand::Left => bus.rotate_servo(servo_id, -10).await.map(Some),
             TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
+            TtyCommand::Capnp(command) => match command {
+                kitebox_messages::Command::SetPosition(position) => bus
+                    .write_register(servo_id.into(), Register::TargetLocation, position as u16)
+                    .await
+                    .map(|()| Some(position as u16)),
+                kitebox_messages::Command::NudgePosition(increment) => {
+                    bus.rotate_servo(servo_id, increment).await.map(Some)
+                }
+            },
             TtyCommand::Unrecognised(other) => {
                 esp_println::println!(
                     "Unknown command (ascii {other}): {}",
@@ -214,23 +289,42 @@ async fn servo_bus_writer(
 
 // This just parses commands from the tty uart and shovels them onto a channel.
 #[embassy_executor::task]
-async fn tty_receiver(
-    tty_uart: Uart<'static, Async>,
-    sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+async fn tty_reader(
+    mut tty_rx: UartRx<'static, Async>,
+    from_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
-    // in practice, we use println!() to respond, so we don't need the tx part yet.
-    // For some reason, if I just pass tty_rx into this function (rather than the whole tty_uart)
-    // then it stops working (as if it's dropping the uart in main() and cleaning things up?)
-    let (mut tty_rx, _tty_tx) = tty_uart.split();
-
-    println!("tty_receiver");
+    println!("tty_reader");
     loop {
         let command = TtyCommand::read_async(&mut tty_rx)
             .await
             .expect("should be able to read command from tty (usb uart)");
         println!("received from tty: {command:?}");
 
-        sender.send(command).await;
+        from_tty_channel_sender.send(command).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn tty_writer(
+    to_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    mut tty_tx: UartTx<'static, Async>,
+) {
+    let mut slice = [0u8; ReportMessage::SEGMENT_ALLOCATOR_SIZE];
+    loop {
+        let message = to_tty_channel_receiver.receive().await;
+
+        let bytes_to_send = message.to_slice(&mut slice);
+
+        // a '#' followed by a capnproto message, using the recommended serialization scheme from
+        // https://capnproto.org/encoding.html#serialization-over-a-stream
+        tty_tx.write_all(b"#").await.unwrap();
+        tty_tx.write_all(&0u32.to_le_bytes()).await.unwrap();
+        tty_tx
+            .write_all(&(bytes_to_send.len() as u32).to_le_bytes())
+            .await
+            .unwrap();
+        tty_tx.write_all(bytes_to_send).await.unwrap();
+        tty_tx.write_all(b"\n").await.unwrap();
     }
 }
 
@@ -260,12 +354,25 @@ async fn esp_now_writer(
                     .fetch_peer(false)
                     .or_else(|_| manager.fetch_peer(true))
                 {
-                    Ok(peer) => {
-                        sender
-                            .send_async(&peer.peer_address, &[command.as_u8()])
-                            .await
-                            .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
-                    }
+                    Ok(peer) => match command {
+                        // FIXME: kill off the non-capnp commands and write a converter in
+                        // kiteboxcontrol if convenience is important.
+                        TtyCommand::Capnp(command) => {
+                            let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
+                            let slice = CommandMessage { command }.to_slice(&mut buf);
+
+                            sender
+                                .send_async(&peer.peer_address, slice)
+                                .await
+                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                        }
+                        command => {
+                            sender
+                                .send_async(&peer.peer_address, &[command.as_u8()])
+                                .await
+                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                        }
+                    },
                     Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
                 };
             }
@@ -298,8 +405,79 @@ async fn esp_now_reader(
         } else {
             let data = r.data();
             println!("Received {:?}", data);
-            let command = TtyCommand::read_async(data).await.unwrap();
+            let command = if data.len() == 1 {
+                TtyCommand::read_async(data).await.unwrap()
+            } else {
+                let message = CommandMessage::from_slice(data).unwrap();
+                TtyCommand::Capnp(message.command)
+            };
             from_esp_now_channel_sender.send(command).await;
+        }
+    }
+}
+
+#[embassy_executor::task]
+async fn imu_reporter(
+    mut imu: IMU,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+) {
+    println!("imu_reporter");
+    let mut ticker = Ticker::every(Duration::from_millis(1000 / 25));
+
+    // Sending BMI270_CONFIG_FILE takes sufficiently long (8192 bytes at 31 bytes per transaction)
+    // that kitebox-controller has typically had enough time to connect to the UART before we do
+    // anything interesting. Hopefully this doesn't cause problems if run in parallel with
+    // the main loop.
+    if let Err(e) = imu.init(&bmi2::config::BMI270_CONFIG_FILE).await {
+        println!("could not talk to imu: {e:?}");
+        return;
+    };
+    imu.set_acc_conf(AccConf {
+        odr: Odr::Odr25,
+        bwp: AccBwp::Osr2Avg2,
+        filter_perf: PerfMode::Perf,
+    })
+    .await
+    .unwrap();
+    imu.set_acc_range(AccRange::Range2g).await.unwrap();
+    // FIXME: imu.set_gyr_range(?). Not sure what the parameter really means.
+    imu.set_pwr_ctrl(PwrCtrl {
+        aux_en: false,
+        gyr_en: true,
+        acc_en: true,
+        temp_en: true,
+    })
+    .await
+    .unwrap();
+
+    loop {
+        // FIXME: is there a way to await the interrupt from the imu instead,
+        // so I don't have to keep the ticker configuration in sync with the `Odr::Odr25` setting.
+        ticker.next().await;
+        let status = imu.get_status().await.unwrap();
+        if status.acc_data_ready {
+            let data = imu.get_data().await.unwrap();
+            let acc = kitebox_messages::AxisData {
+                // fixme: AccRange::Range2g.as_number() to make it easier to keep these things in sync?
+                x: data.acc.x as f32 * 2f32 / i16::MAX as f32,
+                y: data.acc.y as f32 * 2f32 / i16::MAX as f32,
+                z: data.acc.z as f32 * 2f32 / i16::MAX as f32,
+            };
+            let gyr = kitebox_messages::AxisData {
+                // fixme: decide how to scale these
+                x: data.gyr.x as f32 / i16::MAX as f32,
+                y: data.gyr.y as f32 / i16::MAX as f32,
+                z: data.gyr.z as f32 / i16::MAX as f32,
+            };
+            let message = ReportMessage {
+                report: Report::ImuData(ImuData {
+                    acc,
+                    gyr,
+                    time: data.time,
+                }),
+            };
+
+            to_tty_channel_sender.send(message).await;
         }
     }
 }
