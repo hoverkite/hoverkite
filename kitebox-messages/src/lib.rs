@@ -10,9 +10,9 @@ pub mod kitebox_messages_capnp {
 #[capnp_conv(kitebox_messages_capnp::axis_data)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct AxisData {
-    x: i16,
-    y: i16,
-    z: i16,
+    pub x: i16,
+    pub y: i16,
+    pub z: i16,
 }
 
 impl From<bmi2::types::AxisData> for AxisData {
@@ -71,7 +71,7 @@ impl ReportMessage {
 
         return &slice[..len];
     }
-    pub fn from_slice(slice: &[u8]) -> Self {
+    pub fn from_slice(slice: &[u8]) -> capnp::Result<Self> {
         // We limit ourselves to being able to decode a single segment, because
         // we know that we were encoded with a SingleSegmentAllocator
         let segments = &[slice];
@@ -83,7 +83,7 @@ impl ReportMessage {
             .get_root::<kitebox_messages_capnp::report_message::Reader>()
             .unwrap();
 
-        ReportMessage::read(root).unwrap()
+        ReportMessage::read(root)
     }
 }
 

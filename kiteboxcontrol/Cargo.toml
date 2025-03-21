@@ -12,3 +12,5 @@ embassy-sync = { version = "0.6.2", features = ["std"] }
 log = "0.4.26"
 serialport = "4.7.0"
 static_cell = "2.1.0"
+# FIXME: there a lot of default features here that I'm not using. Think about trimming it down?
+rerun = "0.22.1"

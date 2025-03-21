@@ -7,6 +7,7 @@ use embassy_sync::{
     channel::{Channel, Receiver, Sender},
 };
 use log::error;
+use rerun::Position3D;
 use serialport::SerialPort;
 
 const BAUD_RATE: u32 = 115_200;
@@ -110,12 +111,17 @@ fn spawn_tty_rx_channel(
     #[allow(non_upper_case_globals)]
     static tty_rx_channel: Channel<CriticalSectionRawMutex, String, 10> = Channel::new();
 
+    // FIXME: move this up into main and pass it down instead?
+    let rec = rerun::RecordingStreamBuilder::new("kiteboxcontrol")
+        .connect_tcp()
+        .unwrap();
+
     let tx = tty_rx_channel.sender();
     std::thread::spawn(move || {
         loop {
             let mut buf = [0u8];
-            let count = port.read(&mut buf).unwrap();
-            assert_eq!(count, 1);
+            port.read_exact(&mut buf).unwrap();
+
             match buf[0] {
                 b'#' => {
                     // The following bytes are a capnproto message, using the recommended
@@ -126,18 +132,45 @@ fn spawn_tty_rx_channel(
                     port.read_exact(&mut buf).unwrap();
                     assert_eq!(u32::from_le_bytes(buf), 0);
 
+                    // FIXME: fuzz this. It might be possible to drop into the middle of a
+                    // message and interpret it as a message with a huge length, then wait
+                    // forever for the esp32 to actually send us that much data.
                     port.read_exact(&mut buf).unwrap();
                     let len = u32::from_le_bytes(buf) as usize;
                     let mut buf = repeat(0u8).take(len).collect::<Vec<_>>();
                     port.read_exact(&mut buf).unwrap();
 
-                    let message = kitebox_messages::ReportMessage::from_slice(&buf);
+                    let message = match kitebox_messages::ReportMessage::from_slice(&buf) {
+                        Ok(message) => message,
+                        Err(e) => {
+                            println!("error decoding message: {e:?}");
+                            // skip until the next newline or #. I kind-of wish we were using cobs
+                            // or something for our payloading so that recovering was easier.
+                            loop {
+                                let mut buf = [0u8];
+                                port.read_exact(&mut buf).unwrap();
+                                if let b'\n' | b'#' = buf[0] {
+                                    break;
+                                }
+                            }
+                            continue;
+                        }
+                    };
 
                     match message.report {
                         kitebox_messages::Report::Time(time) => {
                             println!("time since boot: {:?}", Duration::from_micros(time.time))
                         }
                         kitebox_messages::Report::ImuData(imu_data) => {
+                            rec.log(
+                                "imu/acc",
+                                &rerun::Points3D::new([Position3D::new(
+                                    imu_data.acc.x.into(),
+                                    imu_data.acc.y.into(),
+                                    imu_data.acc.z.into(),
+                                )]),
+                            )
+                            .unwrap();
                             dbg!(imu_data);
                         }
                     }
@@ -146,8 +179,7 @@ fn spawn_tty_rx_channel(
                 _ => {
                     let mut line = Vec::from(&buf);
                     loop {
-                        let count = port.read(&mut buf).unwrap();
-                        assert_eq!(count, 1);
+                        port.read_exact(&mut buf).unwrap();
                         match buf[0] {
                             b'\n' => break,
                             o => line.push(o),
