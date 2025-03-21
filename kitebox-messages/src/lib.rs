@@ -8,7 +8,7 @@ pub mod kitebox_messages_capnp {
 }
 
 #[capnp_conv(kitebox_messages_capnp::axis_data)]
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AxisData {
     pub x: f32,
     pub y: f32,
@@ -19,7 +19,7 @@ pub struct AxisData {
 impl Eq for AxisData {}
 
 #[capnp_conv(kitebox_messages_capnp::imu_data)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImuData {
     pub acc: AxisData,
     pub gyr: AxisData,
@@ -27,20 +27,20 @@ pub struct ImuData {
 }
 
 #[capnp_conv(kitebox_messages_capnp::time)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Time {
     pub time: u64,
 }
 
 #[capnp_conv(kitebox_messages_capnp::report_message::report)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Report {
     ImuData(ImuData),
     Time(Time),
 }
 
 #[capnp_conv(kitebox_messages_capnp::report_message)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReportMessage {
     #[capnp_conv(type = "union")]
     pub report: Report,

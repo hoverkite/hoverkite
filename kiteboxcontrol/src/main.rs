@@ -114,30 +114,6 @@ async fn main(_spawner: Spawner) {
                             )]),
                         )
                         .unwrap();
-
-                        let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
-                        let command_message = CommandMessage {
-                            command: Command::SetPosition(
-                                ((imu_data.acc.x + 1.0) * 1000.0) as i64 as i16,
-                            ),
-                        };
-                        let slice = command_message.to_slice(&mut buf);
-
-                        // FIXME: DRY
-                        // a '#' followed by a capnproto message, using the recommended
-                        // serialization scheme from
-                        // https://capnproto.org/encoding.html#serialization-over-a-stream
-                        let mut to_send = vec![b'#'];
-                        to_send.extend_from_slice(&0u32.to_le_bytes());
-                        to_send.extend_from_slice(&(slice.len() as u32).to_le_bytes());
-                        to_send.extend_from_slice(slice);
-                        to_send.push(b'\n');
-                        assert_eq!(
-                            CommandMessage::from_slice(&to_send[(1 + 4 + 4)..]).unwrap(),
-                            command_message
-                        );
-
-                        tty_tx.try_send(to_send).unwrap();
                     }
                 },
             },

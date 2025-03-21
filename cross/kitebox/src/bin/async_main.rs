@@ -12,7 +12,7 @@ use bmi2::{
 };
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select, select3, Either, Either3};
 use embassy_sync::{
     blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
     channel::{Channel, Receiver, Sender},
@@ -26,7 +26,7 @@ use esp_backtrace as _;
 use esp_hal::{
     i2c::master::I2c,
     rng::Rng,
-    time::{Instant, Rate},
+    time::Rate,
     timer::timg::TimerGroup,
     uart::{UartRx, UartTx},
 };
@@ -40,7 +40,7 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
-use kitebox_messages::{CommandMessage, ImuData, Report, ReportMessage, Time};
+use kitebox_messages::{Command, CommandMessage, ImuData, Report, ReportMessage};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
 use static_cell::StaticCell;
 
@@ -156,15 +156,18 @@ async fn main(spawner: Spawner) {
     static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
     let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
 
+    #[allow(non_upper_case_globals)]
+    static from_imu_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
     let imu_i2c_device = I2cDevice::new(i2c_bus);
     let imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
     spawner
-        .spawn(imu_reporter(imu, to_tty_channel.sender()))
+        .spawn(imu_reporter(imu, from_imu_channel.sender()))
         .unwrap();
 
     spawner
         .spawn(main_loop(
             from_tty_channel.receiver(),
+            from_imu_channel.receiver(),
             to_tty_channel.sender(),
             from_esp_now_channel.receiver(),
             to_esp_now_channel.sender(),
@@ -176,37 +179,44 @@ async fn main(spawner: Spawner) {
 #[embassy_executor::task]
 async fn main_loop(
     from_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_imu_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
     to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
     from_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     to_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     loop {
-        let command = select(
+        let command = select3(
             from_tty_channel_receiver.receive(),
             from_esp_now_channel_receiver.receive(),
+            from_imu_channel_receiver.receive(),
         )
         .await;
 
         let command = match command {
             // if it came from tty then forward it
-            Either::First(command) => {
+            Either3::First(command) => {
                 println!("Forwarding command to esp-now: {command:?}");
                 to_esp_now_channel_sender.send(command).await;
                 command
             }
-            Either::Second(command) => command,
+            Either3::Second(command) => command,
+            Either3::Third(report) => {
+                to_tty_channel_sender.send(report).await;
+                if let Report::ImuData(imu_data) = report.report {
+                    let command = TtyCommand::Capnp(Command::SetPosition(
+                        ((imu_data.acc.x + 1.0) * 1000.0) as i64 as i16,
+                    ));
+                    to_esp_now_channel_sender.send(command).await;
+                    command
+                } else {
+                    TtyCommand::Unrecognised(b'X')
+                }
+            }
         };
 
         // Always attempt to action the command, because this simplifies local dev.
         servo_channel_sender.send(command).await;
-
-        // Always report the time after every command
-        let now = Instant::now().duration_since_epoch().as_micros();
-        let message = ReportMessage {
-            report: Report::Time(Time { time: now }),
-        };
-        to_tty_channel_sender.send(message).await;
     }
 }
 
