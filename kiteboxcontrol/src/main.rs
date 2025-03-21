@@ -6,7 +6,7 @@ use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     channel::{Channel, Receiver, Sender},
 };
-use kitebox_messages::{Command, CommandMessage, Report};
+use kitebox_messages::Report;
 use log::error;
 use rerun::Vec3D;
 use serialport::SerialPort;
