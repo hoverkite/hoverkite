@@ -15,12 +15,22 @@ pub struct AxisData {
     z: i16,
 }
 
+impl From<bmi2::types::AxisData> for AxisData {
+    fn from(value: bmi2::types::AxisData) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            z: value.z,
+        }
+    }
+}
+
 #[capnp_conv(kitebox_messages_capnp::imu_data)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImuData {
-    acc: AxisData,
-    gyr: AxisData,
-    time: u32,
+    pub acc: AxisData,
+    pub gyr: AxisData,
+    pub time: u32,
 }
 
 #[capnp_conv(kitebox_messages_capnp::time)]

@@ -2,11 +2,19 @@
 #![no_main]
 #![doc = include_str!("../../README.md")]
 
+use bmi2::{
+    bmi2_async::Bmi2,
+    interface::I2cInterface,
+    types::{AccBwp, AccConf, Burst, Odr, PerfMode, PwrCtrl},
+    I2cAddr,
+};
+use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
+    blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex},
     channel::{Channel, Receiver, Sender},
+    mutex::Mutex,
 };
 use embassy_time::{Duration, Ticker};
 use embedded_io_async::Write;
@@ -14,8 +22,9 @@ use esp_alloc as _;
 use esp_backtrace as _;
 use esp_backtrace as _;
 use esp_hal::{
+    i2c::master::I2c,
     rng::Rng,
-    time::Instant,
+    time::{Instant, Rate},
     timer::timg::TimerGroup,
     uart::{UartRx, UartTx},
 };
@@ -29,10 +38,14 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
-use kitebox_messages::{Report, ReportMessage, Time};
+use kitebox_messages::{ImuData, Report, ReportMessage, Time};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
+use static_cell::StaticCell;
 
 const READ_BUF_SIZE: usize = 64;
+
+type I2cBus = Mutex<NoopRawMutex, I2c<'static, Async>>;
+type IMU = Bmi2<I2cInterface<I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>>>;
 
 // Copy-pasta from esp-hal examples.
 // When you are okay with using a nightly compiler it's better to use https://docs.rs/static_cell/2.1.0/static_cell/macro.make_static.html
@@ -128,6 +141,45 @@ async fn main(spawner: Spawner) {
     let bus = ServoBusAsync::from_uart(servo_bus_uart);
     spawner
         .spawn(servo_bus_writer(servo_channel.receiver(), bus))
+        .unwrap();
+
+    let i2c = I2c::new(
+        peripherals.I2C0,
+        esp_hal::i2c::master::Config::default().with_frequency(Rate::from_khz(400)),
+    )
+    .unwrap()
+    .with_sda(peripherals.GPIO26)
+    .with_scl(peripherals.GPIO32)
+    .into_async();
+    static I2C_BUS: StaticCell<I2cBus> = StaticCell::new();
+    let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
+
+    let imu_i2c_device = I2cDevice::new(i2c_bus);
+    // Sending BMI270_CONFIG_FILE takes sufficiently long (8192 bytes at 31 bytes per transaction)
+    // that kitebox-controller has typically had enough time to connect to the UART before we do
+    // anything interesting. In theory this is all async so we could chuck it down into the
+    // imu_reporter() task and do it in parallel with running the main loop, but I think I prefer it
+    // this way.
+    let mut imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
+    imu.init(&bmi2::config::BMI270_CONFIG_FILE).await.unwrap();
+    imu.set_acc_conf(AccConf {
+        odr: Odr::Odr25,
+        bwp: AccBwp::Osr2Avg2,
+        filter_perf: PerfMode::Perf,
+    })
+    .await
+    .unwrap();
+    imu.set_pwr_ctrl(PwrCtrl {
+        aux_en: false,
+        gyr_en: true,
+        acc_en: true,
+        temp_en: true,
+    })
+    .await
+    .unwrap();
+
+    spawner
+        .spawn(imu_reporter(imu, to_tty_channel.sender()))
         .unwrap();
 
     spawner
@@ -240,7 +292,7 @@ async fn servo_bus_writer(
 #[embassy_executor::task]
 async fn tty_reader(
     mut tty_rx: UartRx<'static, Async>,
-    sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
+    from_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
     println!("tty_reader");
     loop {
@@ -249,7 +301,7 @@ async fn tty_reader(
             .expect("should be able to read command from tty (usb uart)");
         println!("received from tty: {command:?}");
 
-        sender.send(command).await;
+        from_tty_channel_sender.send(command).await;
     }
 }
 
@@ -343,6 +395,34 @@ async fn esp_now_reader(
             println!("Received {:?}", data);
             let command = TtyCommand::read_async(data).await.unwrap();
             from_esp_now_channel_sender.send(command).await;
+        }
+    }
+}
+
+#[embassy_executor::task]
+async fn imu_reporter(
+    mut imu: IMU,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+) {
+    println!("imu_reporter");
+    let mut ticker = Ticker::every(Duration::from_millis(1000 / 25));
+
+    loop {
+        // FIXME: is there a way to await the interrupt from the imu instead,
+        // so I don't have to keep the ticker configuration in sync with the `Odr::Odr25` setting.
+        ticker.next().await;
+        let status = imu.get_status().await.unwrap();
+        if status.acc_data_ready {
+            let data = imu.get_data().await.unwrap();
+            let message = ReportMessage {
+                report: Report::ImuData(ImuData {
+                    acc: data.acc.into(),
+                    gyr: data.gyr.into(),
+                    time: data.time,
+                }),
+            };
+
+            to_tty_channel_sender.send(message).await;
         }
     }
 }

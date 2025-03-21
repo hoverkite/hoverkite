@@ -137,6 +137,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
+name = "bmi2"
+version = "0.1.1"
+source = "git+https://github.com/alsuren/bmi2?branch=async#0cffd040686c5d002ecbbc0b664409c2303c8f59"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "fixedvec",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -705,6 +715,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixedvec"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b395ef2adf62bdeefcd1b59ad0dd2225c6c333ec79656ea79ac5285c46d051ea"
+
+[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1073,6 +1089,7 @@ dependencies = [
 name = "kitebox-messages"
 version = "0.1.0"
 dependencies = [
+ "bmi2",
  "capnp",
  "capnp_conv",
  "capnpc",
