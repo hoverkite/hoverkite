@@ -55,6 +55,7 @@ async fn main(_spawner: Spawner) {
 
     assert_eq!(status.code().unwrap(), 0);
 
+    // FIXME: consider using lsof to find anything holding this file open and killing it before we attempt to flash?
     let port_path = std::env::var("ESPFLASH_PORT").expect("ESPFLASH_PORT env var must be set");
     let port = match serialport::new(&port_path, BAUD_RATE)
         .timeout(Duration::from_secs(60 * 60))
@@ -157,7 +158,8 @@ fn spawn_tty_rx_channel(
         loop {
             let message = read_message_from_port(&mut port);
 
-            tx.try_send(message).unwrap()
+            tx.try_send(message)
+                .unwrap_or_else(|e| println!("message channel full? {e:?}"))
         }
     });
 
