@@ -103,6 +103,16 @@ async fn main(_spawner: Spawner) {
                             )]),
                         )
                         .unwrap();
+
+                        rec.log(
+                            "imu/gyr",
+                            &rerun::Arrows3D::from_vectors([Vec3D::new(
+                                imu_data.gyr.x.into(),
+                                imu_data.gyr.y.into(),
+                                imu_data.gyr.z.into(),
+                            )]),
+                        )
+                        .unwrap();
                     }
                 },
             },
