@@ -27,4 +27,4 @@ futures-test = "0.3.31"
 embedded-io-async = {features = ["std"], version = "0.6.1"}
 embedded-io = {features = ["std"], version = "0.6.1"}
 embedded-io-adapters = {features = ["std"], version = "0.6.1"}
-serialport = "3.1.1"
+serialport = "4.7.0"
