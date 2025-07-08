@@ -1,0 +1,24 @@
+[package]
+name = "kitebox-messages"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies.capnp_conv]
+git = "https://github.com/alsuren/capnp_conv"
+branch = "no_std"
+default-features = false
+
+[dependencies.capnp]
+version = "*"
+default-features = false
+features = ["unaligned"]
+
+[dependencies.bmi2]
+git="https://github.com/alsuren/bmi2"
+branch="async"
+features = ["async"] 
+   
+
+[build-dependencies.capnpc]
+version = "*"
