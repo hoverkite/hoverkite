@@ -96,6 +96,17 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
             .await
     }
 
+    pub async fn release_servo(&mut self, servo_id: ServoId) -> Result<(), ServoBusError> {
+        self.write_register(servo_id.into(), Register::TorqueSwitch, 0)
+            .await?;
+        let current_location = self
+            .read_register(servo_id.into(), Register::CurrentLocation)
+            .await?;
+        self.write_register(servo_id.into(), Register::TargetLocation, current_location)
+            .await?;
+        Ok(())
+    }
+
     pub async fn rotate_servo(
         &mut self,
         servo_id: ServoId,

@@ -266,10 +266,7 @@ async fn servo_bus_writer(
             TtyCommand::Left => bus.rotate_servo(servo_id, -10).await.map(Some),
             TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
             TtyCommand::Query => bus.query_servo(servo_id).await.map(Some),
-            TtyCommand::Release => bus
-                .write_register(servo_id.into(), Register::TorqueSwitch, 0)
-                .await
-                .map(|()| None),
+            TtyCommand::Release => bus.release_servo(servo_id).await.map(|()| None),
             TtyCommand::Capnp(command) => match command {
                 kitebox_messages::Command::SetPosition(position) => bus
                     .write_register(servo_id.into(), Register::TargetLocation, position as u16)
