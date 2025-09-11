@@ -8,6 +8,7 @@ pub enum TtyCommand {
     Down,
     Left,
     Right,
+    Release,
     Query,
     Capnp(Command),
     // FIXME: make this into an error instead?
@@ -27,6 +28,7 @@ impl TtyCommand {
             b'v' => Self::Down,
             b'<' => Self::Left,
             b'>' => Self::Right,
+            b'r' => Self::Release,
             b'?' => Self::Query,
             27 => {
                 // Escape codes. Used by arrow keys.
@@ -95,6 +97,7 @@ impl TtyCommand {
             TtyCommand::Down => b'v',
             TtyCommand::Left => b'<',
             TtyCommand::Right => b'>',
+            TtyCommand::Release => b'r',
             TtyCommand::Query => b'?',
             TtyCommand::Capnp(_) => b'#',
             TtyCommand::Unrecognised(_) => b'?',
