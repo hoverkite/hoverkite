@@ -1044,6 +1044,7 @@ dependencies = [
  "embassy-time",
  "embedded-io",
  "embedded-io-async",
+ "esp-println",
  "tinyvec",
 ]
 

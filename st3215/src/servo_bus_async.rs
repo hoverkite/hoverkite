@@ -83,11 +83,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         Ok(reply.id)
     }
 
-    pub async fn rotate_servo(
-        &mut self,
-        servo_id: ServoId,
-        increment: i16,
-    ) -> Result<u16, ServoBusError> {
+    pub async fn query_servo(&mut self, servo_id: ServoId) -> Result<u16, ServoBusError> {
         // FIXME: I picked u16 arbitrarily because I thought It would cover all 1 and 2 byte registers.
         // This register is actually documented as being a i16 though (minimum_value: -32766, maximum_value: 32766).
         // I wonder if it's possible to guarantee that we have the return type correct at compile time.
@@ -96,13 +92,24 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // * generate zero sized types that impl this trait (e.g. register_types::TargetLocation)
         // * make a read_register<RegisterType: IntoRegisterEnum>(servo_id: ServoId, register: RegisterType) -> RegisterType::rust_type
         // In practice, I should probably fix the addition overflow panic first ;-).
-        let current = self
-            .read_register(servo_id.into(), Register::TargetLocation)
-            .await?;
+        self.read_register(servo_id.into(), Register::TargetLocation)
+            .await
+    }
+
+    pub async fn rotate_servo(
+        &mut self,
+        servo_id: ServoId,
+        increment: i16,
+    ) -> Result<u16, ServoBusError> {
+        let current = self.query_servo(servo_id).await?;
 
         // you can set any u16 in this register, but if you go outside the range 0,4096, it will
         // get stored as you provide it, but won't cause the servo to rotate out of its circle.
-        let next = ((current as i16) + increment) as u16;
+        let mut next = ((current as i16) + increment) as u16;
+        if next > 65000 {
+            esp_println::println!("looks like we wrapped");
+            next = 0;
+        }
         self.write_register(servo_id.into(), Register::TargetLocation, next)
             .await?;
 

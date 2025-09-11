@@ -81,6 +81,11 @@ impl ServoId {
         }
     }
 }
+impl Into<u16> for ServoId {
+    fn into(self) -> u16 {
+        self.0.into()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {

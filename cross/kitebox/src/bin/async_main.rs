@@ -205,7 +205,7 @@ async fn main_loop(
                 to_tty_channel_sender.send(report).await;
                 if let Report::ImuData(imu_data) = report.report {
                     let command = TtyCommand::Capnp(Command::SetPosition(
-                        ((imu_data.acc.x + 1.0) * 4000.0) as i64 as i16,
+                        (f32::max(imu_data.acc.x + 1.0, 0.0) * 4000.0) as i64 as i16,
                     ));
                     to_esp_now_channel_sender.send(command).await;
                     command
@@ -255,11 +255,16 @@ async fn servo_bus_writer(
 
         println!("Sending command to servo bus: {command:?}");
         let result = match command {
-            TtyCommand::Ping => bus.ping_servo(servo_id.into()).await.map(|_| None),
+            TtyCommand::Newline => Ok(None),
+            TtyCommand::Ping => bus
+                .ping_servo(servo_id.into())
+                .await
+                .map(|id| Some(id.into())),
             TtyCommand::Up => bus.rotate_servo(servo_id, 100).await.map(Some),
             TtyCommand::Down => bus.rotate_servo(servo_id, -100).await.map(Some),
             TtyCommand::Left => bus.rotate_servo(servo_id, -10).await.map(Some),
             TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
+            TtyCommand::Query => bus.query_servo(servo_id).await.map(Some),
             TtyCommand::Capnp(command) => match command {
                 kitebox_messages::Command::SetPosition(position) => bus
                     .write_register(servo_id.into(), Register::TargetLocation, position as u16)
@@ -299,6 +304,9 @@ async fn tty_reader(
         let command = TtyCommand::read_async(&mut tty_rx)
             .await
             .expect("should be able to read command from tty (usb uart)");
+        if command == TtyCommand::Newline {
+            continue;
+        }
         println!("received from tty: {command:?}");
 
         from_tty_channel_sender.send(command).await;

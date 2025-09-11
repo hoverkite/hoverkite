@@ -1,18 +1,19 @@
 use esp_println::println;
 use kitebox_messages::{Command, CommandMessage};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TtyCommand {
+    Newline,
     Ping,
     Up,
     Down,
     Left,
     Right,
+    Query,
     Capnp(Command),
     // FIXME: make this into an error instead?
     Unrecognised(u8),
 }
-
 impl TtyCommand {
     pub async fn read_async<R: embedded_io_async::Read>(
         mut stream: R,
@@ -21,11 +22,13 @@ impl TtyCommand {
         stream.read_exact(&mut buffer).await?;
 
         Ok(match buffer[0] {
+            b'\n' => Self::Newline,
             b'p' => Self::Ping,
             b'^' => Self::Up,
             b'v' => Self::Down,
             b'<' => Self::Left,
             b'>' => Self::Right,
+            b'?' => Self::Query,
             27 => {
                 // Escape codes. Used by arrow keys.
                 stream.read_exact(&mut buffer).await?;
@@ -87,11 +90,13 @@ impl TtyCommand {
     // FIXME: kill this off?
     pub fn as_u8(&self) -> u8 {
         match self {
+            TtyCommand::Newline => b'\n',
             TtyCommand::Ping => b'p',
             TtyCommand::Up => b'^',
             TtyCommand::Down => b'v',
             TtyCommand::Left => b'<',
             TtyCommand::Right => b'>',
+            TtyCommand::Query => b'?',
             TtyCommand::Capnp(_) => b'#',
             TtyCommand::Unrecognised(_) => b'?',
         }

@@ -17,6 +17,8 @@ tinyvec = "1.9.0"
 bitflags = "1.3.2"
 # FIXME: make this optional and either provide servo_bus_async or servo_bus_blocking, based on features?
 embassy-time = "0.4.0"
+# FIXME: remove this dependency and use log crate instead
+esp-println = { version = "0.13.0", features = ["esp32", "log"] }
 
 [target.'cfg(any(target_arch = "xtensa"))'.dependencies]
 esp-println = { version = "0.13.1", features = ["esp32", "log"], optional = true }
