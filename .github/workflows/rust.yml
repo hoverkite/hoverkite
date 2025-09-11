@@ -17,7 +17,6 @@ jobs:
         directory:
           - .
           - cross/hoverkite-firmware
-          - cross/kitebox
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
