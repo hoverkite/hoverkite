@@ -151,7 +151,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
             return Err(ServoBusError::ServoStatus(reply.servo_status_errors));
         }
 
-        let parsed = reply.interpret_as_register(register);
+        let parsed = reply.interpret_as_register(register).map_err(ServoBusError::from)?;
 
         Ok(parsed)
     }
@@ -162,9 +162,10 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         register: Register,
         value: u16,
     ) -> Result<(), ServoBusError> {
+        let instruction = Instruction::write_register(register, value).map_err(ServoBusError::from)?;
         let command = InstructionPacket {
             id: servo_id,
-            instruction: Instruction::write_register(register, value),
+            instruction,
         };
 
         command.write(&mut self.uart).await.unwrap();
