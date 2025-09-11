@@ -290,7 +290,7 @@ async fn servo_bus_writer(
                 log::info!("Servo command `{command:?}` ok. New value: {val}")
             }
             // FIXME: handle timeout error here and maybe clear maybe_servo_id?
-            Err(e) => log::info!("Servo {command:?} error: {}", e),
+            Err(e) => log::error!("Servo {command:?} error: {}", e),
         };
     }
 }
@@ -388,7 +388,7 @@ async fn esp_now_writer(
                                 });
                         }
                     },
-                    Err(e) => log::info!("no peer ({e:?}) skipping esp-now sending"),
+                    Err(e) => log::debug!("no peer ({e:?}) skipping esp-now sending"),
                 };
             }
         }
