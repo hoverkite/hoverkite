@@ -83,6 +83,31 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         Ok(reply.id)
     }
 
+    async fn read_register_with_retry(
+        &mut self,
+        servo_id: ServoIdOrBroadcast,
+        register: Register,
+        retries: u8,
+    ) -> Result<u16, ServoBusError> {
+        let mut last_error = None;
+        for attempt in 0..=retries {
+            match self.read_register(servo_id, register).await {
+                Ok(value) => return Ok(value),
+                Err(e) => {
+                    log::warn!(
+                        "Failed to read register {:?} (attempt {}/{}): {:?}",
+                        register,
+                        attempt + 1,
+                        retries + 1,
+                        e
+                    );
+                    last_error = Some(e);
+                }
+            }
+        }
+        Err(last_error.unwrap())
+    }
+
     pub async fn query_servo(&mut self, servo_id: ServoId) -> Result<u16, ServoBusError> {
         // FIXME: I picked u16 arbitrarily because I thought It would cover all 1 and 2 byte registers.
         // This register is actually documented as being a i16 though (minimum_value: -32766, maximum_value: 32766).
@@ -92,7 +117,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // * generate zero sized types that impl this trait (e.g. register_types::TargetLocation)
         // * make a read_register<RegisterType: IntoRegisterEnum>(servo_id: ServoId, register: RegisterType) -> RegisterType::rust_type
         // In practice, I should probably fix the addition overflow panic first ;-).
-        self.read_register(servo_id.into(), Register::TargetLocation)
+        self.read_register_with_retry(servo_id.into(), Register::TargetLocation, 2)
             .await
     }
 
@@ -100,7 +125,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         self.write_register(servo_id.into(), Register::TorqueSwitch, 0)
             .await?;
         let current_location = self
-            .read_register(servo_id.into(), Register::CurrentLocation)
+            .read_register_with_retry(servo_id.into(), Register::CurrentLocation, 2)
             .await?;
         self.write_register(servo_id.into(), Register::TargetLocation, current_location)
             .await?;
@@ -151,7 +176,9 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
             return Err(ServoBusError::ServoStatus(reply.servo_status_errors));
         }
 
-        let parsed = reply.interpret_as_register(register).map_err(ServoBusError::from)?;
+        let parsed = reply
+            .interpret_as_register(register)
+            .map_err(ServoBusError::from)?;
 
         Ok(parsed)
     }
@@ -162,7 +189,8 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         register: Register,
         value: u16,
     ) -> Result<(), ServoBusError> {
-        let instruction = Instruction::write_register(register, value).map_err(ServoBusError::from)?;
+        let instruction =
+            Instruction::write_register(register, value).map_err(ServoBusError::from)?;
         let command = InstructionPacket {
             id: servo_id,
             instruction,
