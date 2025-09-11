@@ -34,7 +34,7 @@ use esp_hal::{
     uart::{Config, RxConfig, Uart},
     Async,
 };
-use esp_println::println;
+use esp_println::logger::init_logger;
 use esp_wifi::{
     esp_now::{EspNowManager, EspNowReceiver, EspNowSender, PeerInfo, BROADCAST_ADDRESS},
     init, EspWifiController,
@@ -62,7 +62,8 @@ macro_rules! mk_static {
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
-    esp_println::println!("Init!");
+    init_logger(log::LevelFilter::Info);
+    log::info!("Init!");
     let peripherals = esp_hal::init(esp_hal::Config::default());
     esp_alloc::heap_allocator!(size: 65 * 1024);
     let timg1 = TimerGroup::new(peripherals.TIMG1);
@@ -80,7 +81,7 @@ async fn main(spawner: Spawner) {
     );
     let wifi = peripherals.WIFI;
     let esp_now = esp_wifi::esp_now::EspNow::new(&esp_wifi_ctrl, wifi).unwrap();
-    println!("esp-now version {}", esp_now.version().unwrap());
+    log::info!("esp-now version {}", esp_now.version().unwrap());
 
     let (manager, sender, receiver) = esp_now.split();
     let manager = mk_static!(EspNowManager<'static>, manager);
@@ -196,7 +197,7 @@ async fn main_loop(
         let command = match command {
             // if it came from tty then forward it
             Either3::First(command) => {
-                println!("Forwarding command to esp-now: {command:?}");
+                log::info!("Forwarding command to esp-now: {command:?}");
                 to_esp_now_channel_sender.send(command).await;
                 command
             }
@@ -245,7 +246,7 @@ async fn servo_bus_writer(
                     Some(id) => id,
                     None => {
                         let len = command_receiver.len();
-                        println!("Could not find servo. Dropping {command:?} and {len} others.");
+                        log::info!("Could not find servo. Dropping {command:?} and {len} others.");
                         command_receiver.clear();
                         continue;
                     }
@@ -253,7 +254,7 @@ async fn servo_bus_writer(
             }
         };
 
-        println!("Sending command to servo bus: {command:?}");
+        log::info!("Sending command to servo bus: {command:?}");
         let result = match command {
             TtyCommand::Newline => Ok(None),
             TtyCommand::Ping => bus
@@ -275,7 +276,7 @@ async fn servo_bus_writer(
                 }
             },
             TtyCommand::Unrecognised(other) => {
-                esp_println::println!(
+                log::info!(
                     "Unknown command (ascii {other}): {}",
                     char::from_u32(other.into()).unwrap_or('?')
                 );
@@ -283,12 +284,12 @@ async fn servo_bus_writer(
             }
         };
         match result {
-            Ok(None) => esp_println::println!("Servo command `{command:?}` ok"),
+            Ok(None) => log::info!("Servo command `{command:?}` ok"),
             Ok(Some(val)) => {
-                esp_println::println!("Servo command `{command:?}` ok. New value: {val}")
+                log::info!("Servo command `{command:?}` ok. New value: {val}")
             }
             // FIXME: handle timeout error here and maybe clear maybe_servo_id?
-            Err(e) => esp_println::println!("Servo {command:?} error: {}", e),
+            Err(e) => log::info!("Servo {command:?} error: {}", e),
         };
     }
 }
@@ -299,7 +300,7 @@ async fn tty_reader(
     mut tty_rx: UartRx<'static, Async>,
     from_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
 ) {
-    println!("tty_reader");
+    log::info!("tty_reader");
     loop {
         let command = TtyCommand::read_async(&mut tty_rx)
             .await
@@ -307,7 +308,7 @@ async fn tty_reader(
         if command == TtyCommand::Newline {
             continue;
         }
-        println!("received from tty: {command:?}");
+        log::info!("received from tty: {command:?}");
 
         from_tty_channel_sender.send(command).await;
     }
@@ -356,7 +357,7 @@ async fn esp_now_writer(
                 sender
                     .send_async(&BROADCAST_ADDRESS, b"Hello.")
                     .await
-                    .unwrap_or_else(|e| println!("Send broadcast status: {:?}", e));
+                    .unwrap_or_else(|e| log::info!("Send broadcast status: {:?}", e));
             }
             Either::Second(command) => {
                 match manager
@@ -373,16 +374,20 @@ async fn esp_now_writer(
                             sender
                                 .send_async(&peer.peer_address, slice)
                                 .await
-                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                                .unwrap_or_else(|e| {
+                                    log::info!("failed to send {command:?}: {e:?}")
+                                });
                         }
                         command => {
                             sender
                                 .send_async(&peer.peer_address, &[command.as_u8()])
                                 .await
-                                .unwrap_or_else(|e| println!("failed to send {command:?}: {e:?}"));
+                                .unwrap_or_else(|e| {
+                                    log::info!("failed to send {command:?}: {e:?}")
+                                });
                         }
                     },
-                    Err(e) => println!("no peer ({e:?}) skipping esp-now sending"),
+                    Err(e) => log::info!("no peer ({e:?}) skipping esp-now sending"),
                 };
             }
         }
@@ -409,11 +414,11 @@ async fn esp_now_reader(
                         encrypt: false,
                     })
                     .unwrap();
-                println!("Added peer {:?}", r.info.src_address);
+                log::info!("Added peer {:?}", r.info.src_address);
             }
         } else {
             let data = r.data();
-            println!("Received {:?}", data);
+            log::info!("Received {:?}", data);
             let command = if data.len() == 1 {
                 TtyCommand::read_async(data).await.unwrap()
             } else {
@@ -430,7 +435,7 @@ async fn imu_reporter(
     mut imu: IMU,
     to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
 ) {
-    println!("imu_reporter");
+    log::info!("imu_reporter");
     let mut ticker = Ticker::every(Duration::from_millis(1000 / 25));
 
     // Sending BMI270_CONFIG_FILE takes sufficiently long (8192 bytes at 31 bytes per transaction)
@@ -438,7 +443,7 @@ async fn imu_reporter(
     // anything interesting. Hopefully this doesn't cause problems if run in parallel with
     // the main loop.
     if let Err(e) = imu.init(&bmi2::config::BMI270_CONFIG_FILE).await {
-        println!("could not talk to imu: {e:?}");
+        log::info!("could not talk to imu: {e:?}");
         return;
     };
     imu.set_acc_conf(AccConf {

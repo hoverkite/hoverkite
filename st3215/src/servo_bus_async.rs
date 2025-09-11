@@ -107,7 +107,7 @@ impl<U: embedded_io_async::Read + embedded_io_async::Write> ServoBusAsync<U> {
         // get stored as you provide it, but won't cause the servo to rotate out of its circle.
         let mut next = ((current as i16) + increment) as u16;
         if next > 65000 {
-            esp_println::println!("looks like we wrapped");
+            log::warn!("looks like we wrapped");
             next = 0;
         }
         self.write_register(servo_id.into(), Register::TargetLocation, next)

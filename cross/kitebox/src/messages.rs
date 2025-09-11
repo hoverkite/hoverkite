@@ -1,4 +1,3 @@
-use esp_println::println;
 use kitebox_messages::{Command, CommandMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +67,7 @@ impl TtyCommand {
                 match CommandMessage::from_slice(&slice) {
                     Ok(message) => Self::Capnp(message.command),
                     Err(e) => {
-                        println!("error decoding message: {e:?}");
+                        log::error!("error decoding message: {e:?}");
                         // skip until the next newline or #. I kind-of wish we were using cobs
                         // or something for our payloading so that recovering was easier.
                         // FIXME: BufRead::skip_until() or something?
