@@ -127,7 +127,7 @@ fn main() {
             let value = parse_hex_u16(&args[5]);
             InstructionPacket {
                 id,
-                instruction: Instruction::write_register(register, value),
+                instruction: Instruction::write_register(register, value).unwrap(),
             }
         }
         "reset" => InstructionPacket {

@@ -1,4 +1,6 @@
-# HoverKite
+# HoverKite V2
+
+The main branch of this repo has been coopted for 
 
 [![Hoverkite Test Video](https://img.youtube.com/vi/v4giks0vXq8/0.jpg)](https://youtube.com/watch?v=v4giks0vXq8)
 
