@@ -1,4 +1,4 @@
-use kitebox_messages::{Command, CommandMessage};
+use kitebox_messages::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TtyCommand {
@@ -10,7 +10,7 @@ pub enum TtyCommand {
     Right,
     Release,
     Query,
-    Capnp(Command),
+    Binary(Command),
     // FIXME: make this into an error instead?
     Unrecognised(u8),
 }
@@ -48,38 +48,33 @@ impl TtyCommand {
                 }
             }
             b'#' => {
-                // FIXME: DRY
-                // The following bytes are a capnproto message, using the recommended
-                // serialization scheme from
-                // https://capnproto.org/encoding.html#serialization-over-a-stream
-                let mut buf = [0u8; 4];
-                // N segments - 1 should always be 0 for a SingleSegmentAllocator
-                stream.read_exact(&mut buf).await.unwrap();
-                assert_eq!(u32::from_le_bytes(buf), 0);
+                // Read a COBS-encoded postcard message
+                let mut buffer = [0u8; kitebox_messages::MAX_MESSAGE_SIZE];
+                let mut idx = 0;
 
-                // FIXME: fuzz this. It might be possible to drop into the middle of a
-                // message and interpret it as a message with a huge length, then wait
-                // forever for the esp32 to actually send us that much data.
-                stream.read_exact(&mut buf).await.unwrap();
-                let len = u32::from_le_bytes(buf) as usize;
-                let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
-                stream.read_exact(&mut buf[..len]).await.unwrap();
-                let slice = &buf[..len];
-
-                match CommandMessage::from_slice(&slice) {
-                    Ok(message) => Self::Capnp(message.command),
-                    Err(e) => {
-                        log::error!("error decoding message: {e:?}");
-                        // skip until the next newline or #. I kind-of wish we were using cobs
-                        // or something for our payloading so that recovering was easier.
-                        // FIXME: BufRead::skip_until() or something?
+                // Read until we get a zero byte (COBS terminator)
+                loop {
+                    if idx >= buffer.len() {
+                        // Message too long - skip until terminator
                         loop {
-                            let mut buf = [0u8];
-                            stream.read_exact(&mut buf).await.unwrap();
-                            if let b'\n' | b'#' = buf[0] {
-                                break;
+                            stream.read_exact(&mut buffer[..1]).await?;
+                            if buffer[0] == 0 {
+                                return Ok(Self::Unrecognised(b'L')); // L for too Long
                             }
                         }
+                    }
+                    stream.read_exact(&mut buffer[idx..idx + 1]).await?;
+                    if buffer[idx] == 0 {
+                        break;
+                    }
+                    idx += 1;
+                }
+
+                // Try to decode the command
+                match Command::from_slice(&mut buffer[..idx]) {
+                    Ok(cmd) => Self::Binary(cmd),
+                    Err(e) => {
+                        log::error!("Failed to decode command message, {e}");
                         Self::Unrecognised(b'F')
                     }
                 }
@@ -99,7 +94,7 @@ impl TtyCommand {
             TtyCommand::Right => b'>',
             TtyCommand::Release => b'r',
             TtyCommand::Query => b'?',
-            TtyCommand::Capnp(_) => b'#',
+            TtyCommand::Binary(_) => b'#',
             TtyCommand::Unrecognised(_) => b'?',
         }
     }

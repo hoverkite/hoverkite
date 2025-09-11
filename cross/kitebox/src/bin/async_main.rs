@@ -40,7 +40,7 @@ use esp_wifi::{
     init, EspWifiController,
 };
 use kitebox::messages::TtyCommand;
-use kitebox_messages::{Command, CommandMessage, ImuData, Report, ReportMessage};
+use kitebox_messages::{Command, ImuData, Report, MAX_MESSAGE_SIZE};
 use st3215::{messages::ServoIdOrBroadcast, registers::Register, servo_bus_async::ServoBusAsync};
 use static_cell::StaticCell;
 
@@ -124,7 +124,7 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     #[allow(non_upper_case_globals)]
-    static to_tty_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
+    static to_tty_channel: Channel<CriticalSectionRawMutex, Report, 10> = Channel::new();
     spawner
         .spawn(tty_writer(to_tty_channel.receiver(), tty_tx))
         .unwrap();
@@ -158,7 +158,7 @@ async fn main(spawner: Spawner) {
     let i2c_bus = I2C_BUS.init(Mutex::new(i2c));
 
     #[allow(non_upper_case_globals)]
-    static from_imu_channel: Channel<CriticalSectionRawMutex, ReportMessage, 10> = Channel::new();
+    static from_imu_channel: Channel<CriticalSectionRawMutex, Report, 10> = Channel::new();
     let imu_i2c_device = I2cDevice::new(i2c_bus);
     let imu = Bmi2::new_i2c(imu_i2c_device, I2cAddr::Default, Burst::Other(31));
     spawner
@@ -180,8 +180,8 @@ async fn main(spawner: Spawner) {
 #[embassy_executor::task]
 async fn main_loop(
     from_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
-    from_imu_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
-    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    from_imu_channel_receiver: Receiver<'static, CriticalSectionRawMutex, Report, 10>,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, Report, 10>,
     from_esp_now_channel_receiver: Receiver<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     to_esp_now_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
     servo_channel_sender: Sender<'static, CriticalSectionRawMutex, TtyCommand, 10>,
@@ -204,8 +204,8 @@ async fn main_loop(
             Either3::Second(command) => command,
             Either3::Third(report) => {
                 to_tty_channel_sender.send(report).await;
-                if let Report::ImuData(imu_data) = report.report {
-                    let command = TtyCommand::Capnp(Command::SetPosition(
+                if let Report::ImuData(imu_data) = report {
+                    let command = TtyCommand::Binary(Command::SetPosition(
                         (f32::max(imu_data.acc.x + 1.0, 0.0) * 4000.0) as i64 as i16,
                     ));
                     to_esp_now_channel_sender.send(command).await;
@@ -246,7 +246,7 @@ async fn servo_bus_writer(
                     Some(id) => id,
                     None => {
                         let len = command_receiver.len();
-                        log::info!("Could not find servo. Dropping {command:?} and {len} others.");
+                        log::debug!("Could not find servo. Dropping {command:?} and {len} others.");
                         command_receiver.clear();
                         continue;
                     }
@@ -267,7 +267,7 @@ async fn servo_bus_writer(
             TtyCommand::Right => bus.rotate_servo(servo_id, 10).await.map(Some),
             TtyCommand::Query => bus.query_servo(servo_id).await.map(Some),
             TtyCommand::Release => bus.release_servo(servo_id).await.map(|()| None),
-            TtyCommand::Capnp(command) => match command {
+            TtyCommand::Binary(command) => match command {
                 kitebox_messages::Command::SetPosition(position) => bus
                     .write_register(servo_id.into(), Register::TargetLocation, position as u16)
                     .await
@@ -317,24 +317,17 @@ async fn tty_reader(
 
 #[embassy_executor::task]
 async fn tty_writer(
-    to_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    to_tty_channel_receiver: Receiver<'static, CriticalSectionRawMutex, Report, 10>,
     mut tty_tx: UartTx<'static, Async>,
 ) {
-    let mut slice = [0u8; ReportMessage::SEGMENT_ALLOCATOR_SIZE];
     loop {
         let message = to_tty_channel_receiver.receive().await;
+        // includes trailing \0
+        let bytes_to_send = message.to_vec().unwrap();
 
-        let bytes_to_send = message.to_slice(&mut slice);
-
-        // a '#' followed by a capnproto message, using the recommended serialization scheme from
-        // https://capnproto.org/encoding.html#serialization-over-a-stream
+        // Write message with '#' prefix and COBS encoding
         tty_tx.write_all(b"#").await.unwrap();
-        tty_tx.write_all(&0u32.to_le_bytes()).await.unwrap();
-        tty_tx
-            .write_all(&(bytes_to_send.len() as u32).to_le_bytes())
-            .await
-            .unwrap();
-        tty_tx.write_all(bytes_to_send).await.unwrap();
+        tty_tx.write_all(&bytes_to_send).await.unwrap();
         tty_tx.write_all(b"\n").await.unwrap();
     }
 }
@@ -368,12 +361,10 @@ async fn esp_now_writer(
                     Ok(peer) => match command {
                         // FIXME: kill off the non-capnp commands and write a converter in
                         // kiteboxcontrol if convenience is important.
-                        TtyCommand::Capnp(command) => {
-                            let mut buf = [0u8; CommandMessage::SEGMENT_ALLOCATOR_SIZE];
-                            let slice = CommandMessage { command }.to_slice(&mut buf);
-
+                        TtyCommand::Binary(command) => {
+                            let bytes = command.to_vec().unwrap();
                             sender
-                                .send_async(&peer.peer_address, slice)
+                                .send_async(&peer.peer_address, &bytes)
                                 .await
                                 .unwrap_or_else(|e| {
                                     log::info!("failed to send {command:?}: {e:?}")
@@ -423,8 +414,16 @@ async fn esp_now_reader(
             let command = if data.len() == 1 {
                 TtyCommand::read_async(data).await.unwrap()
             } else {
-                let message = CommandMessage::from_slice(data).unwrap();
-                TtyCommand::Capnp(message.command)
+                // FIXME: maybe we don't need cobs when sending over esp-now?
+                let mut buf: [u8; MAX_MESSAGE_SIZE] = [0; MAX_MESSAGE_SIZE];
+                buf[..data.len()].copy_from_slice(data);
+                match Command::from_slice(&mut buf) {
+                    Ok(cmd) => TtyCommand::Binary(cmd),
+                    Err(e) => {
+                        log::error!("Failed to decode command message, {e}");
+                        TtyCommand::Unrecognised(b'F')
+                    }
+                }
             };
             from_esp_now_channel_sender.send(command).await;
         }
@@ -434,7 +433,7 @@ async fn esp_now_reader(
 #[embassy_executor::task]
 async fn imu_reporter(
     mut imu: IMU,
-    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, ReportMessage, 10>,
+    to_tty_channel_sender: Sender<'static, CriticalSectionRawMutex, Report, 10>,
 ) {
     log::info!("imu_reporter");
     let mut ticker = Ticker::every(Duration::from_millis(1000 / 25));
@@ -484,13 +483,11 @@ async fn imu_reporter(
                 y: data.gyr.y as f32 / i16::MAX as f32,
                 z: data.gyr.z as f32 / i16::MAX as f32,
             };
-            let message = ReportMessage {
-                report: Report::ImuData(ImuData {
-                    acc,
-                    gyr,
-                    time: data.time,
-                }),
-            };
+            let message = Report::ImuData(ImuData {
+                acc,
+                gyr,
+                time: data.time,
+            });
 
             to_tty_channel_sender.send(message).await;
         }
