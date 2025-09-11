@@ -110,7 +110,7 @@ mod codegen {
 
     pub(super) fn format_code() -> String {
         let mut result = String::new();
-        result.push_str("/** Auto-generated code. Do not modify. See build.rs for details. */\n\n");
+        result.push_str("/* Auto-generated code. Do not modify. See build.rs for details. */\n\n");
         let registers: Vec<_> = MEMORY_TABLE_TSV
             .lines()
             .skip(3)
@@ -266,6 +266,41 @@ mod codegen {
         "#,
             )
             .trim_start_matches("\n"),
+        );
+
+        // ALL_REGISTERS
+
+        result.push_str(
+            &dedent(
+                r#"
+            
+                const ALL_REGISTERS: &'static [Self] = &[
+            "#,
+            )[1..],
+        );
+        for register in &registers {
+            let variant_name = &register.variant_name;
+            result.push_str(&format!("        Self::{variant_name},\n"));
+        }
+        result.push_str(
+            &dedent_last(
+                r#"
+            ];
+        "#,
+            )
+            .trim_start_matches("\n"),
+        );
+
+        // iter()
+        result.push_str(
+            &dedent(
+                r#"
+            
+                pub fn iter() -> impl Iterator<Item = Self> {
+                    Self::ALL_REGISTERS.iter().copied()
+                }
+            "#,
+            )[1..],
         );
 
         // } for impl Register

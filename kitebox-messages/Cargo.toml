@@ -2,23 +2,15 @@
 name = "kitebox-messages"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
 
-[dependencies.capnp_conv]
-git = "https://github.com/alsuren/capnp_conv"
-branch = "no_std"
-default-features = false
-
-[dependencies.capnp]
-version = "*"
-default-features = false
-features = ["unaligned"]
+[dependencies]
+# Serialization
+postcard = { version = "1.0.0", default-features = false, features = ["use-defmt", "heapless"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+cobs = { version = "0.2.3", default-features = false }
+heapless = { version = "0.7", default-features = false }
 
 [dependencies.bmi2]
 git="https://github.com/alsuren/bmi2"
 branch="async"
-features = ["async"] 
-   
-
-[build-dependencies.capnpc]
-version = "*"
+features = ["async"]

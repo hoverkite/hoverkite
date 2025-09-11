@@ -1,4 +1,4 @@
-use std::{io::Stdin, iter::repeat, process::Stdio, time::Duration};
+use std::{io::Stdin, process::Stdio, time::Duration};
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, select};
@@ -76,7 +76,7 @@ async fn main(_spawner: Spawner) {
     tty_tx.send("p".into()).await;
 
     let rec = rerun::RecordingStreamBuilder::new("kiteboxcontrol")
-        .connect_tcp()
+        .connect_grpc()
         .unwrap();
 
     loop {
@@ -172,50 +172,29 @@ fn read_message_from_port(port: &mut Box<dyn SerialPort>) -> LineOrReport {
 
     match buf[0] {
         b'#' => {
-            // The following bytes are a capnproto message, using the recommended
-            // serialization scheme from
-            // https://capnproto.org/encoding.html#serialization-over-a-stream
-            let mut buf = [0u8; 4];
-            // N segments - 1 should always be 0 for a SingleSegmentAllocator
-            port.read_exact(&mut buf).unwrap();
-            if u32::from_le_bytes(buf) != 0 {
-                // FIXME: What the hell is going on here? Happens every time I send a SetPosition.
-                let mut line = Vec::from(b"garbled report #");
-                line.extend_from_slice(&buf);
-                // FIXME: BufRead::read_until()?
-                loop {
-                    port.read_exact(&mut buf).unwrap();
-                    match buf[0] {
-                        b'\n' => break,
-                        o => line.push(o),
-                    }
+            // Read COBS-encoded message until zero byte
+            let mut buf = Vec::new();
+            loop {
+                let mut byte = [0u8];
+                port.read_exact(&mut byte).unwrap();
+                if byte[0] == 0 {
+                    break;
                 }
-                println!("garbled report: {:?}", &line[b"garbled report #".len()..]);
-                return LineOrReport::Line(String::from_utf8_lossy(&line).to_string());
+                buf.push(byte[0]);
             }
 
-            // FIXME: fuzz this. It might be possible to drop into the middle of a
-            // message and interpret it as a message with a huge length, then wait
-            // forever for the esp32 to actually send us that much data.
-            port.read_exact(&mut buf).unwrap();
-            let len = u32::from_le_bytes(buf) as usize;
-            let mut buf = repeat(0u8).take(len).collect::<Vec<_>>();
-            port.read_exact(&mut buf).unwrap();
+            // Skip newline
+            let mut nl = [0u8];
+            port.read_exact(&mut nl).unwrap();
+            if nl[0] != b'\n' {
+                println!("Expected newline after message, got {:?}", nl[0]);
+                return LineOrReport::Line("garbled message - expected newline".to_string());
+            }
 
-            match kitebox_messages::ReportMessage::from_slice(&buf) {
-                Ok(message) => LineOrReport::Report(message.report),
+            match Report::from_slice(&mut buf) {
+                Ok(report) => LineOrReport::Report(report),
                 Err(e) => {
-                    println!("error decoding message: {e:?}");
-                    // skip until the next newline or #. I kind-of wish we were using cobs
-                    // or something for our payloading so that recovering was easier.
-                    // FIXME: BufRead::skip_until() or something?
-                    loop {
-                        let mut buf = [0u8];
-                        port.read_exact(&mut buf).unwrap();
-                        if let b'\n' | b'#' = buf[0] {
-                            break;
-                        }
-                    }
+                    println!("error decoding message: {e}");
                     LineOrReport::Line("error decoding message".to_string())
                 }
             }

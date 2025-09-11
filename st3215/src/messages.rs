@@ -81,6 +81,11 @@ impl ServoId {
         }
     }
 }
+impl Into<u16> for ServoId {
+    fn into(self) -> u16 {
+        self.0.into()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
@@ -113,26 +118,30 @@ impl Instruction {
             length: register.length(),
         }
     }
-    pub fn write_register(register: Register, value: u16) -> Self {
+    pub fn write_register(register: Register, value: u16) -> Result<Self, &'static str> {
         match register.length() {
             1 => Self::write_register_u8(register, value as u8),
             2 => Self::write_register_u16(register, value),
-            _ => panic!("register length not supported"),
+            _ => Err("register length not supported"),
         }
     }
-    pub fn write_register_u8(register: Register, value: u8) -> Self {
-        assert!(register.length() == 1);
-        Self::WriteData {
+    pub fn write_register_u8(register: Register, value: u8) -> Result<Self, &'static str> {
+        if register.length() != 1 {
+            return Err("register length must be 1 for u8 values");
+        }
+        Ok(Self::WriteData {
             head_address: register.to_memory_address(),
             data: ArrayVec::from_iter([value]),
-        }
+        })
     }
-    pub fn write_register_u16(register: Register, value: u16) -> Self {
-        assert!(register.length() == 2);
-        Self::WriteData {
+    pub fn write_register_u16(register: Register, value: u16) -> Result<Self, &'static str> {
+        if register.length() != 2 {
+            return Err("register length must be 2 for u16 values");
+        }
+        Ok(Self::WriteData {
             head_address: register.to_memory_address(),
             data: ArrayVec::from_iter(value.to_le_bytes()),
-        }
+        })
     }
     pub(crate) fn code(&self) -> u8 {
         match self {
@@ -306,12 +315,14 @@ impl ReplyPacket {
     pub fn parameters(&self) -> &[u8] {
         &self.parameters
     }
-    pub fn interpret_as_register(&self, register: Register) -> u16 {
-        assert!(self.parameters.len() == register.length() as usize);
+    pub fn interpret_as_register(&self, register: Register) -> Result<u16, &'static str> {
+        if self.parameters.len() != register.length() as usize {
+            return Err("parameter length does not match register length");
+        }
         match register.length() {
-            1 => self.parameters[0] as u16,
-            2 => u16::from_le_bytes([self.parameters[0], self.parameters[1]]),
-            _ => panic!("register length not supported"),
+            1 => Ok(self.parameters[0] as u16),
+            2 => Ok(u16::from_le_bytes([self.parameters[0], self.parameters[1]])),
+            _ => Err("register length not supported"),
         }
     }
 }
