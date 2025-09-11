@@ -1,4 +1,4 @@
-use serialport::SerialPortSettings;
+use serialport::{SerialPort, SerialPortSettings};
 use st3215::{
     messages::Instruction, messages::InstructionPacket, messages::ReplyPacket,
     messages::ServoIdOrBroadcast, registers::Register,
@@ -68,7 +68,7 @@ fn main() {
         let input = &args[3];
         if input == "BROADCAST" {
             ServoIdOrBroadcast::BROADCAST
-        } else {
+        } else if input.starts_with("0x") {
             assert!(
                 input.starts_with("0x"),
                 "Input must start with '0x'. Received: {}",
@@ -77,8 +77,32 @@ fn main() {
             u8::from_str_radix(&input[2..], 16)
                 .map(ServoIdOrBroadcast)
                 .expect("servo_id must be a valid hexadecimal number or BROADCAST")
+        } else {
+            u8::from_str_radix(&input, 10)
+                .map(ServoIdOrBroadcast)
+                .expect("servo_id must be a valid decimal or hexadecimal number or BROADCAST")
         }
     };
+
+    if command == "readall" {
+        let mut serial_port = serialport::open_with_settings(
+            serial_port_path,
+            &SerialPortSettings {
+                baud_rate,
+                timeout: Duration::from_secs(1),
+                ..Default::default()
+            },
+        )
+        .expect("Failed to open serial port");
+
+        for register in Register::iter() {
+            let packet = InstructionPacket {
+                id,
+                instruction: Instruction::read_register(register),
+            };
+            send_and_print_response(&mut serial_port, packet)
+        }
+    }
 
     // FIXME: write this using a proper argument parsing library and use named flags instead of
     // positional arguments
@@ -125,15 +149,19 @@ fn main() {
         },
     )
     .expect("Failed to open serial port");
-
     dbg!(serial_port.settings());
+
+    send_and_print_response(&mut serial_port, packet);
+}
+
+fn send_and_print_response(serial_port: &mut Box<dyn SerialPort>, packet: InstructionPacket) {
     serial_port
         .write_all(&packet.to_buf())
         .expect("Failed to write to serial port");
     let mut serial_port = embedded_io_adapters::std::FromStd::new(serial_port);
 
     let response = ReplyPacket::read(&mut serial_port).expect("Failed to read response");
-    println!("{:?}", response);
+    // println!("{:?}", response);
     match packet.instruction {
         Instruction::Ping => {}
         Instruction::ReadData { head_address, .. } => {

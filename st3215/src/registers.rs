@@ -1,4 +1,4 @@
-/** Auto-generated code. Do not modify. See build.rs for details. */
+/* Auto-generated code. Do not modify. See build.rs for details. */
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Register {
@@ -845,5 +845,61 @@ impl Register {
             Self::MobileSign => 1,
             Self::CurrentCurrent => 2,
         }
+    }
+
+    const ALL_REGISTERS: &'static [Self] = &[
+        Self::FirmwareMajorVersionNumber,
+        Self::FirmwareSubVersionNumber,
+        Self::ServoMainVersionNumber,
+        Self::ServoSubVersionNumber,
+        Self::ID,
+        Self::BaudRate,
+        Self::ReturnDelay,
+        Self::ResponseStatusLevel,
+        Self::MinimumAngleLimitation,
+        Self::MaximumAngleLimitation,
+        Self::MaximumTemperatureLimit,
+        Self::MaximumInputVoltage,
+        Self::MinimumInputVoltage,
+        Self::MaximumTorque,
+        Self::Phase,
+        Self::UnloadingCondition,
+        Self::LEDAlarmCondition,
+        Self::ProportionalityCoefficient,
+        Self::DifferentialCoefficient,
+        Self::IntegralCoefficient,
+        Self::MinimumStartupForce,
+        Self::ClockwiseInsensitiveArea,
+        Self::CounterclockwiseInsensitiveRegion,
+        Self::ProtectionCurrent,
+        Self::AngularResolution,
+        Self::PositionCorrection,
+        Self::OperationMode,
+        Self::ProtectiveTorque,
+        Self::ProtectionTime,
+        Self::OverloadTorque,
+        Self::SpeedClosedLoopPProportionalCoefficient,
+        Self::OverCurrentProtectionTime,
+        Self::VelocityClosedLoopIIntegralCoefficient,
+        Self::TorqueSwitch,
+        Self::Acceleration,
+        Self::TargetLocation,
+        Self::RunningTime,
+        Self::RunningSpeed,
+        Self::TorqueLimit,
+        Self::LockMark,
+        Self::CurrentLocation,
+        Self::CurrentSpeed,
+        Self::CurrentLoad,
+        Self::CurrentVoltage,
+        Self::CurrentTemperature,
+        Self::AsynchronousWriteFlag,
+        Self::ServoStatus,
+        Self::MobileSign,
+        Self::CurrentCurrent,
+    ];
+
+    pub fn iter() -> impl Iterator<Item = Self> {
+        Self::ALL_REGISTERS.iter().copied()
     }
 }
