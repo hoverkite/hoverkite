@@ -76,7 +76,7 @@ async fn main(_spawner: Spawner) {
     tty_tx.send("p".into()).await;
 
     let rec = rerun::RecordingStreamBuilder::new("kiteboxcontrol")
-        .connect_tcp()
+        .connect_grpc()
         .unwrap();
 
     loop {
