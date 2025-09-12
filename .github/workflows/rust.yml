@@ -17,7 +17,6 @@ jobs:
         directory:
           - .
           - cross/hoverkite-firmware
-          - cross/kitebox
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -34,7 +33,6 @@ jobs:
         directory:
           - .
           - cross/hoverkite-firmware
-          - cross/kitebox
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -47,13 +45,9 @@ jobs:
         with:
           toolchain: stable
           target: thumbv7m-none-eabi
-      - name: Install esp toolchain if needed
-        if: ${{ matrix.directory == 'cross/kitebox' }}
-        uses: esp-rs/xtensa-toolchain@v1.6
       - name: Build
         run: cargo build
       - name: Run tests
-        if: ${{ matrix.directory != 'cross/kitebox' }}
         run: cargo test
       - name: Run clippy
         # clippy-check only works in the top-level directory.
