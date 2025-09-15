@@ -8,7 +8,7 @@ edition = "2018"
 arrayvec = { version = "0.7.6", default-features = false }
 displaydoc = { version = "0.2.5", default-features = false }
 embedded-io = "0.6.1"
-embedded-io-adapters = { version = "0.6.1", features = [
+embedded-io-adapters = { version = "0.6.2", features = [
     "std",
 ], optional = true }
 log = { version = "0.4.26", optional = true }
