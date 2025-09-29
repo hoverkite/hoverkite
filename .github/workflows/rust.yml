@@ -22,6 +22,8 @@ jobs:
         working-directory: ${{ matrix.directory }}
     steps:
       - uses: actions/checkout@v5
+      - name: Install toolchain
+        run: rustup toolchain install stable
       - name: Format Rust code
         run: cargo +stable fmt --all -- --check
 
