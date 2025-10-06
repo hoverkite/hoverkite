@@ -238,12 +238,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
+name = "embedded-io"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
+
+[[package]]
 name = "embedded-io-adapters"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ccf22c3feffc79593914c0b4be9a2ed6b11e44cf1f84fd6b77d2ee92de0077"
 dependencies = [
- "embedded-io",
+ "embedded-io 0.6.1",
 ]
 
 [[package]]
@@ -734,7 +740,7 @@ dependencies = [
  "arrayvec",
  "color-backtrace",
  "displaydoc",
- "embedded-io",
+ "embedded-io 0.7.1",
  "embedded-io-adapters",
  "eyre",
  "log",
