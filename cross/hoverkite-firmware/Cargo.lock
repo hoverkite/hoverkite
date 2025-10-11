@@ -118,9 +118,9 @@ checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
 
 [[package]]
 name = "embedded-io"
-version = "0.6.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
 
 [[package]]
 name = "gd32f1"
@@ -136,9 +136,9 @@ dependencies = [
 
 [[package]]
 name = "gd32f1x0-hal"
-version = "0.10.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5b5a36fbe3611e7268bfb8845f60e5efa7d37bc8f1129f9ffd0c8c8d75343b4"
+checksum = "d8a0586bf67a2bde3574babb6eccaebb5ad5ca4ce8d17b376f0b998c9d6cfd03"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -147,6 +147,7 @@ dependencies = [
  "embedded-io",
  "gd32f1",
  "nb 1.1.0",
+ "thiserror",
 ]
 
 [[package]]
@@ -253,6 +254,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
