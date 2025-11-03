@@ -5,7 +5,7 @@ edition = "2018"
 version = "0.1.0"
 
 [dependencies]
-color-backtrace = "0.7.0"
+color-backtrace = "0.7.2"
 eyre = "0.6.12"
 gilrs = "0.11.0"
 homie-device = "0.11.0"
