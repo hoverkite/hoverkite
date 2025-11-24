@@ -21,7 +21,7 @@ jobs:
       run:
         working-directory: ${{ matrix.directory }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install toolchain
         run: rustup toolchain install stable --component rustfmt
       - name: Format Rust code
@@ -39,7 +39,7 @@ jobs:
       run:
         working-directory: ${{ matrix.directory }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install libudev-dev capnproto libcapnp-dev
       - name: Install toolchain
@@ -66,7 +66,7 @@ jobs:
     env:
       RUSTC_BOOTSTRAP: 1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install libudev-dev capnproto libcapnp-dev
       - name: Install cargo-llvm-cov
