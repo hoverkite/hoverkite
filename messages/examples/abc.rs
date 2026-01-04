@@ -1,5 +1,5 @@
 use abc_parser::datatypes::{
-    Accidental, Decoration, HeaderLine, Length, MusicSymbol, Note, Tune, TuneHeader, TuneLine,
+    Accidental, Decoration, Length, MusicSymbol, Note, Tune, TuneHeader, TuneLine,
 };
 use eyre::{eyre, Report};
 use log::error;
@@ -125,15 +125,7 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
 /// Figure out the duration in milliseconds of a length-1 note.
 fn get_base_duration(header: &TuneHeader) -> Result<f32, Report> {
     let length_field = header
-        .lines
-        .iter()
-        .filter_map(|line| {
-            if let HeaderLine::Field(info, _) = line {
-                Some(info)
-            } else {
-                None
-            }
-        })
+        .info_fields()
         .find(|info| info.0 == 'L')
         .ok_or_else(|| eyre!("Header field L missing"))?;
     let length = parse_fraction(&length_field.1)?;
@@ -142,15 +134,7 @@ fn get_base_duration(header: &TuneHeader) -> Result<f32, Report> {
 
 fn get_key_signature(header: &TuneHeader) -> Result<i8, Report> {
     let key_signature_field = header
-        .lines
-        .iter()
-        .filter_map(|line| {
-            if let HeaderLine::Field(info, _) = line {
-                Some(info)
-            } else {
-                None
-            }
-        })
+        .info_fields()
         .find(|info| info.0 == 'K')
         .ok_or_else(|| eyre!("Header field K missing"))?;
     key_signature(&key_signature_field.1)
