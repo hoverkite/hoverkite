@@ -1,4 +1,6 @@
-use abc_parser::datatypes::{Accidental, Decoration, MusicSymbol, Note, Tune, TuneHeader};
+use abc_parser::datatypes::{
+    Accidental, Decoration, HeaderLine, Length, MusicSymbol, Note, Tune, TuneHeader, TuneLine,
+};
 use eyre::{eyre, Report};
 use log::error;
 use messages::client::Hoverkite;
@@ -67,49 +69,53 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
     let key_signature = get_key_signature(&tune.header)?;
     println!("Key signature: {}", key_signature);
     let body = tune.body.ok_or_else(|| eyre!("Tune has no body"))?;
-    for line in &body.music {
-        for symbol in &line.symbols {
-            match symbol {
-                MusicSymbol::Note {
-                    decorations,
-                    accidental,
-                    note,
-                    octave,
-                    length,
-                    tie,
-                } => {
-                    let frequency = get_frequency(*note, *octave, *accidental, key_signature);
-                    println!(
-                        "note: {:?}{} ({}) {}, {:?}",
-                        note, octave, frequency, length, decorations
-                    );
-                    if decorations.contains(&Decoration::Staccato) {
-                        // Staccato means play the note for half the length, followed by a rest.
-                        notes.push(messages::Note {
-                            frequency: Some(frequency),
-                            duration_ms: (base_duration * length / 2.0) as u32,
-                        });
-                        notes.push(messages::Note {
-                            frequency: None,
-                            duration_ms: (base_duration * length / 2.0) as u32,
-                        });
-                    } else if tie.is_some() {
-                        notes.push(messages::Note {
-                            frequency: Some(frequency),
-                            duration_ms: (base_duration * length) as u32,
-                        });
-                    } else {
-                        notes.push(messages::Note {
-                            frequency: Some(frequency),
-                            duration_ms: (base_duration * length * 9.0 / 10.0) as u32,
-                        });
-                        notes.push(messages::Note {
-                            frequency: None,
-                            duration_ms: (base_duration * length / 10.0) as u32,
-                        });
+    for line in &body.lines {
+        if let TuneLine::Music(music_line) = line {
+            let mut decorations = Vec::new();
+            for symbol in &music_line.symbols {
+                match symbol {
+                    MusicSymbol::Decoration(decoration) => {
+                        decorations.push(decoration);
                     }
+                    MusicSymbol::Note {
+                        accidental,
+                        note,
+                        octave,
+                        length,
+                        tie,
+                    } => {
+                        let frequency = get_frequency(*note, *octave, *accidental, key_signature);
+                        println!("note: {:?}{} ({}) {:?}", note, octave, frequency, length);
+                        let length = length.unwrap_or(Length(1.0)).0;
+                        if decorations.contains(&&Decoration::Staccato) {
+                            // Staccato means play the note for half the length, followed by a rest.
+                            notes.push(messages::Note {
+                                frequency: Some(frequency),
+                                duration_ms: (base_duration * length / 2.0) as u32,
+                            });
+                            notes.push(messages::Note {
+                                frequency: None,
+                                duration_ms: (base_duration * length / 2.0) as u32,
+                            });
+                        } else if tie.is_some() {
+                            notes.push(messages::Note {
+                                frequency: Some(frequency),
+                                duration_ms: (base_duration * length) as u32,
+                            });
+                        } else {
+                            notes.push(messages::Note {
+                                frequency: Some(frequency),
+                                duration_ms: (base_duration * length * 9.0 / 10.0) as u32,
+                            });
+                            notes.push(messages::Note {
+                                frequency: None,
+                                duration_ms: (base_duration * length / 10.0) as u32,
+                            });
+                        }
+                        decorations.clear();
+                    }
+                    _ => println!("symbol: {:?}", symbol),
                 }
-                _ => println!("symbol: {:?}", symbol),
             }
         }
     }
@@ -119,8 +125,15 @@ fn abc_to_notes(tune: Tune) -> Result<Vec<messages::Note>, Report> {
 /// Figure out the duration in milliseconds of a length-1 note.
 fn get_base_duration(header: &TuneHeader) -> Result<f32, Report> {
     let length_field = header
-        .info
+        .lines
         .iter()
+        .filter_map(|line| {
+            if let HeaderLine::Field(info, _) = line {
+                Some(info)
+            } else {
+                None
+            }
+        })
         .find(|info| info.0 == 'L')
         .ok_or_else(|| eyre!("Header field L missing"))?;
     let length = parse_fraction(&length_field.1)?;
@@ -129,8 +142,15 @@ fn get_base_duration(header: &TuneHeader) -> Result<f32, Report> {
 
 fn get_key_signature(header: &TuneHeader) -> Result<i8, Report> {
     let key_signature_field = header
-        .info
+        .lines
         .iter()
+        .filter_map(|line| {
+            if let HeaderLine::Field(info, _) = line {
+                Some(info)
+            } else {
+                None
+            }
+        })
         .find(|info| info.0 == 'K')
         .ok_or_else(|| eyre!("Header field K missing"))?;
     key_signature(&key_signature_field.1)
